@@ -124,7 +124,7 @@ class Whiteboard(
                     eraseTouchedStroke(event)
                 } else {
                     drawStart(x, y)
-                    invalidate()
+                    postInvalidateOnAnimation()
                 }
                 true
             }
@@ -138,7 +138,7 @@ class Whiteboard(
                         drawAlong(event.getHistoricalX(i), event.getHistoricalY(i))
                     }
                     drawAlong(x, y)
-                    invalidate()
+                    postInvalidateOnAnimation()
                     return true
                 }
                 false
@@ -146,7 +146,7 @@ class Whiteboard(
             MotionEvent.ACTION_UP -> {
                 if (isCurrentlyDrawing) {
                     drawFinish()
-                    invalidate()
+                    postInvalidateOnAnimation()
                     return true
                 }
                 false

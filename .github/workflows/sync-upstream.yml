@@ -1,0 +1,61 @@
+name: Sync from Upstream
+
+# 매일 UTC 00:00 (= KST 09:00) 실행 + 수동 실행 가능.
+# 동작:
+#   1) main 을 ankidroid/Anki-Android 의 main 과 동일하게 맞춤 (force push)
+#   2) deurim 을 갱신된 main 위로 rebase 후 force push
+# 충돌이 발생하면 워크플로가 실패하며, 수동 해결이 필요합니다.
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/ankidroid/Anki-Android.git
+          git fetch upstream main
+
+      - name: Mirror main to upstream/main
+        run: |
+          git checkout -B main upstream/main
+          git push origin main --force-with-lease
+
+      - name: Rebase deurim onto main
+        id: rebase
+        run: |
+          git fetch origin deurim
+          git checkout -B deurim origin/deurim
+          if git rebase main; then
+            echo "status=ok" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=conflict" >> "$GITHUB_OUTPUT"
+            git rebase --abort
+            exit 1
+          fi
+
+      - name: Push deurim
+        if: steps.rebase.outputs.status == 'ok'
+        run: git push origin deurim --force-with-lease

@@ -72,3 +72,5 @@ hs_err_pid*
 
 # Claude Code related
 /.claude/worktrees/
+CLAUDE.md
+.omc/

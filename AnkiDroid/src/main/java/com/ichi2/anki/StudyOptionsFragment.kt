@@ -45,6 +45,8 @@ import com.ichi2.anki.backend.stripHTMLScriptAndStyleTags
 import com.ichi2.anki.common.crashreporting.CrashReportService
 import com.ichi2.anki.dialogs.customstudy.CustomStudyDialog
 import com.ichi2.anki.filtered.FilteredDeckOptionsFragment
+import com.ichi2.anki.heatmap.ReviewHeatmapView
+import com.ichi2.anki.heatmap.fetchReviewHeatmapData
 import com.ichi2.anki.libanki.Collection
 import com.ichi2.anki.libanki.Decks
 import com.ichi2.anki.observability.ChangeManager
@@ -52,6 +54,7 @@ import com.ichi2.anki.observability.undoableOp
 import com.ichi2.anki.reviewreminders.ReviewReminderScope
 import com.ichi2.anki.reviewreminders.ScheduleReminders
 import com.ichi2.anki.settings.Prefs
+import com.ichi2.anki.snackbar.showSnackbar
 import com.ichi2.anki.ui.internationalization.sentenceCase
 import com.ichi2.anki.utils.ext.showDialogFragment
 import com.ichi2.ui.CollectionMediaImageGetter
@@ -60,6 +63,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.intellij.lang.annotations.Language
 import timber.log.Timber
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 /**
  * Displays an overview of a deck (title, counts, description) and allows studying or modification
@@ -88,6 +93,8 @@ class StudyOptionsFragment :
     private lateinit var reviewBuryText: TextView
     private lateinit var totalNewCardsCount: TextView
     private lateinit var totalCardsCount: TextView
+    private lateinit var reviewHeatmapView: ReviewHeatmapView
+    private lateinit var reviewHeatmapSummary: TextView
 
     private var retryMenuRefreshJob: Job? = null
 
@@ -186,6 +193,16 @@ class StudyOptionsFragment :
             }
         totalNewCardsCount = studyOptionsView.findViewById(R.id.studyoptions_total_new_count)
         totalCardsCount = studyOptionsView.findViewById(R.id.studyoptions_total_count)
+        reviewHeatmapView = studyOptionsView.findViewById(R.id.studyoptions_heatmap)
+        reviewHeatmapSummary = studyOptionsView.findViewById(R.id.studyoptions_heatmap_summary)
+        reviewHeatmapView.onDaySelected = { date, count, isFuture ->
+            val label =
+                date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
+            val pluralRes =
+                if (isFuture) R.plurals.heatmap_day_due else R.plurals.heatmap_day_reviews
+            val detail = resources.getQuantityString(pluralRes, count, count)
+            showSnackbar("$label · $detail")
+        }
     }
 
     private fun showCustomStudyContextMenu() {
@@ -347,8 +364,32 @@ class StudyOptionsFragment :
                 if (CollectionManager.isOpenUnsafe()) {
                     val result = withCol { fetchStudyOptionsData() }
                     rebuildUi(result)
+                    updateReviewHeatmap()
                 }
             }
+    }
+
+    /**
+     * Loads collection-wide review history and renders the heatmap below the deck description.
+     * Safe to call any time after the content views have been initialised; it no-ops otherwise.
+     */
+    private suspend fun updateReviewHeatmap() {
+        if (view == null || !::reviewHeatmapView.isInitialized) return
+        val data = withCol { fetchReviewHeatmapData(decks.selected()) }
+        reviewHeatmapView.setData(data)
+        reviewHeatmapView.isVisible = true
+        val dueAhead = data.dueByDate.values.sum()
+        reviewHeatmapSummary.text =
+            getString(
+                R.string.heatmap_summary,
+                data.currentStreak,
+                data.longestStreak,
+                data.dailyAverage,
+                data.daysLearnedPercent,
+                data.totalReviews,
+                dueAhead,
+            )
+        reviewHeatmapSummary.isVisible = true
     }
 
     class DeckStudyData(

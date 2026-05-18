@@ -16,6 +16,7 @@
 package com.ichi2.anki.heatmap
 
 import com.ichi2.anki.libanki.Collection
+import com.ichi2.anki.libanki.DeckId
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.ZoneId
@@ -67,12 +68,16 @@ data class ReviewHeatmapData(
  * Reads the `revlog` table and aggregates per-day review counts for the most recent [weeks]
  * weeks (default ~6 months), computing the current streak and daily average.
  *
+ * Scoped to [deckId] and all of its subdecks: history is matched by the deck the card
+ * currently lives in, and the forecast counts only that deck's scheduled cards.
+ *
  * Must be called inside a `withCol { }` block (it runs synchronous DB queries).
  *
  * Manual reschedules are excluded (`ease = 0`), matching how Anki's own statistics count
  * "real" reviews.
  */
 fun Collection.fetchReviewHeatmapData(
+    deckId: DeckId,
     weeks: Int = DEFAULT_HEATMAP_WEEKS,
     forecastWeeks: Int = DEFAULT_FORECAST_WEEKS,
 ): ReviewHeatmapData {
@@ -87,12 +92,17 @@ fun Collection.fetchReviewHeatmapData(
             .toInstant()
             .toEpochMilli()
 
+    // The deck plus every subdeck. Ids come from the backend, so inlining them is safe.
+    val deckIdList = decks.deckAndChildIds(deckId).joinToString(",")
+
     val counts = HashMap<LocalDate, Int>()
     var maxCount = 0
     db
         .query(
-            "SELECT date(id / 1000, 'unixepoch', 'localtime') AS d, count() " +
-                "FROM revlog WHERE id >= ? AND ease > 0 GROUP BY d",
+            "SELECT date(revlog.id / 1000, 'unixepoch', 'localtime') AS d, count() " +
+                "FROM revlog JOIN cards ON cards.id = revlog.cid " +
+                "WHERE revlog.id >= ? AND revlog.ease > 0 " +
+                "AND cards.did IN ($deckIdList) GROUP BY d",
             cutoffMs,
         ).use { cursor ->
             while (cursor.moveToNext()) {
@@ -119,7 +129,8 @@ fun Collection.fetchReviewHeatmapData(
     db
         .query(
             "SELECT due, count() FROM cards " +
-                "WHERE queue IN (2, 3) AND due > ? AND due <= ? GROUP BY due",
+                "WHERE queue IN (2, 3) AND due > ? AND due <= ? " +
+                "AND did IN ($deckIdList) GROUP BY due",
             todayDayNum,
             horizonDayNum,
         ).use { cursor ->

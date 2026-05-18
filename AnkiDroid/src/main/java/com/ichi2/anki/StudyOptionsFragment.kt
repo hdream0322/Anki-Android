@@ -375,7 +375,7 @@ class StudyOptionsFragment :
      */
     private suspend fun updateReviewHeatmap() {
         if (view == null || !::reviewHeatmapView.isInitialized) return
-        val data = withCol { fetchReviewHeatmapData() }
+        val data = withCol { fetchReviewHeatmapData(decks.selected()) }
         reviewHeatmapView.setData(data)
         reviewHeatmapView.isVisible = true
         val dueAhead = data.dueByDate.values.sum()

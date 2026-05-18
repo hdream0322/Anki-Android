@@ -41,6 +41,7 @@ import android.view.View
 import android.webkit.WebView
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.RelativeLayout
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
@@ -185,6 +186,19 @@ open class Reviewer :
     private lateinit var textBarNew: TextView
     private lateinit var textBarLearn: TextView
     private lateinit var textBarReview: TextView
+
+    /**
+     * Thin progress bar below the top bar showing how far through the session we are.
+     * Nullable: the FULLSCREEN_ALL_GONE layout has no top bar, so the bar is absent there.
+     */
+    private var reviewProgressBar: ProgressBar? = null
+
+    /**
+     * Largest total card count (new + lrn + rev) seen so far this session, used as the
+     * progress bar denominator so the bar never jumps backwards when failed cards are
+     * re-queued for relearning.
+     */
+    private var sessionMaxCount = 0
     private lateinit var answerTimer: AnswerTimer
     private var prefHideDueCount = false
 
@@ -240,6 +254,7 @@ open class Reviewer :
         textBarNew = findViewById(R.id.new_number)
         textBarLearn = findViewById(R.id.learn_number)
         textBarReview = findViewById(R.id.review_number)
+        reviewProgressBar = findViewById(R.id.review_progress_bar)
         toolbar = findViewById(R.id.toolbar)
         micToolBarLayer = findViewById(R.id.mic_tool_bar_layer)
         processor = BindingMap(sharedPrefs(), ViewerCommand.entries, this)
@@ -1198,6 +1213,27 @@ open class Reviewer :
         textBarNew.text = newCount
         textBarLearn.text = lrnCount
         textBarReview.text = revCount
+
+        updateReviewProgressBar(counts.count())
+    }
+
+    /**
+     * Updates the session progress bar. [remaining] is the number of cards still to be
+     * answered (new + lrn + rev). The denominator is the largest total seen this
+     * session so the bar fills monotonically and never jumps backwards when failed
+     * cards are re-added to the learning queue.
+     */
+    private fun updateReviewProgressBar(remaining: Int) {
+        val progressBar = reviewProgressBar ?: return
+        if (remaining > sessionMaxCount) {
+            sessionMaxCount = remaining
+        }
+        if (sessionMaxCount <= 0) {
+            progressBar.progress = 0
+            return
+        }
+        val done = (sessionMaxCount - remaining).coerceIn(0, sessionMaxCount)
+        progressBar.progress = (done * progressBar.max) / sessionMaxCount
     }
 
     override fun fillFlashcard() {

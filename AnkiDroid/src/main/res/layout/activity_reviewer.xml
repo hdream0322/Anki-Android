@@ -20,11 +20,25 @@
             android:layout_height="wrap_content"
             android:layout_below="@id/toolbar" />
 
+        <ProgressBar
+            android:id="@+id/review_progress_bar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:layout_below="@id/top_bar"
+            android:minHeight="4dp"
+            android:maxHeight="4dp"
+            android:max="1000"
+            android:progress="0"
+            android:progressBackgroundTint="#33808080"
+            android:progressTint="#EC6337"
+            tools:progress="450" />
+
         <include
             layout="@layout/include_reviewer_mic_tool_bar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_below="@id/top_bar" />
+            android:layout_below="@id/review_progress_bar" />
 
         <include
             layout="@layout/include_reviewer_flashcard"

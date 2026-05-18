@@ -46,7 +46,7 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build full release APK (universal)
-        run: ./gradlew :AnkiDroid:assembleFullRelease -Duniversal-apk=true --no-daemon
+        run: ./gradlew :AnkiDroid:assembleFullRelease -Duniversal-apk=true -PforkVersion="${{ github.ref_name }}" --no-daemon
 
       - name: Locate APK
         id: apk

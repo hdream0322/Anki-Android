@@ -51,6 +51,17 @@ def gitCommitHash = providers.exec {
 def buildTimeMillis = providers.gradleProperty("buildTime")
     .orElse(providers.provider { System.currentTimeMillis().toString() })
 
+/**
+ * Deurim fork release version, shown on the 'About' screen next to the upstream
+ * versionName. Does NOT affect applicationId / versionName / versionCode.
+ *
+ * CI passes the git tag via -PforkVersion=<tag> (e.g. v0.0.2).
+ * Local builds leave it empty, so the About screen shows only the upstream version.
+ */
+def forkVersion = providers.gradleProperty("forkVersion")
+    .orElse(providers.environmentVariable("FORK_VERSION"))
+    .orElse("")
+
 android {
     namespace = "com.ichi2.anki"
 
@@ -76,6 +87,7 @@ android {
         buildConfigField "String", "BACKEND_VERSION", "\"${libs.versions.ankiBackend.get()}\""
         buildConfigField "Boolean", "ENABLE_LEAK_CANARY", "false"
         buildConfigField "String", "GIT_COMMIT_HASH", "\"${gitCommitHash.get()}\""
+        buildConfigField "String", "FORK_VERSION", "\"${forkVersion.get()}\""
         buildConfigField "long", "BUILD_TIME", buildTimeMillis.get()
         resValue "string", "app_name", "AnkiDroid"
 

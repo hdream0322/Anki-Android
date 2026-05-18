@@ -62,7 +62,12 @@ class AboutFragment : Fragment(R.layout.fragment_about) {
             SimpleDateFormat(DateFormat.getBestDateTimePattern(Locale.getDefault(), "d MMM yyyy"))
                 .format(Date(BuildConfig.BUILD_TIME))
 
-        binding.version.text = pkgVersionName
+        binding.version.text =
+            if (BuildConfig.FORK_VERSION.isNotEmpty()) {
+                "$pkgVersionName (Deurim ${BuildConfig.FORK_VERSION})"
+            } else {
+                pkgVersionName
+            }
         binding.backendVersion.text =
             "(anki " + BackendBuildConfig.ANKI_DESKTOP_VERSION + " / " + BackendBuildConfig.ANKI_COMMIT_HASH.subSequence(0, 8) + ")"
         binding.fsrsVersion.text = Fsrs.displayVersion ?.let { version ->

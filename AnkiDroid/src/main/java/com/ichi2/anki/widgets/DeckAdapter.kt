@@ -169,7 +169,13 @@ class DeckAdapter(
         binding.deckName.setTextColor(if (node.filtered) deckNameDynColor else deckNameDefaultColor)
 
         // Set the compact "last studied" indicator shown left of the counts
-        binding.deckLastStudied.text = formatLastStudied(node.lastStudiedMillis)
+        val lastStudiedCtx = binding.root.context
+        binding.deckLastStudied.text =
+            formatLastStudied(
+                node.lastStudiedMillis,
+                todayLabel = lastStudiedCtx.getString(R.string.deck_last_studied_today),
+                daysAgo = { lastStudiedCtx.getString(R.string.deck_last_studied_days_ago, it) },
+            )
 
         // Set the card counts and their colors
         binding.deckNew.text = node.newCount.toString()

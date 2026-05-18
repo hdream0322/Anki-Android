@@ -6,4 +6,8 @@
 <resources>
     <!-- Accessibility label for the "last studied" indicator in the deck list -->
     <string name="deck_picker_last_studied">Last studied</string>
+    <!-- "last studied" column: studied today -->
+    <string name="deck_last_studied_today">Today</string>
+    <!-- "last studied" column: N days ago. %d = number of days -->
+    <string name="deck_last_studied_days_ago">%dd</string>
 </resources>

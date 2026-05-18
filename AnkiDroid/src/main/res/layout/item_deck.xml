@@ -65,6 +65,19 @@
         android:layout_alignParentEnd="true"
         android:layout_centerVertical="true" >
         <com.ichi2.ui.FixedTextView
+            android:id="@+id/deck_last_studied"
+            android:contentDescription="@string/deck_picker_last_studied"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:background="@color/transparent"
+            android:gravity="center"
+            android:paddingEnd="8dip"
+            android:textColor="?android:textColorSecondary"
+            android:textSize="14sp"
+            tools:text="3d" />
+
+        <com.ichi2.ui.FixedTextView
             android:id="@+id/deck_new"
             android:contentDescription="@string/deck_picker_new"
             android:layout_width="wrap_content"

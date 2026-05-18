@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Fork-local string resources (deurim) - Korean.
+  -->
+<resources>
+    <string name="deck_picker_last_studied">마지막 학습</string>
+</resources>

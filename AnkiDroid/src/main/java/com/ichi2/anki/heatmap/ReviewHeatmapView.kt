@@ -87,6 +87,15 @@ class ReviewHeatmapView
                 strokeWidth = dp(2f)
                 color = Color.parseColor("#FF8C00") // a warm accent that stands out on green & grey
             }
+
+        /** Outline marking today's cell, drawn inside the cell so it never clips or clashes
+         *  with the (outset) selection ring. Blue reads well on both green and grey. */
+        private val todayPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = dp(1.5f)
+                color = Color.parseColor("#1565C0")
+            }
         private val rect = RectF()
 
         private var data: ReviewHeatmapData? = null
@@ -247,6 +256,13 @@ class ReviewHeatmapView
                     val top = offsetY + row * step
                     rect.set(left, top, left + cellSize, top + cellSize)
                     canvas.drawRoundRect(rect, cornerRadius, cornerRadius, cellPaint)
+
+                    if (date == data.today) {
+                        val inset = todayPaint.strokeWidth / 2f
+                        rect.inset(inset, inset)
+                        canvas.drawRoundRect(rect, cornerRadius, cornerRadius, todayPaint)
+                        rect.set(left, top, left + cellSize, top + cellSize)
+                    }
 
                     if (date == selectedDate) {
                         val inset = selectionPaint.strokeWidth / 2f

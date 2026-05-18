@@ -36,9 +36,12 @@ import java.time.temporal.TemporalAdjusters
  * @param totalReviews total number of reviews performed across the whole period
  * @param daysLearned number of distinct days in the period with at least one review
  * @param daysLearnedPercent [daysLearned] as a percentage of all days in the period (0-100)
+ * @param dueByDate number of cards scheduled to come due on each future day after [today]
  * @param startDate first (oldest) day in the grid; always a Sunday so columns are whole weeks
- * @param endDate last (newest) day in the grid; "today" in the device timezone
- * @param maxCount the highest single-day review count in the period (0 if there were none)
+ * @param today "today" in the device timezone; the boundary between history and forecast
+ * @param endDate last (newest) day in the grid; a Saturday in the forecast window
+ * @param maxCount the highest single-day review count in the past period (0 if there were none)
+ * @param maxDue the highest single-day forecast count in the future window (0 if there are none)
  */
 data class ReviewHeatmapData(
     val countsByDate: Map<LocalDate, Int>,
@@ -48,9 +51,12 @@ data class ReviewHeatmapData(
     val totalReviews: Int,
     val daysLearned: Int,
     val daysLearnedPercent: Int,
+    val dueByDate: Map<LocalDate, Int>,
     val startDate: LocalDate,
+    val today: LocalDate,
     val endDate: LocalDate,
     val maxCount: Int,
+    val maxDue: Int,
 ) {
     /** Number of week columns the grid should render. */
     val weekCount: Int
@@ -66,7 +72,10 @@ data class ReviewHeatmapData(
  * Manual reschedules are excluded (`ease = 0`), matching how Anki's own statistics count
  * "real" reviews.
  */
-fun Collection.fetchReviewHeatmapData(weeks: Int = DEFAULT_HEATMAP_WEEKS): ReviewHeatmapData {
+fun Collection.fetchReviewHeatmapData(
+    weeks: Int = DEFAULT_HEATMAP_WEEKS,
+    forecastWeeks: Int = DEFAULT_FORECAST_WEEKS,
+): ReviewHeatmapData {
     val today = LocalDate.now()
     // Snap the grid so each column is a full Sunday-to-Saturday week.
     val lastWeekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
@@ -100,6 +109,34 @@ fun Collection.fetchReviewHeatmapData(weeks: Int = DEFAULT_HEATMAP_WEEKS): Revie
     val daysLearned = counts.count { it.value > 0 }
     val totalReviews = counts.values.sum()
 
+    // Forecast: review/day-learn cards (queue 2 & 3) store `due` as a day number relative to
+    // collection creation, the same scale as `sched.today`. Map each future due-day onto a
+    // calendar date and only keep what fits inside the forward window the grid will draw.
+    val todayDayNum = sched.today
+    val horizonDayNum = todayDayNum + forecastWeeks * 7
+    val due = HashMap<LocalDate, Int>()
+    var maxDue = 0
+    db
+        .query(
+            "SELECT due, count() FROM cards " +
+                "WHERE queue IN (2, 3) AND due > ? AND due <= ? GROUP BY due",
+            todayDayNum,
+            horizonDayNum,
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                val dueDayNum = cursor.getInt(0)
+                val count = cursor.getInt(1)
+                val date = today.plusDays((dueDayNum - todayDayNum).toLong())
+                due[date] = count
+                if (count > maxDue) maxDue = count
+            }
+        }
+    // Extend the grid forward to the Saturday that closes the last forecast week.
+    val endDate =
+        lastWeekStart
+            .plusWeeks(forecastWeeks.toLong())
+            .plusDays(6)
+
     return ReviewHeatmapData(
         countsByDate = counts,
         currentStreak = computeCurrentStreak(counts, today),
@@ -108,9 +145,12 @@ fun Collection.fetchReviewHeatmapData(weeks: Int = DEFAULT_HEATMAP_WEEKS): Revie
         totalReviews = totalReviews,
         daysLearned = daysLearned,
         daysLearnedPercent = Math.round(daysLearned * 100.0 / totalDays).toInt(),
+        dueByDate = due,
         startDate = startDate,
-        endDate = today,
+        today = today,
+        endDate = endDate,
         maxCount = maxCount,
+        maxDue = maxDue,
     )
 }
 
@@ -150,3 +190,6 @@ private fun computeLongestStreak(
 
 /** ~6 months, which fits comfortably in the study-options side pane on tablets. */
 const val DEFAULT_HEATMAP_WEEKS = 26
+
+/** ~5 weeks of forward scheduling, enough to see upcoming load without dwarfing the history. */
+const val DEFAULT_FORECAST_WEEKS = 5

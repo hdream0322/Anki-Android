@@ -35,8 +35,8 @@ class DeckLastStudiedTest {
     }
 
     @Test
-    fun `studied today shows 0d`() {
-        assertEquals("0d", formatLastStudied(millis(today), today, zone))
+    fun `studied today shows today label`() {
+        assertEquals("Today", formatLastStudied(millis(today), today, zone))
     }
 
     @Test
@@ -58,8 +58,8 @@ class DeckLastStudiedTest {
     }
 
     @Test
-    fun `future timestamp is defended as 0d`() {
-        assertEquals("0d", formatLastStudied(millis(today.plusDays(3)), today, zone))
+    fun `future timestamp is defended as today`() {
+        assertEquals("Today", formatLastStudied(millis(today.plusDays(3)), today, zone))
     }
 
     @Test
@@ -72,6 +72,6 @@ class DeckLastStudiedTest {
                 .toInstant(ZoneOffset.UTC)
                 .toEpochMilli()
         assertEquals("1d", formatLastStudied(reviewUtc, today, ZoneId.of("UTC")))
-        assertEquals("0d", formatLastStudied(reviewUtc, today, ZoneOffset.ofHours(2)))
+        assertEquals("Today", formatLastStudied(reviewUtc, today, ZoneOffset.ofHours(2)))
     }
 }

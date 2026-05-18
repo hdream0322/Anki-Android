@@ -4,4 +4,6 @@
   -->
 <resources>
     <string name="deck_picker_last_studied">마지막 학습</string>
+    <string name="deck_last_studied_today">오늘</string>
+    <string name="deck_last_studied_days_ago">%d일 전</string>
 </resources>

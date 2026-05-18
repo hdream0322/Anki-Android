@@ -58,12 +58,14 @@ fun Collection.lastReviewMillisByDeck(): Map<DeckId, Long> {
 /**
  * Formats a deck's last-studied time for the compact column shown left of the card counts.
  *
- * - `null` (never studied) -> `"-"`
- * - within [RELATIVE_DAYS_THRESHOLD] days -> `"Nd"` (e.g. `0d`, `3d`, `29d`)
- * - older -> ISO local date (e.g. `2026-01-15`)
+ * - `null` (never studied) -> [neverLabel] (default `"-"`)
+ * - today (or a future timestamp, defended) -> [todayLabel] (default `"Today"`)
+ * - within [RELATIVE_DAYS_THRESHOLD] days -> [daysAgo] (default `"Nd"`, e.g. `3d`, `29d`)
+ * - older -> ISO local date (e.g. `2026-01-15`), intentionally kept as an absolute date
  *
- * Uses the device-local calendar day; this may differ from Anki's day-rollover by up to the
- * rollover offset, which is acceptable for an at-a-glance indicator.
+ * The user-facing labels are injected so this stays a pure, Context-free function (the deck
+ * list passes localized strings from resources). Uses the device-local calendar day; this may
+ * differ from Anki's day-rollover by up to the rollover offset, acceptable at a glance.
  *
  * [now] and [zone] are injectable for testing.
  */
@@ -71,13 +73,16 @@ fun formatLastStudied(
     lastStudiedMillis: Long?,
     now: LocalDate = LocalDate.now(),
     zone: ZoneId = ZoneId.systemDefault(),
+    neverLabel: String = "-",
+    todayLabel: String = "Today",
+    daysAgo: (Long) -> String = { "${it}d" },
 ): String {
-    if (lastStudiedMillis == null) return "-"
+    if (lastStudiedMillis == null) return neverLabel
     val date = Instant.ofEpochMilli(lastStudiedMillis).atZone(zone).toLocalDate()
     val days = ChronoUnit.DAYS.between(date, now)
     return when {
-        days <= 0L -> "0d" // today, or a future timestamp defended as "today"
-        days <= RELATIVE_DAYS_THRESHOLD -> "${days}d"
+        days <= 0L -> todayLabel // today, or a future timestamp defended as "today"
+        days <= RELATIVE_DAYS_THRESHOLD -> daysAgo(days)
         else -> date.format(DateTimeFormatter.ISO_LOCAL_DATE)
     }
 }

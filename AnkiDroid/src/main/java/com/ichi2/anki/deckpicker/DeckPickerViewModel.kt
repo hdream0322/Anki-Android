@@ -123,8 +123,10 @@ class DeckPickerViewModel :
             val currentDeckId = withCol { decks.current().getLong("id") }
             Timber.i("currentDeckId: %d", currentDeckId)
 
+            val lastStudiedByDeck = withCol { lastReviewMillisByDeck() }
+
             FlattenedDeckList(
-                data = tree.filterAndFlattenDisplay(filter, currentDeckId),
+                data = tree.filterAndFlattenDisplay(filter, currentDeckId, lastStudiedByDeck),
                 hasSubDecks = tree.children.any { it.children.any() },
             )
         }.stateIn(viewModelScope, SharingStarted.Eagerly, initialValue = FlattenedDeckList.empty)

@@ -70,6 +70,13 @@ class Whiteboard(
     private var secondFingerPointerId = 0
     private var secondFingerWithinTapTolerance = false
 
+    /**
+     * Callback into the reviewer for multi-touch gestures. Kept per-instance (not static)
+     * so it is released together with this view when the hosting activity is destroyed;
+     * a static reference here leaks the whole [Reviewer].
+     */
+    private var whiteboardMultiTouchMethods: WhiteboardMultiTouchMethods? = null
+
     var reviewerEraserModeIsToggledOn = false
     var toggleStylus = false
     var isCurrentlyDrawing = false
@@ -552,7 +559,6 @@ class Whiteboard(
 
     companion object {
         private const val TOUCH_TOLERANCE = 4f
-        private var whiteboardMultiTouchMethods: WhiteboardMultiTouchMethods? = null
 
         fun createInstance(
             context: AnkiActivity,
@@ -560,7 +566,7 @@ class Whiteboard(
             whiteboardMultiTouchMethods: WhiteboardMultiTouchMethods?,
         ): Whiteboard {
             val whiteboard = Whiteboard(context, handleMultiTouch, currentTheme is NightTheme)
-            Companion.whiteboardMultiTouchMethods = whiteboardMultiTouchMethods
+            whiteboard.whiteboardMultiTouchMethods = whiteboardMultiTouchMethods
             val lp2 =
                 FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,

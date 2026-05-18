@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright (c) 2026 AnkiDroid Open Source Team
+  ~
+  ~ This program is free software; you can redistribute it and/or modify it under
+  ~ the terms of the GNU General Public License as published by the Free Software
+  ~ Foundation; either version 3 of the License, or (at your option) any later
+  ~ version.
+  ~
+  ~ This program is distributed in the hope that it will be useful, but WITHOUT ANY
+  ~ WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+  ~ PARTICULAR PURPOSE. See the GNU General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU General Public License along with
+  ~ this program.  If not, see <http://www.gnu.org/licenses/>.
+  -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <!-- One-line summary under the review heatmap. Args: 1=current streak,
+         2=longest streak, 3=daily average, 4=percent of days studied,
+         5=total reviews, 6=cards due in the forecast window. -->
+    <string name="heatmap_summary">🔥 %1$d-day streak · best %2$d · %3$d/day · %4$d%% of days · %5$d total · %6$d due ahead</string>
+
+    <!-- Snackbar shown when tapping a past day. Arg: number of reviews done that day. -->
+    <plurals name="heatmap_day_reviews">
+        <item quantity="one">%d review</item>
+        <item quantity="other">%d reviews</item>
+    </plurals>
+
+    <!-- Snackbar shown when tapping a future day. Arg: number of cards coming due. -->
+    <plurals name="heatmap_day_due">
+        <item quantity="one">%d card due</item>
+        <item quantity="other">%d cards due</item>
+    </plurals>
+</resources>

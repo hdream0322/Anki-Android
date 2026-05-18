@@ -24,6 +24,8 @@ import android.util.AttributeSet
 import android.util.TypedValue
 import android.view.MotionEvent
 import android.view.View
+import androidx.core.graphics.ColorUtils
+import com.google.android.material.color.MaterialColors
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.format.TextStyle
@@ -71,7 +73,13 @@ class ReviewHeatmapView
                         10f,
                         resources.displayMetrics,
                     )
-                color = 0x99808080.toInt() // muted grey, legible on light and dark themes
+                // Theme-aware muted text colour: follows light/dark automatically.
+                color =
+                    MaterialColors.getColor(
+                        context,
+                        com.google.android.material.R.attr.colorOnSurfaceVariant,
+                        0x99808080.toInt(),
+                    )
             }
         private val selectionPaint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -109,8 +117,21 @@ class ReviewHeatmapView
             WEEKDAY_LABEL_ROWS
                 .maxOf { labelPaint.measureText(shortWeekday(it)) } + dp(4f)
 
-        /** GitHub-style 4-step green palette plus a neutral colour for days with no activity. */
-        private val emptyColor = 0x1F808080 // ~12% grey, readable on light and dark themes
+        /**
+         * Neutral colour for days with no activity: the theme's on-surface colour at low
+         * opacity, so empty cells stay subtle on both light and dark backgrounds.
+         */
+        private val emptyColor =
+            ColorUtils.setAlphaComponent(
+                MaterialColors.getColor(
+                    context,
+                    com.google.android.material.R.attr.colorOnSurface,
+                    0xFF808080.toInt(),
+                ),
+                0x1F,
+            )
+
+        /** GitHub-style 4-step green palette, unchanged across themes (deliberately branded). */
         private val levelColors =
             intArrayOf(
                 0xFF9BE9A8.toInt(),

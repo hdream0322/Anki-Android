@@ -61,7 +61,7 @@ class ReviewHeatmapView
         /** Resolved cell edge length, recomputed in [onMeasure] from the available width. */
         private var cellSize = minCell
 
-        /** GitHub-style 4-step green palette plus a neutral colour for days with no reviews. */
+        /** GitHub-style 4-step green palette plus a neutral colour for days with no activity. */
         private val emptyColor = 0x1F808080 // ~12% grey, readable on light and dark themes
         private val levelColors =
             intArrayOf(
@@ -69,6 +69,19 @@ class ReviewHeatmapView
                 0xFF40C463.toInt(),
                 0xFF30A14E.toInt(),
                 0xFF216E39.toInt(),
+            )
+
+        /**
+         * Grey 4-step palette for *future* days, scaled by how many cards come due.
+         * Alpha-modulated neutral grey so it reads on both light and dark themes and stays
+         * visually distinct from the green review history.
+         */
+        private val dueColors =
+            intArrayOf(
+                0x40808080,
+                0x70808080,
+                0xA0808080.toInt(),
+                0xD0808080.toInt(),
             )
 
         fun setData(data: ReviewHeatmapData) {
@@ -104,10 +117,16 @@ class ReviewHeatmapView
             for (column in 0 until weeks) {
                 for (row in 0 until ROWS) {
                     val date = data.startDate.plusDays((column * 7L) + row)
-                    if (date > data.endDate) continue // future days within the current week
+                    if (date > data.endDate) continue // days beyond the forecast window
 
-                    val count = data.countsByDate[date] ?: 0
-                    cellPaint.color = colorFor(count, data.maxCount)
+                    cellPaint.color =
+                        if (date > data.today) {
+                            // Future: colour by how many cards are scheduled to come due.
+                            colorFor(data.dueByDate[date] ?: 0, data.maxDue, dueColors)
+                        } else {
+                            // Past/today: colour by how many reviews were done.
+                            colorFor(data.countsByDate[date] ?: 0, data.maxCount, levelColors)
+                        }
 
                     val left = offsetX + column * (cellSize + cellGap)
                     val top = offsetY + row * (cellSize + cellGap)
@@ -120,6 +139,7 @@ class ReviewHeatmapView
         private fun colorFor(
             count: Int,
             maxCount: Int,
+            palette: IntArray,
         ): Int {
             if (count <= 0 || maxCount <= 0) return emptyColor
             val ratio = count.toDouble() / maxCount
@@ -130,7 +150,7 @@ class ReviewHeatmapView
                     ratio <= 0.75 -> 2
                     else -> 3
                 }
-            return levelColors[min(level, levelColors.size - 1)]
+            return palette[min(level, palette.size - 1)]
         }
 
         companion object {

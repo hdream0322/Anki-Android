@@ -1,0 +1,127 @@
+/*
+ * Copyright (c) 2026 AnkiDroid Open Source Team
+ *
+ * This program is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License as published by the Free Software
+ * Foundation; either version 3 of the License, or (at your option) any later
+ * version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY
+ * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+ * PARTICULAR PURPOSE. See the GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+package com.ichi2.anki.heatmap
+
+import com.ichi2.anki.libanki.Collection
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.temporal.ChronoUnit
+import java.time.temporal.TemporalAdjusters
+
+/**
+ * Aggregated review-history data backing the review heatmap shown on the study options screen.
+ *
+ * This is a clean-room implementation inspired by the *idea* of Glutanimate's "Review Heatmap"
+ * Anki add-on. No source code or assets from that add-on are used here.
+ *
+ * @param countsByDate number of reviews performed on each day in `[startDate, endDate]`
+ * @param currentStreak number of consecutive days (ending today, or yesterday if nothing was
+ *  studied yet today) on which at least one review happened
+ * @param dailyAverage mean number of reviews per day across the displayed period
+ * @param startDate first (oldest) day in the grid; always a Sunday so columns are whole weeks
+ * @param endDate last (newest) day in the grid; "today" in the device timezone
+ * @param maxCount the highest single-day review count in the period (0 if there were none)
+ */
+data class ReviewHeatmapData(
+    val countsByDate: Map<LocalDate, Int>,
+    val currentStreak: Int,
+    val dailyAverage: Int,
+    val startDate: LocalDate,
+    val endDate: LocalDate,
+    val maxCount: Int,
+) {
+    /** Number of week columns the grid should render. */
+    val weekCount: Int
+        get() = (ChronoUnit.DAYS.between(startDate, endDate) / 7).toInt() + 1
+}
+
+/**
+ * Reads the `revlog` table and aggregates per-day review counts for the most recent [weeks]
+ * weeks (default ~6 months), computing the current streak and daily average.
+ *
+ * Must be called inside a `withCol { }` block (it runs synchronous DB queries).
+ *
+ * Manual reschedules are excluded (`ease = 0`), matching how Anki's own statistics count
+ * "real" reviews.
+ */
+fun Collection.fetchReviewHeatmapData(weeks: Int = DEFAULT_HEATMAP_WEEKS): ReviewHeatmapData {
+    val today = LocalDate.now()
+    // Snap the grid so each column is a full Sunday-to-Saturday week.
+    val lastWeekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
+    val startDate = lastWeekStart.minusWeeks((weeks - 1).toLong())
+
+    val cutoffMs =
+        startDate
+            .atStartOfDay(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
+
+    val counts = HashMap<LocalDate, Int>()
+    var maxCount = 0
+    db
+        .query(
+            "SELECT date(id / 1000, 'unixepoch', 'localtime') AS d, count() " +
+                "FROM revlog WHERE id >= ? AND ease > 0 GROUP BY d",
+            cutoffMs,
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                val day = cursor.getString(0) ?: continue
+                val count = cursor.getInt(1)
+                val date = runCatching { LocalDate.parse(day) }.getOrNull() ?: continue
+                if (date < startDate || date > today) continue
+                counts[date] = count
+                if (count > maxCount) maxCount = count
+            }
+        }
+
+    return ReviewHeatmapData(
+        countsByDate = counts,
+        currentStreak = computeCurrentStreak(counts, today),
+        dailyAverage = computeDailyAverage(counts, startDate, today),
+        startDate = startDate,
+        endDate = today,
+        maxCount = maxCount,
+    )
+}
+
+private fun computeCurrentStreak(
+    counts: Map<LocalDate, Int>,
+    today: LocalDate,
+): Int {
+    // If nothing has been studied yet today, the streak can still be "alive" from yesterday.
+    var day = if ((counts[today] ?: 0) > 0) today else today.minusDays(1)
+    var streak = 0
+    while ((counts[day] ?: 0) > 0) {
+        streak++
+        day = day.minusDays(1)
+    }
+    return streak
+}
+
+private fun computeDailyAverage(
+    counts: Map<LocalDate, Int>,
+    startDate: LocalDate,
+    today: LocalDate,
+): Int {
+    val totalDays = ChronoUnit.DAYS.between(startDate, today) + 1
+    if (totalDays <= 0) return 0
+    val totalReviews = counts.values.sum()
+    return Math.round(totalReviews.toDouble() / totalDays).toInt()
+}
+
+/** ~6 months, which fits comfortably in the study-options side pane on tablets. */
+const val DEFAULT_HEATMAP_WEEKS = 26

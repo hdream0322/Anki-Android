@@ -589,12 +589,6 @@ class Whiteboard(
     }
 
     init {
-        // Issue #19364: render the Whiteboard via the software layer so its
-        // frequent invalidate() calls during drawing don't disrupt the GPU
-        // compositing of the sibling WebView surface (which manifests as the
-        // card flashing white on short strokes).
-        setLayerType(LAYER_TYPE_SOFTWARE, null)
-
         val whitePenColorButton = activity.findViewById<Button>(R.id.pen_color_white)
         val blackPenColorButton = activity.findViewById<Button>(R.id.pen_color_black)
         if (!inverted) {

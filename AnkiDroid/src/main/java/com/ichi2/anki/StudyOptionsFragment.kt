@@ -367,10 +367,11 @@ class StudyOptionsFragment :
         val data = withCol { fetchReviewHeatmapData() }
         reviewHeatmapView.setData(data)
         reviewHeatmapView.isVisible = true
+        val dueAhead = data.dueByDate.values.sum()
         reviewHeatmapSummary.text =
             "🔥 ${data.currentStreak}-day streak · best ${data.longestStreak} · " +
             "${data.dailyAverage}/day · ${data.daysLearnedPercent}% of days · " +
-            "${data.totalReviews} total"
+            "${data.totalReviews} total · $dueAhead due ahead"
         reviewHeatmapSummary.isVisible = true
     }
 

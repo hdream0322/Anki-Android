@@ -54,6 +54,7 @@ import com.ichi2.anki.observability.undoableOp
 import com.ichi2.anki.reviewreminders.ReviewReminderScope
 import com.ichi2.anki.reviewreminders.ScheduleRemindersFragment
 import com.ichi2.anki.settings.Prefs
+import com.ichi2.anki.snackbar.showSnackbar
 import com.ichi2.anki.ui.internationalization.sentenceCase
 import com.ichi2.anki.utils.ext.showDialogFragment
 import com.ichi2.ui.CollectionMediaImageGetter
@@ -62,6 +63,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.intellij.lang.annotations.Language
 import timber.log.Timber
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 /**
  * Displays an overview of a deck (title, counts, description) and allows studying or modification
@@ -192,6 +195,12 @@ class StudyOptionsFragment :
         totalCardsCount = studyOptionsView.findViewById(R.id.studyoptions_total_count)
         reviewHeatmapView = studyOptionsView.findViewById(R.id.studyoptions_heatmap)
         reviewHeatmapSummary = studyOptionsView.findViewById(R.id.studyoptions_heatmap_summary)
+        reviewHeatmapView.onDaySelected = { date, count, isFuture ->
+            val label =
+                date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
+            val detail = if (isFuture) "$count cards due" else "$count reviews"
+            showSnackbar("$label · $detail")
+        }
     }
 
     private fun showCustomStudyContextMenu() {

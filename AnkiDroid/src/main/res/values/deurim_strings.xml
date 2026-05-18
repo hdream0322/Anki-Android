@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Fork-local string resources (deurim).
+  ~ Kept in a separate file so the upstream sync workflow doesn't clobber it.
+  -->
+<resources>
+    <!-- Accessibility label for the "last studied" indicator in the deck list -->
+    <string name="deck_picker_last_studied">Last studied</string>
+</resources>

@@ -31,6 +31,7 @@ import com.ichi2.anki.R
 import com.ichi2.anki.common.annotations.NeedsTest
 import com.ichi2.anki.databinding.ItemDeckBinding
 import com.ichi2.anki.deckpicker.DisplayDeckNode
+import com.ichi2.anki.deckpicker.formatLastStudied
 import com.ichi2.anki.libanki.DeckId
 import kotlinx.coroutines.runBlocking
 import net.ankiweb.rsdroid.RustCleanup
@@ -166,6 +167,9 @@ class DeckAdapter(
         // Set deck name and colour. Filtered decks have their own colour
         binding.deckName.text = node.lastDeckNameComponent
         binding.deckName.setTextColor(if (node.filtered) deckNameDynColor else deckNameDefaultColor)
+
+        // Set the compact "last studied" indicator shown left of the counts
+        binding.deckLastStudied.text = formatLastStudied(node.lastStudiedMillis)
 
         // Set the card counts and their colors
         binding.deckNew.text = node.newCount.toString()

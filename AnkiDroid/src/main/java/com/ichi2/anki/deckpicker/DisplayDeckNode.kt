@@ -41,6 +41,11 @@ data class DisplayDeckNode private constructor(
     val lrnCount: Int,
     val revCount: Int,
     val isSelected: Boolean,
+    /**
+     * Most recent review across this deck and all of its subdecks, as epoch milliseconds, or
+     * `null` if neither this deck nor any subdeck has ever been studied.
+     */
+    val lastStudiedMillis: Long?,
 ) {
     // DeckNode is mutable, so use a lateinit var so '==' doesn't include it in the comparison
     lateinit var deckNode: DeckNode
@@ -55,6 +60,7 @@ data class DisplayDeckNode private constructor(
             node: DeckNode,
             matchesSearchOrChild: Boolean,
             selectedDeckId: DeckId,
+            lastStudiedByDeck: Map<DeckId, Long>,
         ): DisplayDeckNode =
             DisplayDeckNode(
                 did = node.did,
@@ -68,6 +74,9 @@ data class DisplayDeckNode private constructor(
                 lrnCount = node.lrnCount,
                 revCount = node.revCount,
                 isSelected = node.did == selectedDeckId,
+                // DeckNode iterates over itself + all descendants, mirroring how the card
+                // counts aggregate subdecks.
+                lastStudiedMillis = node.mapNotNull { lastStudiedByDeck[it.did] }.maxOrNull(),
             ).apply {
                 this.deckNode = node
             }
@@ -79,9 +88,10 @@ data class DisplayDeckNode private constructor(
 fun DeckNode.filterAndFlattenDisplay(
     filter: DeckFilters,
     selectedDeckId: DeckId,
+    lastStudiedByDeck: Map<DeckId, Long> = emptyMap(),
 ): List<DisplayDeckNode> {
     val list = mutableListOf<DisplayDeckNode>()
-    filterAndFlattenDisplayInner(filter, list, parentMatched = false, selectedDeckId)
+    filterAndFlattenDisplayInner(filter, list, parentMatched = false, selectedDeckId, lastStudiedByDeck)
     return list
 }
 
@@ -90,9 +100,10 @@ private fun DeckNode.filterAndFlattenDisplayInner(
     list: MutableList<DisplayDeckNode>,
     parentMatched: Boolean,
     selectedDeckId: DeckId,
+    lastStudiedByDeck: Map<DeckId, Long>,
 ) {
     if (!isSyntheticDeck && (filter.accept(fullDeckName) || parentMatched)) {
-        this.addVisibleToList(list, matchesSearchOrChild = true, selectedDeckId)
+        this.addVisibleToList(list, matchesSearchOrChild = true, selectedDeckId, lastStudiedByDeck)
         return
     }
 
@@ -108,12 +119,13 @@ private fun DeckNode.filterAndFlattenDisplayInner(
                 this,
                 matchesSearchOrChild = false,
                 selectedDeckId = selectedDeckId,
+                lastStudiedByDeck = lastStudiedByDeck,
             ),
         )
     }
     val startingLen = list.size
     for (child in children) {
-        child.filterAndFlattenDisplayInner(filter, list, parentMatched = false, selectedDeckId)
+        child.filterAndFlattenDisplayInner(filter, list, parentMatched = false, selectedDeckId, lastStudiedByDeck)
     }
     if (!isSyntheticDeck && startingLen == list.size) {
         // we don't include ourselves if no children matched
@@ -125,11 +137,12 @@ private fun DeckNode.addVisibleToList(
     list: MutableList<DisplayDeckNode>,
     matchesSearchOrChild: Boolean,
     selectedDeckId: DeckId,
+    lastStudiedByDeck: Map<DeckId, Long>,
 ) {
-    list.append(DisplayDeckNode.from(this, matchesSearchOrChild, selectedDeckId))
+    list.append(DisplayDeckNode.from(this, matchesSearchOrChild, selectedDeckId, lastStudiedByDeck))
     if (!collapsed) {
         for (child in children) {
-            child.addVisibleToList(list, matchesSearchOrChild, selectedDeckId)
+            child.addVisibleToList(list, matchesSearchOrChild, selectedDeckId, lastStudiedByDeck)
         }
     }
 }

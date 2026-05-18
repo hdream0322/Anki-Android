@@ -31,7 +31,11 @@ import java.time.temporal.TemporalAdjusters
  * @param countsByDate number of reviews performed on each day in `[startDate, endDate]`
  * @param currentStreak number of consecutive days (ending today, or yesterday if nothing was
  *  studied yet today) on which at least one review happened
+ * @param longestStreak the longest run of consecutive studied days anywhere in the period
  * @param dailyAverage mean number of reviews per day across the displayed period
+ * @param totalReviews total number of reviews performed across the whole period
+ * @param daysLearned number of distinct days in the period with at least one review
+ * @param daysLearnedPercent [daysLearned] as a percentage of all days in the period (0-100)
  * @param startDate first (oldest) day in the grid; always a Sunday so columns are whole weeks
  * @param endDate last (newest) day in the grid; "today" in the device timezone
  * @param maxCount the highest single-day review count in the period (0 if there were none)
@@ -39,7 +43,11 @@ import java.time.temporal.TemporalAdjusters
 data class ReviewHeatmapData(
     val countsByDate: Map<LocalDate, Int>,
     val currentStreak: Int,
+    val longestStreak: Int,
     val dailyAverage: Int,
+    val totalReviews: Int,
+    val daysLearned: Int,
+    val daysLearnedPercent: Int,
     val startDate: LocalDate,
     val endDate: LocalDate,
     val maxCount: Int,
@@ -88,10 +96,18 @@ fun Collection.fetchReviewHeatmapData(weeks: Int = DEFAULT_HEATMAP_WEEKS): Revie
             }
         }
 
+    val totalDays = (ChronoUnit.DAYS.between(startDate, today) + 1).coerceAtLeast(1)
+    val daysLearned = counts.count { it.value > 0 }
+    val totalReviews = counts.values.sum()
+
     return ReviewHeatmapData(
         countsByDate = counts,
         currentStreak = computeCurrentStreak(counts, today),
-        dailyAverage = computeDailyAverage(counts, startDate, today),
+        longestStreak = computeLongestStreak(counts, startDate, today),
+        dailyAverage = Math.round(totalReviews.toDouble() / totalDays).toInt(),
+        totalReviews = totalReviews,
+        daysLearned = daysLearned,
+        daysLearnedPercent = Math.round(daysLearned * 100.0 / totalDays).toInt(),
         startDate = startDate,
         endDate = today,
         maxCount = maxCount,
@@ -112,15 +128,24 @@ private fun computeCurrentStreak(
     return streak
 }
 
-private fun computeDailyAverage(
+private fun computeLongestStreak(
     counts: Map<LocalDate, Int>,
     startDate: LocalDate,
     today: LocalDate,
 ): Int {
-    val totalDays = ChronoUnit.DAYS.between(startDate, today) + 1
-    if (totalDays <= 0) return 0
-    val totalReviews = counts.values.sum()
-    return Math.round(totalReviews.toDouble() / totalDays).toInt()
+    var longest = 0
+    var run = 0
+    var day = startDate
+    while (day <= today) {
+        if ((counts[day] ?: 0) > 0) {
+            run++
+            if (run > longest) longest = run
+        } else {
+            run = 0
+        }
+        day = day.plusDays(1)
+    }
+    return longest
 }
 
 /** ~6 months, which fits comfortably in the study-options side pane on tablets. */

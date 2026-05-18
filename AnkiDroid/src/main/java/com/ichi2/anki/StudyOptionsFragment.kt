@@ -368,7 +368,9 @@ class StudyOptionsFragment :
         reviewHeatmapView.setData(data)
         reviewHeatmapView.isVisible = true
         reviewHeatmapSummary.text =
-            "🔥 ${data.currentStreak}-day streak · ${data.dailyAverage} reviews/day"
+            "🔥 ${data.currentStreak}-day streak · best ${data.longestStreak} · " +
+            "${data.dailyAverage}/day · ${data.daysLearnedPercent}% of days · " +
+            "${data.totalReviews} total"
         reviewHeatmapSummary.isVisible = true
     }
 

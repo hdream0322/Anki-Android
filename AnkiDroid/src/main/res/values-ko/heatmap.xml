@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright (c) 2026 AnkiDroid Open Source Team
+  ~
+  ~ This program is free software; you can redistribute it and/or modify it under
+  ~ the terms of the GNU General Public License as published by the Free Software
+  ~ Foundation; either version 3 of the License, or (at your option) any later
+  ~ version.
+  ~
+  ~ This program is distributed in the hope that it will be useful, but WITHOUT ANY
+  ~ WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+  ~ PARTICULAR PURPOSE. See the GNU General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU General Public License along with
+  ~ this program.  If not, see <http://www.gnu.org/licenses/>.
+  -->
+<resources>
+    <string name="heatmap_summary">🔥 %1$d일 연속 · 최장 %2$d일 · 하루 %3$d개 · %4$d%% 학습 · 누적 %5$d개 · 예정 %6$d개</string>
+
+    <plurals name="heatmap_day_reviews">
+        <item quantity="other">복습 %d개</item>
+    </plurals>
+
+    <plurals name="heatmap_day_due">
+        <item quantity="other">예정 %d개</item>
+    </plurals>
+</resources>

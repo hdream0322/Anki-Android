@@ -198,7 +198,9 @@ class StudyOptionsFragment :
         reviewHeatmapView.onDaySelected = { date, count, isFuture ->
             val label =
                 date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
-            val detail = if (isFuture) "$count cards due" else "$count reviews"
+            val pluralRes =
+                if (isFuture) R.plurals.heatmap_day_due else R.plurals.heatmap_day_reviews
+            val detail = resources.getQuantityString(pluralRes, count, count)
             showSnackbar("$label · $detail")
         }
     }
@@ -378,9 +380,15 @@ class StudyOptionsFragment :
         reviewHeatmapView.isVisible = true
         val dueAhead = data.dueByDate.values.sum()
         reviewHeatmapSummary.text =
-            "🔥 ${data.currentStreak}-day streak · best ${data.longestStreak} · " +
-            "${data.dailyAverage}/day · ${data.daysLearnedPercent}% of days · " +
-            "${data.totalReviews} total · $dueAhead due ahead"
+            getString(
+                R.string.heatmap_summary,
+                data.currentStreak,
+                data.longestStreak,
+                data.dailyAverage,
+                data.daysLearnedPercent,
+                data.totalReviews,
+                dueAhead,
+            )
         reviewHeatmapSummary.isVisible = true
     }
 

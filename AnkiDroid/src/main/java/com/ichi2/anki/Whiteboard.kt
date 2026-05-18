@@ -135,7 +135,7 @@ class Whiteboard(
                     eraseTouchedStroke(event)
                 } else {
                     drawStart(x, y)
-                    postInvalidateOnAnimation()
+                    invalidate()
                 }
                 true
             }
@@ -149,7 +149,7 @@ class Whiteboard(
                         drawAlong(event.getHistoricalX(i), event.getHistoricalY(i))
                     }
                     drawAlong(x, y)
-                    postInvalidateOnAnimation()
+                    invalidate()
                     return true
                 }
                 false
@@ -157,7 +157,7 @@ class Whiteboard(
             MotionEvent.ACTION_UP -> {
                 if (isCurrentlyDrawing) {
                     drawFinish()
-                    postInvalidateOnAnimation()
+                    invalidate()
                     return true
                 }
                 false
@@ -589,6 +589,17 @@ class Whiteboard(
     }
 
     init {
+        // Issue #19364: render the Whiteboard via the software layer so its
+        // frequent invalidate() calls during drawing don't disrupt the GPU
+        // compositing of the sibling WebView surface (which manifests as the
+        // card flashing white on short strokes).
+        //
+        // NB: the upstream postInvalidateOnAnimation() approach (PR #21043)
+        // does NOT fix this on real devices (verified on SM-X810); the
+        // software-layer workaround is the one that actually works, so it is
+        // kept here even though it disables GPU acceleration for this view.
+        setLayerType(LAYER_TYPE_SOFTWARE, null)
+
         val whitePenColorButton = activity.findViewById<Button>(R.id.pen_color_white)
         val blackPenColorButton = activity.findViewById<Button>(R.id.pen_color_black)
         if (!inverted) {

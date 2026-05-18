@@ -54,7 +54,6 @@ import com.ichi2.anki.observability.undoableOp
 import com.ichi2.anki.reviewreminders.ReviewReminderScope
 import com.ichi2.anki.reviewreminders.ScheduleRemindersFragment
 import com.ichi2.anki.settings.Prefs
-import com.ichi2.anki.snackbar.showSnackbar
 import com.ichi2.anki.ui.internationalization.sentenceCase
 import com.ichi2.anki.utils.ext.showDialogFragment
 import com.ichi2.ui.CollectionMediaImageGetter

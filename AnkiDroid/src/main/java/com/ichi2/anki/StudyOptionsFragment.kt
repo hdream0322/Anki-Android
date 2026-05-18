@@ -54,7 +54,6 @@ import com.ichi2.anki.observability.undoableOp
 import com.ichi2.anki.reviewreminders.ReviewReminderScope
 import com.ichi2.anki.reviewreminders.ScheduleReminders
 import com.ichi2.anki.settings.Prefs
-import com.ichi2.anki.snackbar.showSnackbar
 import com.ichi2.anki.ui.internationalization.sentenceCase
 import com.ichi2.anki.utils.ext.showDialogFragment
 import com.ichi2.ui.CollectionMediaImageGetter
@@ -95,6 +94,9 @@ class StudyOptionsFragment :
     private lateinit var totalCardsCount: TextView
     private lateinit var reviewHeatmapView: ReviewHeatmapView
     private lateinit var reviewHeatmapSummary: TextView
+
+    /** The stats line shown under the heatmap; a tapped day is appended below it. */
+    private var heatmapSummaryBase: String = ""
 
     private var retryMenuRefreshJob: Job? = null
 
@@ -201,7 +203,13 @@ class StudyOptionsFragment :
             val pluralRes =
                 if (isFuture) R.plurals.heatmap_day_due else R.plurals.heatmap_day_reviews
             val detail = resources.getQuantityString(pluralRes, count, count)
-            showSnackbar("$label · $detail")
+            // Show the tapped day on a second line under the stats, instead of a snackbar.
+            reviewHeatmapSummary.text =
+                if (heatmapSummaryBase.isEmpty()) {
+                    "$label · $detail"
+                } else {
+                    "$heatmapSummaryBase\n$label · $detail"
+                }
         }
     }
 
@@ -379,7 +387,7 @@ class StudyOptionsFragment :
         reviewHeatmapView.setData(data)
         reviewHeatmapView.isVisible = true
         val dueAhead = data.dueByDate.values.sum()
-        reviewHeatmapSummary.text =
+        heatmapSummaryBase =
             getString(
                 R.string.heatmap_summary,
                 data.currentStreak,
@@ -389,6 +397,7 @@ class StudyOptionsFragment :
                 data.totalReviews,
                 dueAhead,
             )
+        reviewHeatmapSummary.text = heatmapSummaryBase
         reviewHeatmapSummary.isVisible = true
     }
 

@@ -1,3 +1,23 @@
+<!-- ============================================================ -->
+<!-- Deurim Fork (마개조판) — 개인용 커스터마이즈 빌드           -->
+<!-- ============================================================ -->
+
+> **🛠 Deurim Fork (마개조판)**
+> [ankidroid/Anki-Android](https://github.com/ankidroid/Anki-Android)을 개인용으로 개조한 빌드입니다.
+> `applicationId`가 `com.deurim.anki`로 분리되어 공식 AnkiDroid와 같은 기기에 함께 설치할 수 있습니다.
+>
+> **주요 변경점**
+> - **덱 개요(Study Options)에 리뷰 히트맵 추가** — 선택한 덱 + 하위 덱 범위, 오늘 칸 강조, 월/요일 라벨, 탭으로 날짜별 통계, 예정 카드 forecast, 최장 연속 학습일 / 학습일수 / 합계 표시
+> - **덱피커 마지막 학습일 표시** — 덱별로 "오늘 / N일 전"을 Anki day rollover 기준으로 로컬라이즈하여 노출
+> - **리뷰어 상단에 세션 진행률 바** 추가
+> - **About 화면에 Deurim fork 릴리즈 버전** 별도 표시
+> - **화이트보드 플리커 수정** (멀티터치 인스턴스 스코핑 + upstream HW-layer 픽스 적용)
+> - **CI**: 매일 upstream 자동 동기화 워크플로 + fork 전용 Release 워크플로
+>
+> 본 fork는 GPL-3.0을 그대로 따르며, 업스트림 PR을 목적으로 하지 않습니다.
+
+---
+
 <p align="center">
 <img alt="" src="docs/graphics/logos/banner_readme.png"/>
 </p>

@@ -72,6 +72,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import anki.collection.OpChanges
+import anki.decks.deckId
 import anki.sync.SyncStatusResponse
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.google.android.material.snackbar.BaseTransientBottomBar
@@ -94,6 +95,7 @@ import com.ichi2.anki.android.input.ShortcutGroup
 import com.ichi2.anki.android.input.shortcut
 import com.ichi2.anki.common.annotations.NeedsTest
 import com.ichi2.anki.common.crashreporting.CrashReportService
+import com.ichi2.anki.common.destinations.navigate
 import com.ichi2.anki.common.time.TimeManager
 import com.ichi2.anki.common.utils.annotation.KotlinCleanup
 import com.ichi2.anki.compat.CompatHelper.Companion.getSerializableCompat
@@ -186,7 +188,6 @@ import com.ichi2.utils.ImportUtils
 import com.ichi2.utils.NetworkUtils
 import com.ichi2.utils.Permissions
 import com.ichi2.utils.VersionUtils
-import com.ichi2.utils.checkWebviewVersion
 import com.ichi2.utils.configureView
 import com.ichi2.utils.customView
 import com.ichi2.utils.dp
@@ -194,6 +195,7 @@ import com.ichi2.utils.message
 import com.ichi2.utils.negativeButton
 import com.ichi2.utils.positiveButton
 import com.ichi2.utils.show
+import com.ichi2.utils.showDialogIfWebViewOutdated
 import com.ichi2.utils.title
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -268,7 +270,8 @@ open class DeckPicker :
     private lateinit var deckListAdapter: DeckAdapter
     private lateinit var pullToSyncWrapper: SwipeRefreshLayout
 
-    private lateinit var floatingActionMenu: DeckPickerFloatingActionMenu
+    @VisibleForTesting
+    lateinit var floatingActionMenu: DeckPickerFloatingActionMenu
 
     var activeSnackBar: Snackbar? = null
     private val activeSnackbarCallback =
@@ -436,25 +439,18 @@ open class DeckPicker :
         }
     }
 
-    private fun showDeckPickerContextMenu(deckId: DeckId) =
-        launchCatchingTask {
-            viewModel.selectDeck(deckId).join()
-            val menu = DeckPickerContextMenu.newInstance(deckId)
-            CardBrowser.clearLastDeckId()
-            showDialogFragment(menu)
-        }
+    private suspend fun showDeckPickerContextMenu(deckId: DeckId) {
+        val menu = DeckPickerContextMenu.newInstance(deckId)
+        CardBrowser.clearLastDeckId()
+        showDialogFragment(menu)
+    }
 
-    private fun showDeckPickerRightClickContextMenu(
-        deckId: DeckId,
-        x: Float,
-        y: Float,
-    ) = launchCatchingTask {
-        viewModel.selectDeck(deckId).join()
+    private suspend fun showDeckPickerRightClickContextMenu(request: DeckPickerViewModel.RightClickMenuRequest) {
         DeckPickerMenuContentProvider.show(
             deckPicker = this@DeckPicker,
-            deckId = deckId,
-            x = x,
-            y = y,
+            deckId = request.deckId,
+            x = request.x,
+            y = request.y,
         )
     }
 
@@ -520,9 +516,9 @@ open class DeckPicker :
                     viewModel.toggleDeckExpand(deckId)
                     dismissAllDialogFragments()
                 },
-                onDeckContextRequested = ::showDeckPickerContextMenu,
+                onDeckContextRequested = { deckId -> viewModel.requestContextMenu(deckId) },
                 onDeckRightClick = { deckId, x, y ->
-                    showDeckPickerRightClickContextMenu(deckId, x, y)
+                    viewModel.requestRightClickContextMenu(deckId, x, y)
                     Timber.d("Right Click on deck recorded!! %d, %f %f", deckId, x, y)
                 },
             )
@@ -553,7 +549,7 @@ open class DeckPicker :
 
         shortAnimDuration = resources.getInteger(android.R.integer.config_shortAnimTime)
 
-        checkWebviewVersion(this)
+        with(this) { showDialogIfWebViewOutdated() }
 
         // If a review reminder deserialization error has recently occurred
         // (ex. on app boot, when the app opened, etc.), inform the user via a dialog
@@ -781,6 +777,7 @@ open class DeckPicker :
         viewModel.emptyCardsNotification.launchCollectionInLifecycleScope(::onCardsEmptied)
         viewModel.flowOfDeckCountsChanged.launchCollectionInLifecycleScope(::onDeckCountsChanged)
         viewModel.flowOfDestination.launchCollectionInLifecycleScope(::onDestinationChanged)
+        viewModel.flowOfNavigate.launchCollectionInLifecycleScope { navigate(it) }
         viewModel.flowOfExportDeck.launchCollectionInLifecycleScope(::onExportDeck)
         viewModel.flowOfCreateShortcut.launchCollectionInLifecycleScope(::createIcon)
         viewModel.flowOfDisableShortcuts.launchCollectionInLifecycleScope(::disableDeckAndChildrenShortcuts)
@@ -796,6 +793,8 @@ open class DeckPicker :
         viewModel.flowOfResizingDividerVisible.launchCollectionInLifecycleScope(::onResizingDividerVisibilityChanged)
         viewModel.flowOfDecksReloaded.launchCollectionInLifecycleScope(::onDecksReloaded)
         viewModel.flowOfStartupResponse.filterNotNull().launchCollectionInLifecycleScope(::onStartupResponse)
+        viewModel.flowOfShowContextMenu.launchCollectionInLifecycleScope(::showDeckPickerContextMenu)
+        viewModel.flowOfShowRightClickContextMenu.launchCollectionInLifecycleScope(::showDeckPickerRightClickContextMenu)
     }
 
     private val onReceiveContentListener =

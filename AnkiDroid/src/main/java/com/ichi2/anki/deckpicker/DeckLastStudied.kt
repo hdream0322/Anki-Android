@@ -19,16 +19,16 @@ package com.ichi2.anki.deckpicker
 import com.ichi2.anki.libanki.Collection
 import com.ichi2.anki.libanki.DeckId
 import java.time.Instant
-import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
 
 /**
  * Maximum number of days for which the relative `"Nd"` form is shown. Older entries fall back to an
  * absolute ISO date so the number doesn't grow unbounded.
  */
 private const val RELATIVE_DAYS_THRESHOLD = 30L
+
+private const val MILLIS_PER_DAY = 86_400_000L
 
 /**
  * The last time each deck was studied, keyed by deck id, as epoch milliseconds.
@@ -58,31 +58,30 @@ fun Collection.lastReviewMillisByDeck(): Map<DeckId, Long> {
 /**
  * Formats a deck's last-studied time for the compact column shown left of the card counts.
  *
+ * Day boundaries follow Anki's rollover (default 4 AM, configurable), supplied via
+ * [dayStartMillis] — the epoch-millis at which the *current* Anki day began. Reviews at or after
+ * that instant are "today"; earlier reviews bucket into N-day-ago slots aligned to the same
+ * rollover hour, so a 03:00 review still counts as the previous Anki day.
+ *
  * - `null` (never studied) -> [neverLabel] (default `"-"`)
  * - today (or a future timestamp, defended) -> [todayLabel] (default `"Today"`)
  * - within [RELATIVE_DAYS_THRESHOLD] days -> [daysAgo] (default `"Nd"`, e.g. `3d`, `29d`)
- * - older -> ISO local date (e.g. `2026-01-15`), intentionally kept as an absolute date
- *
- * The user-facing labels are injected so this stays a pure, Context-free function (the deck
- * list passes localized strings from resources). Uses the device-local calendar day; this may
- * differ from Anki's day-rollover by up to the rollover offset, acceptable at a glance.
- *
- * [now] and [zone] are injectable for testing.
+ * - older -> ISO local date for the Anki day of the review (e.g. `2026-01-15`)
  */
 fun formatLastStudied(
     lastStudiedMillis: Long?,
-    now: LocalDate = LocalDate.now(),
+    dayStartMillis: Long,
     zone: ZoneId = ZoneId.systemDefault(),
     neverLabel: String = "-",
     todayLabel: String = "Today",
     daysAgo: (Long) -> String = { "${it}d" },
 ): String {
     if (lastStudiedMillis == null) return neverLabel
-    val date = Instant.ofEpochMilli(lastStudiedMillis).atZone(zone).toLocalDate()
-    val days = ChronoUnit.DAYS.between(date, now)
-    return when {
-        days <= 0L -> todayLabel // today, or a future timestamp defended as "today"
-        days <= RELATIVE_DAYS_THRESHOLD -> daysAgo(days)
-        else -> date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-    }
+    val diff = dayStartMillis - lastStudiedMillis
+    if (diff <= 0L) return todayLabel
+    // ceil: a review 1ms before today's rollover is "1d ago", one full day earlier is also "1d"
+    val days = (diff + MILLIS_PER_DAY - 1L) / MILLIS_PER_DAY
+    if (days <= RELATIVE_DAYS_THRESHOLD) return daysAgo(days)
+    val dayStart = Instant.ofEpochMilli(dayStartMillis - days * MILLIS_PER_DAY).atZone(zone).toLocalDate()
+    return dayStart.format(DateTimeFormatter.ISO_LOCAL_DATE)
 }

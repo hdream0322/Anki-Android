@@ -76,6 +76,9 @@ class DeckAdapter(
     // Flags
     private var hasSubdecks = false
 
+    /** Epoch ms marking the start of the current Anki day (rollover-adjusted). */
+    private var dayStartMillis: Long = System.currentTimeMillis()
+
     /**
      * Flag to indicate if the activity has a background set. If true the adapter will make the rows
      * transparent so the background can be seen.
@@ -99,11 +102,13 @@ class DeckAdapter(
     fun submit(
         data: List<DisplayDeckNode>,
         hasSubDecks: Boolean,
+        dayStartMillis: Long,
     ) {
         // force refresh when sub decks status changes as this info isn't encapsulated in the
         // adapter's items so there wouldn't be an ui refresh just from using submitList()
-        val forceRefresh = this.hasSubdecks != hasSubDecks
+        val forceRefresh = this.hasSubdecks != hasSubDecks || this.dayStartMillis != dayStartMillis
         this.hasSubdecks = hasSubDecks
+        this.dayStartMillis = dayStartMillis
         submitList(data)
         if (forceRefresh) notifyDataSetChanged()
     }
@@ -172,6 +177,7 @@ class DeckAdapter(
         binding.deckLastStudied.text =
             formatLastStudied(
                 node.lastStudiedMillis,
+                dayStartMillis = dayStartMillis,
                 todayLabel = lastStudiedCtx.getString(R.string.deck_last_studied_today),
                 daysAgo = { lastStudiedCtx.getString(R.string.deck_last_studied_days_ago, it) },
             )

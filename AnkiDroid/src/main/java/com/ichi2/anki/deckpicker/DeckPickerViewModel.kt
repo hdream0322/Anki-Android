@@ -123,11 +123,17 @@ class DeckPickerViewModel :
             val currentDeckId = withCol { decks.current().getLong("id") }
             Timber.i("currentDeckId: %d", currentDeckId)
 
-            val lastStudiedByDeck = withCol { lastReviewMillisByDeck() }
+            val (lastStudiedByDeck, dayStartMillis) =
+                withCol {
+                    // sched.dayCutoff is the epoch-second of the *next* rollover (default 4 AM),
+                    // so subtracting one day gives the start of the current Anki day.
+                    lastReviewMillisByDeck() to (sched.dayCutoff - 86_400L) * 1000L
+                }
 
             FlattenedDeckList(
                 data = tree.filterAndFlattenDisplay(filter, currentDeckId, lastStudiedByDeck),
                 hasSubDecks = tree.children.any { it.children.any() },
+                dayStartMillis = dayStartMillis,
             )
         }.stateIn(viewModelScope, SharingStarted.Eagerly, initialValue = FlattenedDeckList.empty)
 
@@ -563,6 +569,8 @@ class DeckPickerViewModel :
     data class FlattenedDeckList(
         val data: List<DisplayDeckNode>,
         val hasSubDecks: Boolean,
+        /** Epoch ms at which the current Anki day began (rollover-adjusted). */
+        val dayStartMillis: Long = 0L,
     ) {
         companion object {
             val empty = FlattenedDeckList(emptyList(), hasSubDecks = false)

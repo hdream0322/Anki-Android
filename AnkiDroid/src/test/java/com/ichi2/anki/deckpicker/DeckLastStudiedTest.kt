@@ -19,59 +19,102 @@ package com.ichi2.anki.deckpicker
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 
 class DeckLastStudiedTest {
     private val zone = ZoneId.of("UTC")
-    private val today = LocalDate.of(2026, 5, 18)
 
-    /** Epoch millis for [date] at start of day in [zone]. */
-    private fun millis(date: LocalDate): Long = date.atStartOfDay(zone).toInstant().toEpochMilli()
+    // The current Anki day starts on 2026-05-18 at 04:00 UTC (default rollover).
+    private val rollover: LocalTime = LocalTime.of(4, 0)
+    private val today: LocalDate = LocalDate.of(2026, 5, 18)
+    private val dayStart: Long =
+        today.atTime(rollover).toInstant(ZoneOffset.UTC).toEpochMilli()
+
+    /** Epoch ms for [date] at the rollover hour in UTC. */
+    private fun dayStartOf(date: LocalDate): Long = date.atTime(rollover).toInstant(ZoneOffset.UTC).toEpochMilli()
 
     @Test
     fun `never studied shows dash`() {
-        assertEquals("-", formatLastStudied(null, today, zone))
+        assertEquals("-", formatLastStudied(null, dayStart, zone))
     }
 
     @Test
     fun `studied today shows today label`() {
-        assertEquals("Today", formatLastStudied(millis(today), today, zone))
+        // a review at noon today
+        val noonToday = today.atTime(12, 0).toInstant(ZoneOffset.UTC).toEpochMilli()
+        assertEquals("Today", formatLastStudied(noonToday, dayStart, zone))
     }
 
     @Test
     fun `studied yesterday shows 1d`() {
-        assertEquals("1d", formatLastStudied(millis(today.minusDays(1)), today, zone))
+        val noonYesterday =
+            today
+                .minusDays(1)
+                .atTime(12, 0)
+                .toInstant(ZoneOffset.UTC)
+                .toEpochMilli()
+        assertEquals("1d", formatLastStudied(noonYesterday, dayStart, zone))
     }
 
     @Test
     fun `30 days ago is still relative`() {
-        assertEquals("30d", formatLastStudied(millis(today.minusDays(30)), today, zone))
+        val ts =
+            today
+                .minusDays(30)
+                .atTime(12, 0)
+                .toInstant(ZoneOffset.UTC)
+                .toEpochMilli()
+        assertEquals("30d", formatLastStudied(ts, dayStart, zone))
     }
 
     @Test
     fun `31 days ago falls back to ISO date`() {
         val date = today.minusDays(31)
-        assertEquals(date.toString(), formatLastStudied(millis(date), today, zone))
-        // sanity: ISO_LOCAL_DATE form
-        assertEquals("2026-04-17", formatLastStudied(millis(date), today, zone))
+        val ts = date.atTime(12, 0).toInstant(ZoneOffset.UTC).toEpochMilli()
+        assertEquals("2026-04-17", formatLastStudied(ts, dayStart, zone))
     }
 
     @Test
     fun `future timestamp is defended as today`() {
-        assertEquals("Today", formatLastStudied(millis(today.plusDays(3)), today, zone))
+        val ts =
+            today
+                .plusDays(3)
+                .atTime(12, 0)
+                .toInstant(ZoneOffset.UTC)
+                .toEpochMilli()
+        assertEquals("Today", formatLastStudied(ts, dayStart, zone))
     }
 
     @Test
-    fun `timezone is honoured`() {
-        // A review at 23:00 UTC on the 17th is "yesterday" in UTC but "today" in UTC+2
-        val reviewUtc =
+    fun `review at 3am before rollover counts as previous day`() {
+        // Anki day starts at 04:00 — a review at 03:00 belongs to the previous day.
+        val ts = today.atTime(3, 0).toInstant(ZoneOffset.UTC).toEpochMilli()
+        assertEquals("1d", formatLastStudied(ts, dayStart, zone))
+    }
+
+    @Test
+    fun `review at exact rollover is today`() {
+        // Review at exactly the rollover instant is part of the new day.
+        assertEquals("Today", formatLastStudied(dayStart, dayStart, zone))
+    }
+
+    @Test
+    fun `review one ms before rollover is 1d`() {
+        assertEquals("1d", formatLastStudied(dayStart - 1L, dayStart, zone))
+    }
+
+    @Test
+    fun `ISO fallback uses Anki day of review, not wall date`() {
+        // Review at 03:00 on 2026-04-16 (UTC) belongs to the Anki day starting 2026-04-15 04:00.
+        val ts =
             LocalDate
-                .of(2026, 5, 17)
-                .atTime(23, 0)
+                .of(2026, 4, 16)
+                .atTime(3, 0)
                 .toInstant(ZoneOffset.UTC)
                 .toEpochMilli()
-        assertEquals("1d", formatLastStudied(reviewUtc, today, ZoneId.of("UTC")))
-        assertEquals("Today", formatLastStudied(reviewUtc, today, ZoneOffset.ofHours(2)))
+        // That is 33 days before "today" (Anki day 2026-05-18), past the relative threshold.
+        assertEquals("2026-04-15", formatLastStudied(ts, dayStart, zone))
     }
 }

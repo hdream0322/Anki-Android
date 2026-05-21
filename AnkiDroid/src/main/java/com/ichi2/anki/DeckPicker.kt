@@ -712,6 +712,7 @@ open class DeckPicker :
             deckListAdapter.submit(
                 data = deckList.data,
                 hasSubDecks = deckList.hasSubDecks,
+                dayStartMillis = deckList.dayStartMillis,
             )
         }
 

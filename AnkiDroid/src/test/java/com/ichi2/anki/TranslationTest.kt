@@ -336,13 +336,10 @@ class TranslationTest : RobolectricTest() {
                 "Add field", // R.string.model_field_editor_add | TR.fieldsAddField()
                 "Add note", // R.string.menu_add_note | TR.actionsAddNote()
                 "All decks", // R.string.card_browser_all_decks | TR.exportingAllDecks()
-                "AnkiWeb account", // R.string.sync_account | TR.preferencesAccount()
                 "Answer again", // R.string.answer_again | TR.deckConfigAnswerAgain()
                 "Answer buttons", // R.string.answer_buttons | TR.statisticsAnswerButtonsTitle()
                 "Answer good", // R.string.answer_good | TR.deckConfigAnswerGood()
                 "Answer hard", // R.string.answer_hard | TR.deckConfigAnswerHard()
-                "Blank", // R.string.reviewer_tts_cloze_spoken_replacement | TR.cardTemplatesBlank()
-                "Browser appearance", // R.string.card_template_browser_appearance_title | TR.browsingBrowserAppearance()
                 "Browser options", // R.string.browser_options_dialog_heading | TR.browsingBrowserOptions()
                 "Change deck", // R.string.card_browser_change_deck | TR.browsingChangeDeck()
                 "Copy debug info", // R.string.feedback_copy_debug
@@ -350,7 +347,6 @@ class TranslationTest : RobolectricTest() {
                 // TR.errorsCopyDebugInfoButton()
                 "Create deck", // R.string.new_deck | TR.decksCreateDeck()
                 "Deck options", // R.string.menu__deck_options | TR.deckConfigTitle()
-                "Delete note", // R.string.menu_delete_note | TR.studyingDeleteNote()
                 "Empty cards", // R.string.empty_cards
                 // TR.actionsEmptyCards()
                 // TR.emptyCardsWindowTitle()

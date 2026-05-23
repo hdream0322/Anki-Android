@@ -72,6 +72,9 @@ import com.ichi2.anki.cardviewer.ViewerCommand
 import com.ichi2.anki.common.annotations.NeedsTest
 import com.ichi2.anki.common.crashreporting.CrashReportService
 import com.ichi2.anki.common.time.TimeManager
+import com.ichi2.anki.common.utils.android.HandlerUtils.executeFunctionWithDelay
+import com.ichi2.anki.common.utils.android.HandlerUtils.getDefaultLooper
+import com.ichi2.anki.common.utils.android.showThemedToast
 import com.ichi2.anki.libanki.Card
 import com.ichi2.anki.libanki.CardId
 import com.ichi2.anki.libanki.Collection
@@ -130,8 +133,6 @@ import com.ichi2.anki.utils.navBarNeedsScrim
 import com.ichi2.anki.utils.remainingTime
 import com.ichi2.themes.Themes
 import com.ichi2.themes.Themes.currentTheme
-import com.ichi2.utils.HandlerUtils.executeFunctionWithDelay
-import com.ichi2.utils.HandlerUtils.getDefaultLooper
 import com.ichi2.utils.Permissions.canRecordAudio
 import com.ichi2.utils.ViewGroupUtils.setRenderWorkaround
 import com.ichi2.utils.cancelable
@@ -877,6 +878,7 @@ open class Reviewer :
         menu.findItem(R.id.action_reschedule_card).title = TR.sentenceCase.setDueDate
         menu.findItem(R.id.action_card_info)?.title = TR.sentenceCase.cardInfo
         menu.findItem(R.id.action_previous_card_info)?.title = TR.sentenceCase.previousCardInfo
+        menu.findItem(R.id.action_delete)?.title = TR.sentenceCase.deleteNote
         // top-level (visible=false in XML) items, shown when only the card-level action is available
         menu.findItem(R.id.action_bury_card)?.title = TR.sentenceCase.buryCard
         menu.findItem(R.id.action_suspend_card)?.title = TR.sentenceCase.suspendCard

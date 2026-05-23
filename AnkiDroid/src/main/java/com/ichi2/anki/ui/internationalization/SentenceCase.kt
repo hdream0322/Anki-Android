@@ -201,10 +201,28 @@ object SentenceCase {
     val markNote get() = TR.studyingMarkNote().toSentenceCase(R.string.sentence_mark_note)
 
     context(_: Context)
+    val deleteNote get() = TR.studyingDeleteNote().toSentenceCase(R.string.sentence_delete_note)
+
+    context(_: Fragment)
+    val deleteNote get() = TR.studyingDeleteNote().toSentenceCase(R.string.sentence_delete_note)
+
+    context(_: Context)
     val previousCardInfo get() = TR.actionsPreviousCardInfo().toSentenceCase(R.string.sentence_actions_previous_card_info)
 
     context(_: Fragment)
     val previousCardInfo get() = TR.actionsPreviousCardInfo().toSentenceCase(R.string.sentence_actions_previous_card_info)
+
+    context(_: Context)
+    val ankiWebAccount get() = TR.preferencesAccount().toSentenceCase(R.string.sentence_ankiweb_account)
+
+    context(_: Fragment)
+    val ankiWebAccount get() = TR.preferencesAccount().toSentenceCase(R.string.sentence_ankiweb_account)
+
+    context(_: Context)
+    val browserAppearance get() = TR.browsingBrowserAppearance().toSentenceCase(R.string.sentence_browser_appearance)
+
+    context(_: Fragment)
+    val browserAppearance get() = TR.browsingBrowserAppearance().toSentenceCase(R.string.sentence_browser_appearance)
 }
 
 /**

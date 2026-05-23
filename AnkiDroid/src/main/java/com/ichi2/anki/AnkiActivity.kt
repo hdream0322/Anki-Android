@@ -66,6 +66,7 @@ import com.ichi2.anki.android.input.shortcut
 import com.ichi2.anki.common.annotations.LegacyNotifications
 import com.ichi2.anki.common.annotations.NeedsTest
 import com.ichi2.anki.common.crashreporting.CrashReportService
+import com.ichi2.anki.common.utils.android.showThemedToast
 import com.ichi2.anki.common.utils.annotation.KotlinCleanup
 import com.ichi2.anki.compat.CompatHelper
 import com.ichi2.anki.compat.CompatHelper.Companion.registerReceiverCompat
@@ -347,7 +348,7 @@ open class AnkiActivity(
     ) {
         enableIntentAnimation(intent)
         super.startActivity(intent)
-        enableActivityAnimation(animation)
+        enableActivityAnimation(animation, open = true)
     }
 
     override fun finish() {
@@ -357,15 +358,19 @@ open class AnkiActivity(
     fun finishWithAnimation(animation: Direction) {
         Timber.i("finishWithAnimation %s", animation)
         super.finish()
-        enableActivityAnimation(animation)
+        enableActivityAnimation(animation, open = false)
     }
 
     private fun disableIntentAnimation(intent: Intent) {
         intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
     }
 
-    private fun disableActivityAnimation() {
-        ActivityTransitionAnimation.slide(this, NONE)
+    /**
+     * @param open when `true`, overrides the animation for entering this activity.
+     * When `false`, overrides the animation for closing this activity
+     */
+    private fun disableActivityAnimation(open: Boolean) {
+        ActivityTransitionAnimation.slide(this, NONE, open)
     }
 
     @KotlinCleanup("Maybe rename this? This only disables the animation conditionally")
@@ -375,11 +380,18 @@ open class AnkiActivity(
         }
     }
 
-    private fun enableActivityAnimation(animation: Direction) {
+    /**
+     * @param open when `true`, overrides the animation for entering this activity.
+     * When `false`, overrides the animation for closing this activity
+     */
+    private fun enableActivityAnimation(
+        animation: Direction,
+        open: Boolean,
+    ) {
         if (animationDisabled()) {
-            disableActivityAnimation()
+            disableActivityAnimation(open)
         } else {
-            ActivityTransitionAnimation.slide(this, animation)
+            ActivityTransitionAnimation.slide(this, animation, open)
         }
     }
 

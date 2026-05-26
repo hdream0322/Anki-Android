@@ -120,6 +120,9 @@ object UpdateManager {
         activity: FragmentActivity,
         release: GitHubRelease,
     ) {
+        // 새 버전 첫 실행 때 보여 줄 수 있도록 release 노트 본문을 미리 저장한다.
+        stashPendingReleaseNotes(activity, release)
+
         val appCtx = activity.applicationContext
         val nm = NotificationManagerCompat.from(appCtx)
 
@@ -201,6 +204,78 @@ object UpdateManager {
                 .build()
         safeNotify(nm, ctx, done)
     }
+
+    /**
+     * 새 버전 첫 실행 시 한 번만 "새 버전 안내" 다이얼로그를 띄운다. 우선순위:
+     *  1. 인앱 업데이터가 미리 저장해 둔 release body
+     *  2. (1) 없으면 GitHub 에서 현재 태그의 body fetch (네트워크 필요)
+     * dev 빌드(FORK_VERSION 비어있음)와 첫 설치(lastSeenVersion 미설정)는 노옵.
+     */
+    fun showReleaseNotesIfNew(activity: FragmentActivity) {
+        val currentTag = BuildConfig.FORK_VERSION
+        if (currentTag.isEmpty()) return
+
+        val prefs = activity.sharedPrefs()
+        val lastSeenKey = activity.getString(R.string.pref_last_seen_version_key)
+        val lastSeen = prefs.getString(lastSeenKey, null)
+        if (lastSeen == null) {
+            // 처음 설치하는 경우엔 안내 없이 현재 태그를 stamp 만 해 둔다.
+            prefs.edit { putString(lastSeenKey, currentTag) }
+            return
+        }
+        if (lastSeen == currentTag) return
+
+        val tagKey = activity.getString(R.string.pref_pending_release_notes_tag_key)
+        val bodyKey = activity.getString(R.string.pref_pending_release_notes_body_key)
+        val pendingTag = prefs.getString(tagKey, null)
+        val pendingBody = prefs.getString(bodyKey, null)
+
+        if (pendingTag == currentTag && !pendingBody.isNullOrBlank()) {
+            displayWhatsNew(activity, currentTag, pendingBody)
+            prefs.edit {
+                remove(tagKey)
+                remove(bodyKey)
+                putString(lastSeenKey, currentTag)
+            }
+            return
+        }
+
+        // 폴백: GitHub 에서 직접 가져온다.
+        activity.launchCatchingTask {
+            val release = UpdateChecker.fetchReleaseByTag(currentTag)
+            val body = release?.body
+            if (!body.isNullOrBlank() && activity.isAdded()) {
+                displayWhatsNew(activity, currentTag, body)
+            }
+            prefs.edit { putString(lastSeenKey, currentTag) }
+        }
+    }
+
+    private fun displayWhatsNew(
+        activity: FragmentActivity,
+        tag: String,
+        body: String,
+    ) {
+        AlertDialog.Builder(activity).show {
+            title(text = activity.getString(R.string.whats_new_title, tag))
+            message(text = body)
+            positiveButton(R.string.whats_new_dismiss)
+        }
+    }
+
+    private fun stashPendingReleaseNotes(
+        activity: FragmentActivity,
+        release: GitHubRelease,
+    ) {
+        if (release.body.isBlank()) return
+        val prefs = activity.sharedPrefs()
+        prefs.edit {
+            putString(activity.getString(R.string.pref_pending_release_notes_tag_key), release.tag)
+            putString(activity.getString(R.string.pref_pending_release_notes_body_key), release.body)
+        }
+    }
+
+    private fun FragmentActivity.isAdded() = !isFinishing && !isDestroyed
 
     private fun safeNotify(
         nm: NotificationManagerCompat,

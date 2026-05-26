@@ -25,6 +25,13 @@
     <string name="heatmap_widget_label">리뷰 히트맵</string>
     <string name="heatmap_widget_description">선택한 덱의 복습 히트맵을 홈 화면에 표시합니다</string>
     <string name="heatmap_widget_image_desc">복습 히트맵</string>
+
+    <!-- Release notes (Whats new) -->
+    <string name="pref_last_seen_version_key">deurim_last_seen_version</string>
+    <string name="pref_pending_release_notes_tag_key">deurim_pending_release_notes_tag</string>
+    <string name="pref_pending_release_notes_body_key">deurim_pending_release_notes_body</string>
+    <string name="whats_new_title">새 버전 안내 (%s)</string>
+    <string name="whats_new_dismiss">확인</string>
     <string name="update_available_title">새 버전 사용 가능</string>
     <!-- %1$s = current version, %2$s = latest version -->
     <string name="update_available_message">현재 %1$s\n새 버전 %2$s\n\n%3$s</string>

@@ -822,6 +822,8 @@ open class DeckPicker :
                     showStartupScreensAndDialogs(sharedPrefs(), 0)
 
                     com.ichi2.anki.update.UpdateManager
+                        .showReleaseNotesIfNew(this)
+                    com.ichi2.anki.update.UpdateManager
                         .checkAndPromptIfDue(this)
 
                     if (tryShowStudyOptionsPanel()) {

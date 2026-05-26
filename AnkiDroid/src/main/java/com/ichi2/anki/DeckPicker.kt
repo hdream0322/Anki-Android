@@ -1938,6 +1938,12 @@ open class DeckPicker :
      */
     private fun tryShowStudyOptionsPanel(): Boolean {
         val containerId = binding.studyoptionsFragment?.id ?: return false
+        // 이미 표시돼 있으면 새로 만들지 않고 갱신만 — 매번 replace 하면 깜빡임이 생긴다.
+        val existing = supportFragmentManager.findFragmentById(containerId) as? StudyOptionsFragment
+        if (existing != null) {
+            existing.refreshInterface()
+            return true
+        }
         supportFragmentManager.commit {
             replace(containerId, StudyOptionsFragment())
         }

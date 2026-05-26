@@ -2,6 +2,7 @@
     android:initialKeyguardLayout="@layout/widget_heatmap"
     android:initialLayout="@layout/widget_heatmap"
     android:configure="com.ichi2.widget.heatmap.HeatmapWidgetConfig"
+    android:description="@string/heatmap_widget_description"
     android:widgetFeatures="reconfigurable"
     android:minWidth="180dp"
     android:minHeight="110dp"

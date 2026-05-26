@@ -821,6 +821,9 @@ open class DeckPicker :
                     viewModel.flowOfStartupResponse.value = null
                     showStartupScreensAndDialogs(sharedPrefs(), 0)
 
+                    com.ichi2.anki.update.UpdateManager
+                        .checkAndPromptIfDue(this)
+
                     if (tryShowStudyOptionsPanel()) {
                         ResizablePaneManager(
                             parentLayout = requireNotNull(binding.deckpickerXlView) { "deckpickerXlView" },

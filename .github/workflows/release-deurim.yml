@@ -45,8 +45,27 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
+      - name: Parse fork build number from tag
+        id: forkbuild
+        # 태그 v0.0.X 의 마지막 숫자를 versionCode 오프셋으로 사용.
+        # 수동 실행(workflow_dispatch)에선 태그가 없으므로 0 으로 fallback.
+        run: |
+          REF="${{ github.ref_name }}"
+          if [[ "$REF" =~ ^v[0-9]+\.[0-9]+\.([0-9]+)$ ]]; then
+            BUILD="${BASH_REMATCH[1]}"
+          else
+            BUILD="0"
+          fi
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+          echo "Fork build number: $BUILD"
+
       - name: Build full release APK (universal)
-        run: ./gradlew :AnkiDroid:assembleFullRelease -Duniversal-apk=true -PforkVersion="${{ github.ref_name }}" --no-daemon
+        run: |
+          ./gradlew :AnkiDroid:assembleFullRelease \
+            -Duniversal-apk=true \
+            -PforkVersion="${{ github.ref_name }}" \
+            -PforkBuild=${{ steps.forkbuild.outputs.build }} \
+            --no-daemon
 
       - name: Locate APK
         id: apk

@@ -15,12 +15,23 @@
  */
 package com.ichi2.anki.update
 
-import android.widget.FrameLayout
+import android.Manifest
+import android.app.Notification
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import androidx.appcompat.app.AlertDialog
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.fragment.app.FragmentActivity
-import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.ichi2.anki.BuildConfig
+import com.ichi2.anki.Channel
+import com.ichi2.anki.NOTIFICATION_MIN_DELAY_MS
 import com.ichi2.anki.R
 import com.ichi2.anki.common.time.TimeManager
 import com.ichi2.anki.common.utils.android.showThemedToast
@@ -35,6 +46,7 @@ import timber.log.Timber
 
 object UpdateManager {
     private const val CHECK_INTERVAL_MS = 24L * 60 * 60 * 1000
+    private const val NOTIFICATION_ID = 0xD20A7E
 
     /**
      * Auto-check entry point called from [com.ichi2.anki.DeckPicker] startup.
@@ -108,37 +120,36 @@ object UpdateManager {
         activity: FragmentActivity,
         release: GitHubRelease,
     ) {
-        val progressBar =
-            LinearProgressIndicator(activity).apply {
-                isIndeterminate = true
-                max = 100
-            }
-        val container =
-            FrameLayout(activity).apply {
-                val pad = (24 * resources.displayMetrics.density).toInt()
-                setPadding(pad, pad, pad, pad)
-                addView(progressBar)
-            }
-        val progressDialog =
-            AlertDialog
-                .Builder(activity)
-                .setTitle(R.string.update_downloading)
-                .setView(container)
-                .setCancelable(false)
-                .show()
+        val appCtx = activity.applicationContext
+        val nm = NotificationManagerCompat.from(appCtx)
+
+        val ongoing =
+            NotificationCompat
+                .Builder(appCtx, Channel.APP_UPDATE.id)
+                .setSmallIcon(R.drawable.ic_star_notify)
+                .setContentTitle(appCtx.getString(R.string.update_downloading))
+                .setContentText(release.tag)
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setProgress(100, 0, true)
+        safeNotify(nm, appCtx, ongoing.build())
+
+        // 알림 업데이트 throttle — Android는 초당 ~5건 제한이 있어 매 read마다 보내면 무시됨.
+        var lastNotifyMs = 0L
+
         activity.launchCatchingTask {
             try {
                 val uri =
                     UpdateDownloader.download(activity, release) { pct ->
-                        activity.runOnUiThread {
-                            if (pct != null) {
-                                progressBar.isIndeterminate = false
-                                progressBar.setProgressCompat((pct * 100).toInt(), true)
-                            }
+                        val now = TimeManager.time.intTimeMS()
+                        if (pct != null && now - lastNotifyMs >= NOTIFICATION_MIN_DELAY_MS) {
+                            lastNotifyMs = now
+                            ongoing.setProgress(100, (pct * 100).toInt(), false)
+                            safeNotify(nm, appCtx, ongoing.build())
                         }
                     }
-                progressDialog.dismiss()
                 if (!UpdateInstaller.canRequestInstall(activity)) {
+                    nm.cancel(NOTIFICATION_ID)
                     AlertDialog.Builder(activity).show {
                         title(R.string.update_available_title)
                         message(R.string.update_need_install_permission)
@@ -149,12 +160,62 @@ object UpdateManager {
                     }
                     return@launchCatchingTask
                 }
-                UpdateInstaller.launchInstall(activity, uri)
+                showCompleteNotification(appCtx, nm, uri, release)
+                // 포그라운드면 바로 설치 prompt까지 띄움 — 백그라운드일 땐 알림 탭으로 진입
+                if (!activity.isFinishing) UpdateInstaller.launchInstall(activity, uri)
             } catch (e: Exception) {
                 Timber.w(e, "Update download failed")
-                progressDialog.dismiss()
+                nm.cancel(NOTIFICATION_ID)
                 showThemedToast(activity, R.string.update_download_failed, true)
             }
         }
+    }
+
+    private fun showCompleteNotification(
+        ctx: Context,
+        nm: NotificationManagerCompat,
+        apkUri: Uri,
+        release: GitHubRelease,
+    ) {
+        val installIntent =
+            Intent(Intent.ACTION_VIEW)
+                .setDataAndType(apkUri, "application/vnd.android.package-archive")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val pi =
+            PendingIntent.getActivity(
+                ctx,
+                0,
+                installIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+        val done =
+            NotificationCompat
+                .Builder(ctx, Channel.APP_UPDATE.id)
+                .setSmallIcon(R.drawable.ic_star_notify)
+                .setContentTitle(release.tag)
+                .setContentText(ctx.getString(R.string.update_ready_to_install))
+                .setContentIntent(pi)
+                .setAutoCancel(true)
+                .addAction(0, ctx.getString(R.string.update_install_action), pi)
+                .build()
+        safeNotify(nm, ctx, done)
+    }
+
+    private fun safeNotify(
+        nm: NotificationManagerCompat,
+        ctx: Context,
+        notification: Notification,
+    ) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val granted =
+                ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) ==
+                    PackageManager.PERMISSION_GRANTED
+            if (!granted) {
+                Timber.d("Skipping notification: POST_NOTIFICATIONS not granted")
+                return
+            }
+        }
+        nm.notify(NOTIFICATION_ID, notification)
     }
 }

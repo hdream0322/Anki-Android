@@ -148,6 +148,13 @@
                         style="@style/Widget.Material3.Button.TextButton"
                         android:textColor="?attr/colorAccent" />
                     <com.google.android.material.button.MaterialButton
+                        android:id="@+id/check_update_now"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/deurim_check_update_now"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:textColor="?attr/colorAccent"/>
+                    <com.google.android.material.button.MaterialButton
                         android:id="@+id/open_changelog"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"

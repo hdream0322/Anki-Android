@@ -22,6 +22,7 @@ import androidx.fragment.app.FragmentActivity
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.ichi2.anki.BuildConfig
 import com.ichi2.anki.R
+import com.ichi2.anki.common.time.TimeManager
 import com.ichi2.anki.common.utils.android.showThemedToast
 import com.ichi2.anki.launchCatchingTask
 import com.ichi2.anki.preferences.sharedPrefs
@@ -49,7 +50,7 @@ object UpdateManager {
         if (!prefs.getBoolean(autoKey, true)) return
         val lastKey = activity.getString(R.string.pref_last_update_check_key)
         val last = prefs.getLong(lastKey, 0L)
-        if (System.currentTimeMillis() - last < CHECK_INTERVAL_MS) {
+        if (TimeManager.time.intTimeMS() - last < CHECK_INTERVAL_MS) {
             Timber.d("Update check skipped: checked recently")
             return
         }
@@ -82,7 +83,7 @@ object UpdateManager {
 
     private fun stampCheck(activity: FragmentActivity) {
         val key = activity.getString(R.string.pref_last_update_check_key)
-        activity.sharedPrefs().edit { putLong(key, System.currentTimeMillis()) }
+        activity.sharedPrefs().edit { putLong(key, TimeManager.time.intTimeMS()) }
     }
 
     private fun promptUpdate(

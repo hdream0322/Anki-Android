@@ -18,6 +18,7 @@ package com.ichi2.anki.update
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 
 object UpdateInstaller {
@@ -26,13 +27,19 @@ object UpdateInstaller {
      * Always true below Android 8; otherwise the user must have toggled "Allow from
      * this source" for our app.
      */
-    fun canRequestInstall(context: Context): Boolean = context.packageManager.canRequestPackageInstalls()
+    fun canRequestInstall(context: Context): Boolean =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.packageManager.canRequestPackageInstalls()
+        } else {
+            true
+        }
 
     /**
      * Send the user to the system "Install unknown apps" screen for this app so
-     * they can grant the permission.
+     * they can grant the permission. No-op below Android 8 (permission isn't required there).
      */
     fun openUnknownAppSourcesSettings(context: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val intent =
             Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
                 .setData(Uri.parse("package:${context.packageName}"))

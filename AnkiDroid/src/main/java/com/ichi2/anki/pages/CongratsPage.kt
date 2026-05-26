@@ -208,7 +208,7 @@ class CongratsPage :
         }
 
         // based in https://github.com/ankitects/anki/blob/9b4dd54312de8798a3f2bee07892bb3a488d1f9b/ts/routes/congrats/lib.ts#L8C17-L8C34
-        private suspend fun getDeckFinishedMessage(activity: FragmentActivity): String {
+        internal suspend fun getDeckFinishedMessage(activity: FragmentActivity): String {
             val info = withCol { sched.congratulationsInfo() }
             val secsUntilNextLearn = info.secsUntilNextLearn
             if (secsUntilNextLearn >= SECONDS_PER_DAY) {

@@ -51,6 +51,7 @@ import com.ichi2.anki.libanki.Collection
 import com.ichi2.anki.libanki.Decks
 import com.ichi2.anki.observability.ChangeManager
 import com.ichi2.anki.observability.undoableOp
+import com.ichi2.anki.pages.CongratsPage
 import com.ichi2.anki.reviewreminders.ReviewReminderScope
 import com.ichi2.anki.reviewreminders.ScheduleRemindersFragment
 import com.ichi2.anki.settings.Prefs
@@ -84,6 +85,7 @@ class StudyOptionsFragment :
     private lateinit var textDeckName: TextView
     private lateinit var textDeckDescription: TextView
     private lateinit var buryInfoLabel: TextView
+    private lateinit var congratsMessage: TextView
     private lateinit var newCountText: TextView
     private lateinit var newBuryText: TextView
     private lateinit var learningCountText: TextView
@@ -174,6 +176,7 @@ class StudyOptionsFragment :
         textDeckDescription = studyOptionsView.findViewById(R.id.studyoptions_deck_description)
         // make links clickable
         textDeckDescription.movementMethod = LinkMovementMethod.getInstance()
+        congratsMessage = studyOptionsView.findViewById(R.id.studyoptions_congrats_message)
         buryInfoLabel =
             studyOptionsView.findViewById<TextView>(R.id.studyoptions_bury_counts_label).apply {
                 // TODO see if we could further improve the display and discoverability of buried cards here
@@ -477,6 +480,7 @@ class StudyOptionsFragment :
 
         // Switch between the empty view, the ordinary view, and the "congratulations" view
         val isDynamic = deck.isFiltered
+        congratsMessage.isVisible = false
         if (result.numberOfCardsInDeck == 0 && !isDynamic) {
             currentContentView = CONTENT_EMPTY
             deckInfoLayout.visibility = View.VISIBLE
@@ -484,9 +488,12 @@ class StudyOptionsFragment :
         } else if (result.newCardsToday + result.lrnCardsToday + result.revCardsToday == 0) {
             currentContentView = CONTENT_CONGRATS
             if (!isDynamic) {
-                deckInfoLayout.visibility = View.GONE
+                // 우측 패널에서는 학습 완료된 덱이어도 카드 통계를 계속 보여주고,
+                // 그 위에 축하 메시지를 함께 표시한다.
+                deckInfoLayout.visibility = View.VISIBLE
                 buttonStart.visibility = View.VISIBLE
                 buttonStart.text = TR.sentenceCase.customStudy
+                showCongratsMessage()
             } else {
                 buttonStart.visibility = View.GONE
             }
@@ -558,6 +565,19 @@ class StudyOptionsFragment :
         activity?.invalidateMenu()
     }
 
+    private fun showCongratsMessage() {
+        congratsMessage.isVisible = true
+        // 일단 기본 문구를 보여 두고, 비동기로 다음 학습 시각이 반영된 문구로 교체한다.
+        congratsMessage.text = CONGRATS_EMOJI_PREFIX + getString(R.string.studyoptions_congrats_finished)
+        launchCatchingTask {
+            val activity = activity ?: return@launchCatchingTask
+            val message = CongratsPage.getDeckFinishedMessage(activity)
+            if (currentContentView == CONTENT_CONGRATS && isAdded) {
+                congratsMessage.text = CONGRATS_EMOJI_PREFIX + message
+            }
+        }
+    }
+
     /**
      * See https://github.com/ankitects/anki/blob/b05c9d15986ab4e33daa2a47a947efb066bb69b6/qt/aqt/overview.py#L226-L272
      */
@@ -598,6 +618,8 @@ class StudyOptionsFragment :
         private const val CONTENT_STUDY_OPTIONS = 0
         private const val CONTENT_CONGRATS = 1
         private const val CONTENT_EMPTY = 2
+
+        private const val CONGRATS_EMOJI_PREFIX = "🎉 "
 
         @VisibleForTesting
         fun formatDescription(

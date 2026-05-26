@@ -14,6 +14,8 @@
     <!-- In-app updater -->
     <string name="pref_auto_update_check_key">deurim_auto_update_check</string>
     <string name="pref_last_update_check_key">deurim_last_update_check_ms</string>
+    <string name="pref_check_update_now_key">deurim_check_update_now</string>
+    <string name="deurim_install_upstream">원본 AnkiDroid 설치</string>
     <string name="update_available_title">새 버전 사용 가능</string>
     <!-- %1$s = current version, %2$s = latest version -->
     <string name="update_available_message">현재 %1$s\n새 버전 %2$s\n\n%3$s</string>

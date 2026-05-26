@@ -17,6 +17,7 @@ package com.ichi2.anki.preferences
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.text.format.DateFormat
 import android.text.method.LinkMovementMethod
@@ -25,7 +26,6 @@ import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AlertDialog
 import androidx.core.text.parseAsHtml
 import androidx.fragment.app.Fragment
-import com.ichi2.anki.AnkiDroidApp
 import com.ichi2.anki.BuildConfig
 import com.ichi2.anki.CollectionManager.TR
 import com.ichi2.anki.Info
@@ -108,16 +108,22 @@ class AboutFragment : Fragment(R.layout.fragment_about) {
             movementMethod = LinkMovementMethod.getInstance()
         }
 
+        // Deurim: 원본 AnkiDroid 설치 페이지로 보냄 (Play Store가 없으면 웹으로 폴백)
+        binding.rateAnkiDroid.setText(R.string.deurim_install_upstream)
         binding.rateAnkiDroid.setOnClickListener {
-            IntentUtil.tryOpenIntent(requireAnkiActivity(), AnkiDroidApp.getMarketIntent(requireContext()))
+            val market = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.ichi2.anki"))
+            val web = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.ichi2.anki"))
+            try {
+                startActivity(market)
+            } catch (_: android.content.ActivityNotFoundException) {
+                IntentUtil.tryOpenIntent(requireAnkiActivity(), web)
+            }
         }
 
+        // Deurim: in-app 업데이트 기록을 GitHub Releases 페이지로 연결
         binding.openChangelog.setOnClickListener {
-            val openChangelogIntent =
-                Intent(requireContext(), Info::class.java).apply {
-                    putExtra(Info.TYPE_EXTRA, Info.TYPE_NEW_VERSION)
-                }
-            startActivity(openChangelogIntent)
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/hdream0322/Anki-Android/releases"))
+            IntentUtil.tryOpenIntent(requireAnkiActivity(), intent)
         }
 
         binding.copyDebugInfo.text = TR.sentenceCase.copyDebugInfo

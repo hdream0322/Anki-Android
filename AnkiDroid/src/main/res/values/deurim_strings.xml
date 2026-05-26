@@ -22,7 +22,7 @@
     <string name="update_ready_to_install">다운로드 완료 — 탭하여 설치</string>
 
     <!-- Heatmap widget -->
-    <string name="heatmap_widget_label">학습 잔디밭</string>
+    <string name="heatmap_widget_label">리뷰 히트맵</string>
     <string name="heatmap_widget_description">선택한 덱의 복습 히트맵을 홈 화면에 표시합니다</string>
     <string name="heatmap_widget_image_desc">복습 히트맵</string>
     <string name="update_available_title">새 버전 사용 가능</string>

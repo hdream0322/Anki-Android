@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  위젯 선택 시 보여줄 미리보기 — 작은 잔디밭 패턴.
+  실제 셀 크기/배치와 정확히 일치할 필요는 없고 한눈에 'heatmap' 위젯임이 보이면 됨.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="180dp"
+    android:height="110dp"
+    android:viewportWidth="180"
+    android:viewportHeight="110">
+
+    <!-- background -->
+    <path
+        android:pathData="M0,0 L180,0 L180,110 L0,110 Z"
+        android:fillColor="#FAFAFA"/>
+
+    <!-- row 1 -->
+    <path android:pathData="M12,16 h14 v14 h-14 z" android:fillColor="#E0E0E0"/>
+    <path android:pathData="M30,16 h14 v14 h-14 z" android:fillColor="#C7E9C0"/>
+    <path android:pathData="M48,16 h14 v14 h-14 z" android:fillColor="#74C476"/>
+    <path android:pathData="M66,16 h14 v14 h-14 z" android:fillColor="#31A354"/>
+    <path android:pathData="M84,16 h14 v14 h-14 z" android:fillColor="#006D2C"/>
+    <path android:pathData="M102,16 h14 v14 h-14 z" android:fillColor="#74C476"/>
+    <path android:pathData="M120,16 h14 v14 h-14 z" android:fillColor="#C7E9C0"/>
+    <path android:pathData="M138,16 h14 v14 h-14 z" android:fillColor="#E0E0E0"/>
+    <path android:pathData="M156,16 h14 v14 h-14 z" android:fillColor="#C7E9C0"/>
+
+    <!-- row 2 -->
+    <path android:pathData="M12,34 h14 v14 h-14 z" android:fillColor="#74C476"/>
+    <path android:pathData="M30,34 h14 v14 h-14 z" android:fillColor="#31A354"/>
+    <path android:pathData="M48,34 h14 v14 h-14 z" android:fillColor="#E0E0E0"/>
+    <path android:pathData="M66,34 h14 v14 h-14 z" android:fillColor="#006D2C"/>
+    <path android:pathData="M84,34 h14 v14 h-14 z" android:fillColor="#74C476"/>
+    <path android:pathData="M102,34 h14 v14 h-14 z" android:fillColor="#C7E9C0"/>
+    <path android:pathData="M120,34 h14 v14 h-14 z" android:fillColor="#31A354"/>
+    <path android:pathData="M138,34 h14 v14 h-14 z" android:fillColor="#006D2C"/>
+    <path android:pathData="M156,34 h14 v14 h-14 z" android:fillColor="#74C476"/>
+
+    <!-- row 3 -->
+    <path android:pathData="M12,52 h14 v14 h-14 z" android:fillColor="#C7E9C0"/>
+    <path android:pathData="M30,52 h14 v14 h-14 z" android:fillColor="#E0E0E0"/>
+    <path android:pathData="M48,52 h14 v14 h-14 z" android:fillColor="#31A354"/>
+    <path android:pathData="M66,52 h14 v14 h-14 z" android:fillColor="#74C476"/>
+    <path android:pathData="M84,52 h14 v14 h-14 z" android:fillColor="#C7E9C0"/>
+    <path android:pathData="M102,52 h14 v14 h-14 z" android:fillColor="#31A354"/>
+    <path android:pathData="M120,52 h14 v14 h-14 z" android:fillColor="#E0E0E0"/>
+    <path android:pathData="M138,52 h14 v14 h-14 z" android:fillColor="#C7E9C0"/>
+    <path android:pathData="M156,52 h14 v14 h-14 z" android:fillColor="#74C476"/>
+
+    <!-- row 4 -->
+    <path android:pathData="M12,70 h14 v14 h-14 z" android:fillColor="#31A354"/>
+    <path android:pathData="M30,70 h14 v14 h-14 z" android:fillColor="#74C476"/>
+    <path android:pathData="M48,70 h14 v14 h-14 z" android:fillColor="#C7E9C0"/>
+    <path android:pathData="M66,70 h14 v14 h-14 z" android:fillColor="#E0E0E0"/>
+    <path android:pathData="M84,70 h14 v14 h-14 z" android:fillColor="#74C476"/>
+    <path android:pathData="M102,70 h14 v14 h-14 z" android:fillColor="#006D2C"/>
+    <path android:pathData="M120,70 h14 v14 h-14 z" android:fillColor="#74C476"/>
+    <path android:pathData="M138,70 h14 v14 h-14 z" android:fillColor="#31A354"/>
+    <path android:pathData="M156,70 h14 v14 h-14 z" android:fillColor="#E0E0E0"/>
+
+    <!-- row 5 -->
+    <path android:pathData="M12,88 h14 v14 h-14 z" android:fillColor="#E0E0E0"/>
+    <path android:pathData="M30,88 h14 v14 h-14 z" android:fillColor="#C7E9C0"/>
+    <path android:pathData="M48,88 h14 v14 h-14 z" android:fillColor="#74C476"/>
+    <path android:pathData="M66,88 h14 v14 h-14 z" android:fillColor="#31A354"/>
+    <path android:pathData="M84,88 h14 v14 h-14 z" android:fillColor="#006D2C"/>
+    <path android:pathData="M102,88 h14 v14 h-14 z" android:fillColor="#74C476"/>
+    <path android:pathData="M120,88 h14 v14 h-14 z" android:fillColor="#C7E9C0"/>
+    <path android:pathData="M138,88 h14 v14 h-14 z" android:fillColor="#E0E0E0"/>
+    <path android:pathData="M156,88 h14 v14 h-14 z" android:fillColor="#74C476"/>
+</vector>

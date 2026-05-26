@@ -6,7 +6,7 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:padding="12dp"
-    android:background="@drawable/widget_card_analysis_rounded_background">
+    android:background="@drawable/widget_heatmap_background">
 
     <TextView
         android:id="@+id/heatmap_widget_deck_name"

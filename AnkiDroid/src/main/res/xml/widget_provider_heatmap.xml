@@ -9,7 +9,7 @@
     android:minResizeHeight="110dp"
     android:maxResizeWidth="800dp"
     android:maxResizeHeight="400dp"
-    android:previewImage="@drawable/widget_card_analysis_drawable"
+    android:previewImage="@drawable/widget_heatmap_preview"
     android:resizeMode="horizontal|vertical"
     android:targetCellHeight="2"
     android:targetCellWidth="4"

@@ -59,12 +59,22 @@ jobs:
           echo "build=$BUILD" >> "$GITHUB_OUTPUT"
           echo "Fork build number: $BUILD"
 
+      - name: Resolve fork release timestamp (epoch ms)
+        id: forkdate
+        # 태그가 가리키는 커밋의 author date 를 ms 로 환산해 About 화면에 표시.
+        run: |
+          SECS=$(git log -1 --format=%ct "${{ github.sha }}")
+          MS=$((SECS * 1000))
+          echo "ms=$MS" >> "$GITHUB_OUTPUT"
+          echo "Fork release timestamp (ms): $MS"
+
       - name: Build full release APK (universal)
         run: |
           ./gradlew :AnkiDroid:assembleFullRelease \
             -Duniversal-apk=true \
             -PforkVersion="${{ github.ref_name }}" \
             -PforkBuild=${{ steps.forkbuild.outputs.build }} \
+            -PforkReleaseDate=${{ steps.forkdate.outputs.ms }} \
             --no-daemon
 
       - name: Locate APK

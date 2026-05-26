@@ -60,19 +60,18 @@ class AboutFragment : Fragment(R.layout.fragment_about) {
     ) {
         binding.toolbar.setNavigationOnClickListener { requireActivity().onBackPressedDispatcher.onBackPressed() }
 
-        binding.buildDate.text =
-            SimpleDateFormat(DateFormat.getBestDateTimePattern(Locale.getDefault(), "d MMM yyyy"))
-                .format(Date(BuildConfig.BUILD_TIME))
-
+        // 버전 줄: '<upstream+release> (<versionCode>)' 형식. dev 빌드에선 upstream만 표시.
         binding.version.text =
             buildString {
-                if (BuildConfig.FORK_VERSION.isNotEmpty()) {
-                    append("$pkgVersionName (Deurim ${BuildConfig.FORK_VERSION})")
-                } else {
-                    append(pkgVersionName)
-                }
-                append(" · code ").append(BuildConfig.VERSION_CODE)
+                append(pkgVersionName) // build.gradle 에서 이미 'upstream+release' 로 구성됨
+                append(" (").append(BuildConfig.VERSION_CODE).append(')')
             }
+
+        // 날짜 줄: CI 가 전달한 fork 릴리스 시각이 있으면 그걸 쓰고, 없으면 (로컬 빌드) BUILD_TIME 으로 폴백.
+        val dateFormatter = SimpleDateFormat(DateFormat.getBestDateTimePattern(Locale.getDefault(), "d MMM yyyy"))
+        val releaseTimestamp =
+            if (BuildConfig.FORK_RELEASE_DATE > 0L) BuildConfig.FORK_RELEASE_DATE else BuildConfig.BUILD_TIME
+        binding.buildDate.text = dateFormatter.format(Date(releaseTimestamp))
         binding.backendVersion.text =
             "(anki " + BackendBuildConfig.ANKI_DESKTOP_VERSION + " / " + BackendBuildConfig.ANKI_COMMIT_HASH.subSequence(0, 8) + ")"
         binding.fsrsVersion.text = Fsrs.displayVersion ?.let { version ->

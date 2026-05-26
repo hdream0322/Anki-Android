@@ -77,7 +77,7 @@ class DeckAdapter(
     private var hasSubdecks = false
 
     /** Epoch ms marking the start of the current Anki day (rollover-adjusted). */
-    private var dayStartMillis: Long = System.currentTimeMillis()
+    private var dayStartMillis: Long = TimeManager.time.intTimeMS()
 
     /**
      * Flag to indicate if the activity has a background set. If true the adapter will make the rows

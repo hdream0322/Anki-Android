@@ -27,27 +27,34 @@ import timber.log.Timber
 object UpdateChecker {
     private const val RELEASES_API_URL =
         "https://api.github.com/repos/hdream0322/Anki-Android/releases/latest"
+    private const val RELEASE_BY_TAG_URL =
+        "https://api.github.com/repos/hdream0322/Anki-Android/releases/tags/%s"
 
-    suspend fun fetchLatestRelease(): GitHubRelease? =
+    suspend fun fetchLatestRelease(): GitHubRelease? = fetchRelease(RELEASES_API_URL)
+
+    /** Look up a specific tag — used to show release notes for the version the user is now on. */
+    suspend fun fetchReleaseByTag(tag: String): GitHubRelease? = fetchRelease(RELEASE_BY_TAG_URL.format(tag))
+
+    private suspend fun fetchRelease(url: String): GitHubRelease? =
         withContext(Dispatchers.IO) {
             val client = HttpFetcher.getOkHttpBuilder(fakeUserAgent = false).build()
             val request =
                 Request
                     .Builder()
-                    .url(RELEASES_API_URL)
+                    .url(url)
                     .header("Accept", "application/vnd.github+json")
                     .header("User-Agent", "AnkiDroid-Deurim-Updater")
                     .build()
             try {
                 client.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) {
-                        Timber.w("UpdateChecker: HTTP %d", response.code)
+                        Timber.w("UpdateChecker: HTTP %d on %s", response.code, url)
                         return@use null
                     }
                     parseRelease(response.body.string())
                 }
             } catch (e: Exception) {
-                Timber.w(e, "UpdateChecker: fetch failed")
+                Timber.w(e, "UpdateChecker: fetch failed for %s", url)
                 null
             }
         }
@@ -56,22 +63,28 @@ object UpdateChecker {
     fun parseRelease(json: String): GitHubRelease? {
         val obj = JSONObject(json)
         val tag = obj.optString("tag_name").takeIf { it.isNotEmpty() } ?: return null
-        val assets = obj.optJSONArray("assets") ?: return null
-        for (i in 0 until assets.length()) {
-            val asset = assets.getJSONObject(i)
-            val name = asset.optString("name")
-            val url = asset.optString("browser_download_url")
-            if (name.endsWith(".apk", ignoreCase = true) && url.isNotEmpty()) {
-                return GitHubRelease(
-                    tag = tag,
-                    name = obj.optString("name", tag),
-                    body = obj.optString("body"),
-                    apkUrl = url,
-                    apkName = name,
-                )
+        var apkUrl = ""
+        var apkName = ""
+        val assets = obj.optJSONArray("assets")
+        if (assets != null) {
+            for (i in 0 until assets.length()) {
+                val asset = assets.getJSONObject(i)
+                val name = asset.optString("name")
+                val url = asset.optString("browser_download_url")
+                if (name.endsWith(".apk", ignoreCase = true) && url.isNotEmpty()) {
+                    apkUrl = url
+                    apkName = name
+                    break
+                }
             }
         }
-        return null
+        return GitHubRelease(
+            tag = tag,
+            name = obj.optString("name", tag),
+            body = obj.optString("body"),
+            apkUrl = apkUrl,
+            apkName = apkName,
+        )
     }
 
     /**

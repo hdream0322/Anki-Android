@@ -95,8 +95,33 @@ jobs:
           path: ${{ steps.apk.outputs.path }}
           if-no-files-found: error
 
-      - name: Create GitHub Release (tag push only)
+      - name: Resolve release notes body
+        id: notes
+        # release-notes/<tag>.md 가 있으면 그 내용을 release body 로 쓰고,
+        # 없으면 generate_release_notes 로 폴백.
         if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          NOTES_FILE="release-notes/${{ github.ref_name }}.md"
+          if [ -f "$NOTES_FILE" ]; then
+            echo "has_body=true" >> "$GITHUB_OUTPUT"
+            echo "body_path=$NOTES_FILE" >> "$GITHUB_OUTPUT"
+            echo "Using $NOTES_FILE as release body"
+          else
+            echo "has_body=false" >> "$GITHUB_OUTPUT"
+            echo "No $NOTES_FILE; falling back to generated notes"
+          fi
+
+      - name: Create GitHub Release with curated body
+        if: startsWith(github.ref, 'refs/tags/v') && steps.notes.outputs.has_body == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.apk.outputs.path }}
+          name: ${{ github.ref_name }}
+          body_path: ${{ steps.notes.outputs.body_path }}
+          fail_on_unmatched_files: true
+
+      - name: Create GitHub Release with generated notes
+        if: startsWith(github.ref, 'refs/tags/v') && steps.notes.outputs.has_body != 'true'
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ steps.apk.outputs.path }}

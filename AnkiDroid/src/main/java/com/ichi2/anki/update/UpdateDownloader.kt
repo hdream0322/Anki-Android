@@ -1,0 +1,75 @@
+/*
+ *  Copyright (c) 2026 Deurim Fork
+ *
+ *  This program is free software; you can redistribute it and/or modify it under
+ *  the terms of the GNU General Public License as published by the Free Software
+ *  Foundation; either version 3 of the License, or (at your option) any later
+ *  version.
+ *
+ *  This program is distributed in the hope that it will be useful, but WITHOUT ANY
+ *  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+ *  PARTICULAR PURPOSE. See the GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along with
+ *  this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+package com.ichi2.anki.update
+
+import android.content.Context
+import android.net.Uri
+import androidx.core.content.FileProvider
+import com.ichi2.anki.web.HttpFetcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.Request
+import timber.log.Timber
+import java.io.File
+
+object UpdateDownloader {
+    /**
+     * Downloads [release].apkUrl to the app cache and returns a FileProvider URI
+     * suitable for handing to the system installer.
+     *
+     * [onProgress] is invoked on the calling coroutine's thread with values in [0f, 1f];
+     * `null` percent means the total size was unknown (rare for GitHub asset CDN).
+     */
+    suspend fun download(
+        context: Context,
+        release: GitHubRelease,
+        onProgress: (Float?) -> Unit = {},
+    ): Uri =
+        withContext(Dispatchers.IO) {
+            val targetDir = File(context.cacheDir, "updates").apply { mkdirs() }
+            // 같은 태그를 다시 받으면 덮어쓰도록 파일명에 태그 포함
+            val targetFile = File(targetDir, "${release.tag}-${release.apkName}")
+            val client = HttpFetcher.getOkHttpBuilder(fakeUserAgent = false).build()
+            val request = Request.Builder().url(release.apkUrl).build()
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    error("Download failed: HTTP ${response.code}")
+                }
+                val body = response.body
+                val total = body.contentLength().takeIf { it > 0 }
+                body.byteStream().use { input ->
+                    targetFile.outputStream().use { output ->
+                        val buffer = ByteArray(64 * 1024)
+                        var downloaded = 0L
+                        while (true) {
+                            val read = input.read(buffer)
+                            if (read == -1) break
+                            output.write(buffer, 0, read)
+                            downloaded += read
+                            onProgress(total?.let { downloaded.toFloat() / it.toFloat() })
+                        }
+                    }
+                }
+            }
+            Timber.i("Downloaded %s (%d bytes)", targetFile.name, targetFile.length())
+            FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.apkgfileprovider",
+                targetFile,
+            )
+        }
+}

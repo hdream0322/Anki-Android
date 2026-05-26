@@ -85,4 +85,11 @@
                 tools:title="‘Card Browser’ Menu"
                 tools:summary="Enables the ‘Card Browser’ context menu globally"/>
         </PreferenceCategory>
+        <PreferenceCategory android:title="Deurim">
+            <SwitchPreferenceCompat
+                android:defaultValue="true"
+                android:key="@string/pref_auto_update_check_key"
+                android:title="앱 업데이트 자동 확인"
+                android:summary="GitHub 릴리스에서 새 버전을 자동으로 확인합니다"/>
+        </PreferenceCategory>
 </PreferenceScreen>

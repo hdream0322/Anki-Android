@@ -35,6 +35,7 @@ import com.ichi2.anki.requireAnkiActivity
 import com.ichi2.anki.scheduling.Fsrs
 import com.ichi2.anki.servicelayer.DebugInfoService
 import com.ichi2.anki.settings.Prefs
+import com.ichi2.anki.update.UpdateManager
 import com.ichi2.utils.IntentUtil
 import com.ichi2.utils.VersionUtils.pkgVersionName
 import com.ichi2.utils.copyToClipboard
@@ -62,10 +63,13 @@ class AboutFragment : Fragment(R.layout.fragment_about) {
                 .format(Date(BuildConfig.BUILD_TIME))
 
         binding.version.text =
-            if (BuildConfig.FORK_VERSION.isNotEmpty()) {
-                "$pkgVersionName (Deurim ${BuildConfig.FORK_VERSION})"
-            } else {
-                pkgVersionName
+            buildString {
+                if (BuildConfig.FORK_VERSION.isNotEmpty()) {
+                    append("$pkgVersionName (Deurim ${BuildConfig.FORK_VERSION})")
+                } else {
+                    append(pkgVersionName)
+                }
+                append(" · code ").append(BuildConfig.VERSION_CODE)
             }
         binding.backendVersion.text =
             "(anki " + BackendBuildConfig.ANKI_DESKTOP_VERSION + " / " + BackendBuildConfig.ANKI_COMMIT_HASH.subSequence(0, 8) + ")"
@@ -115,6 +119,11 @@ class AboutFragment : Fragment(R.layout.fragment_about) {
             } catch (_: android.content.ActivityNotFoundException) {
                 IntentUtil.tryOpenIntent(requireAnkiActivity(), web)
             }
+        }
+
+        // Deurim: About 화면에서도 즉시 업데이트 확인
+        binding.checkUpdateNow.setOnClickListener {
+            UpdateManager.checkNow(requireActivity())
         }
 
         // Deurim: in-app 업데이트 기록을 GitHub Releases 페이지로 연결

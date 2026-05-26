@@ -84,6 +84,7 @@ enum class Channel(
     GENERAL("General Notifications", R.string.app_name, NotificationManagerCompat.IMPORTANCE_DEFAULT),
     SYNC("Synchronization", R.string.sync_title, NotificationManagerCompat.IMPORTANCE_LOW),
     REVIEW_REMINDERS("Review Reminders", R.string.review_reminders_do_not_translate, NotificationManagerCompat.IMPORTANCE_DEFAULT),
+    APP_UPDATE("AppUpdate", R.string.deurim_update_channel_name, NotificationManagerCompat.IMPORTANCE_LOW),
     ;
 
     fun getName(res: Resources) = res.getString(nameId)

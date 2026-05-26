@@ -2034,6 +2034,9 @@ open class DeckPicker :
             showEmptyDeckSnackbar()
             updateUi()
         } else {
+            // 태블릿 분할화면에서는 새 Activity 로 전환하지 않고
+            // 우측 StudyOptionsFragment 패널에서 축하 뷰를 표시한다.
+            if (fragmented && tryShowStudyOptionsPanel()) return
             onDeckCompleted()
         }
     }

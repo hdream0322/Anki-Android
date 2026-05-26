@@ -64,6 +64,7 @@ import com.ichi2.anki.browser.search.SearchString
 import com.ichi2.anki.browser.search.findCards
 import com.ichi2.anki.browser.search.findNotes
 import com.ichi2.anki.browser.toCardBrowserLaunchOptions
+import com.ichi2.anki.common.ALL_DECKS_ID
 import com.ichi2.anki.common.annotations.NeedsTest
 import com.ichi2.anki.common.utils.annotation.KotlinCleanup
 import com.ichi2.anki.databinding.ActivityCardBrowserBinding
@@ -75,6 +76,7 @@ import com.ichi2.anki.dialogs.SavedBrowserSearchesDialogFragment
 import com.ichi2.anki.dialogs.registerDeckSelectedHandler
 import com.ichi2.anki.dialogs.registerSaveSearchHandler
 import com.ichi2.anki.dialogs.registerSavedSearchActionHandler
+import com.ichi2.anki.dialogs.startDeckSelection
 import com.ichi2.anki.dialogs.tags.TagsDialogFactory
 import com.ichi2.anki.dialogs.tags.TagsDialogListener
 import com.ichi2.anki.libanki.Collection
@@ -274,7 +276,7 @@ open class CardBrowser :
             // Load reference to action bar title
             actionBarTitle = findViewById(R.id.toolbar_title)
             // new deck selection is only available when the new search view is not used
-            findViewById<LinearLayout>(R.id.toolbar_content).setOnClickListener { startDeckSelection(all = true, filtered = true) }
+            findViewById<LinearLayout>(R.id.toolbar_content).setOnClickListener { startDeckSelection(skipEmptyDefault = true) }
         }
 
         startLoadingCollection()

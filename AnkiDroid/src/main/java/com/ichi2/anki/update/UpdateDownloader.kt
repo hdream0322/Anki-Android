@@ -42,6 +42,12 @@ object UpdateDownloader {
             val targetDir = File(context.cacheDir, "updates").apply { mkdirs() }
             // 같은 태그를 다시 받으면 덮어쓰도록 파일명에 태그 포함
             val targetFile = File(targetDir, "${release.tag}-${release.apkName}")
+            // 이전에 받아둔 APK들이 캐시에 쌓이지 않도록 정리
+            targetDir.listFiles()?.forEach { stale ->
+                if (stale != targetFile && !stale.delete()) {
+                    Timber.w("Failed to delete stale update file: %s", stale.name)
+                }
+            }
             val client = HttpFetcher.getOkHttpBuilder(fakeUserAgent = false).build()
             val request = Request.Builder().url(release.apkUrl).build()
 

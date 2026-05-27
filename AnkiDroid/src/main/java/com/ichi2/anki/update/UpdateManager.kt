@@ -103,11 +103,7 @@ object UpdateManager {
         release: GitHubRelease,
     ) {
         val current = BuildConfig.FORK_VERSION.ifEmpty { "(dev)" }
-        val notes =
-            release.body
-                .lineSequence()
-                .take(8)
-                .joinToString("\n")
+        val notes = formatReleaseNotes(release.body)
         AlertDialog.Builder(activity).show {
             title(R.string.update_available_title)
             message(text = activity.getString(R.string.update_available_message, current, release.tag, notes))
@@ -258,9 +254,43 @@ object UpdateManager {
     ) {
         AlertDialog.Builder(activity).show {
             title(text = activity.getString(R.string.whats_new_title, tag))
-            message(text = body)
+            message(text = formatReleaseNotes(body))
             positiveButton(R.string.whats_new_dismiss)
         }
+    }
+
+    /**
+     * Strips the most common Markdown chrome from a GitHub release body so it
+     * reads cleanly as plain text inside an [AlertDialog]. Keeps line breaks,
+     * link URLs and the actual content; drops `**`, `##`/`#` headings, and
+     * bullet markers (`*`/`-`/`+`) — replacing bullets with `•`. Inline
+     * `[label](url)` becomes `label (url)`.
+     */
+    @Suppress("MemberVisibilityCanBePrivate")
+    internal fun formatReleaseNotes(body: String): String {
+        if (body.isBlank()) return body
+        val linkRegex = Regex("""\[([^\]]+)]\(([^)]+)\)""")
+        val boldRegex = Regex("""\*\*(.+?)\*\*""")
+        val italicRegex = Regex("""(?<![*_])[*_](?!\s)([^*_\n]+?)[*_](?![*_])""")
+        return body
+            .lineSequence()
+            .map { line ->
+                var out = line.trimEnd()
+                out = out.replace(linkRegex) { "${it.groupValues[1]} (${it.groupValues[2]})" }
+                out = out.replace(boldRegex) { it.groupValues[1] }
+                out = out.replace(italicRegex) { it.groupValues[1] }
+                out =
+                    when {
+                        out.startsWith("### ") -> out.removePrefix("### ")
+                        out.startsWith("## ") -> out.removePrefix("## ")
+                        out.startsWith("# ") -> out.removePrefix("# ")
+                        else -> out
+                    }
+                // Bullet markers: "* ", "- ", "+ " (with optional leading indent)
+                out = out.replace(Regex("""^(\s*)[*+\-]\s+"""), "$1• ")
+                out
+            }.joinToString("\n")
+            .trim()
     }
 
     private fun stashPendingReleaseNotes(

@@ -46,12 +46,15 @@
                     android:layout_height="96dp"
                     app:srcCompat="@drawable/ankidroid_logo" />
 
-                <ImageView
+                <TextView
                     android:id="@+id/about_app_name"
-                    android:layout_width="80dp"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    app:srcCompat="@drawable/ankidroid_txt"
-                    app:tint="?android:attr/textColor" />
+                    android:layout_marginTop="8dp"
+                    android:text="@string/app_name"
+                    android:textColor="?android:attr/textColor"
+                    android:textSize="22sp"
+                    android:textStyle="bold" />
 
                 <TextView
                     android:id="@+id/version"

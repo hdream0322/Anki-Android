@@ -1,5 +1,5 @@
 <p align="right">
-  <a href="https://github.com/hdream0322/Anki-Android/releases/latest"><img alt="마개조판 최신 릴리스 다운로드" src="https://img.shields.io/github/v/release/hdream0322/Anki-Android?label=마개조판%20다운로드&color=DA291C&logo=github&style=for-the-badge"/></a>
+  <a href="https://github.com/hdream0322/Anki-Android/releases/latest"><img alt="다운로드" src="https://img.shields.io/badge/%EB%8B%A4%EC%9A%B4%EB%A1%9C%EB%93%9C-DA291C?logo=github&logoColor=white&style=for-the-badge"/></a>
   <a href="https://github.com/ankidroid/Anki-Android"><img alt="원본 리포지토리" src="https://img.shields.io/badge/원본-ankidroid%2FAnki--Android-181717?logo=github&logoColor=white&style=for-the-badge"/></a>
   <a href="README.en.md"><img alt="English" src="https://img.shields.io/badge/README-English-2C7BE5?style=for-the-badge"/></a>
 </p>

@@ -13,6 +13,7 @@
     <string name="learn_cutoff_preference">learnCutoff</string>
     <string name="time_limit_preference">timeLimit</string>
     <string name="keep_screen_on_preference">keepScreenOn</string>
+    <string name="shared_whiteboard_settings_key">sharedWhiteboardSettings</string>
     <string name="double_tap_timeout_pref_key">doubleTapTimeout</string>
     <!-- Sync -->
     <string name="pref_sync_screen_key">syncScreen</string>

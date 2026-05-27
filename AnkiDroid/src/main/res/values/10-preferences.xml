@@ -38,6 +38,8 @@
 
     <!-- preferences.xml entries-->
     <string name="whiteboard_stroke_width" maxLength="41">Stroke width</string>
+    <string name="pref_shared_whiteboard_settings" maxLength="41">Share whiteboard settings</string>
+    <string name="pref_shared_whiteboard_settings_summ">Use the same whiteboard state, visibility, pen color and stylus mode for every deck</string>
     <string name="use_input_tag" maxLength="41">Type answer into the card</string>
     <string name="use_input_tag_summ">Use a text input box inside the card to type in the answer</string>
     <string name="reset_languages" maxLength="41">Reset languages</string>

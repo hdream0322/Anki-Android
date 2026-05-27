@@ -66,6 +66,7 @@ import com.ichi2.anki.common.utils.android.showThemedToast
 import com.ichi2.anki.libanki.Card
 import com.ichi2.anki.libanki.CardId
 import com.ichi2.anki.libanki.Collection
+import com.ichi2.anki.libanki.DeckId
 import com.ichi2.anki.libanki.QueueType
 import com.ichi2.anki.libanki.redoAvailable
 import com.ichi2.anki.libanki.redoLabel
@@ -191,6 +192,19 @@ open class Reviewer :
 
     // Whiteboard
     var prefWhiteboard = false
+
+    /**
+     * Returns the deck id used to key whiteboard state in [MetaDB]. When the
+     * "share whiteboard settings" preference is enabled, all decks share the
+     * same row via the sentinel [SHARED_WHITEBOARD_DID]; otherwise the actual
+     * [parentDid] is used so each deck keeps its own state.
+     */
+    private fun whiteboardDid(): DeckId =
+        if (sharedPrefs().getBoolean(getString(R.string.shared_whiteboard_settings_key), false)) {
+            SHARED_WHITEBOARD_DID
+        } else {
+            parentDid
+        }
 
     @get:CheckResult
     @get:VisibleForTesting(otherwise = VisibleForTesting.NONE)
@@ -384,13 +398,14 @@ open class Reviewer :
         // Load the first card and start reviewing. Uses the answer card
         // task to load a card, but since we send null
         // as the card to answer, no card will be answered.
-        prefWhiteboard = MetaDB.getWhiteboardState(this, parentDid)
+        val whiteboardDid = whiteboardDid()
+        prefWhiteboard = MetaDB.getWhiteboardState(this, whiteboardDid)
         if (prefWhiteboard) {
             // DEFECT: Slight inefficiency here, as we set the database using these methods
-            val whiteboardVisibility = MetaDB.getWhiteboardVisibility(this, parentDid)
+            val whiteboardVisibility = MetaDB.getWhiteboardVisibility(this, whiteboardDid)
             setWhiteboardEnabledState(true)
             setWhiteboardVisibility(whiteboardVisibility)
-            toggleStylus = MetaDB.getWhiteboardStylusState(this, parentDid)
+            toggleStylus = MetaDB.getWhiteboardStylusState(this, whiteboardDid)
             whiteboard!!.toggleStylus = toggleStylus
         }
 
@@ -518,7 +533,7 @@ open class Reviewer :
                 Timber.i("Reviewer:: Stylus set to %b", !toggleStylus)
                 toggleStylus = !toggleStylus
                 whiteboard!!.toggleStylus = toggleStylus
-                MetaDB.storeWhiteboardStylusState(this, parentDid, toggleStylus)
+                MetaDB.storeWhiteboardStylusState(this, whiteboardDid(), toggleStylus)
                 refreshActionBar()
             }
             R.id.action_toggle_whiteboard -> {
@@ -1576,7 +1591,7 @@ open class Reviewer :
 
     private fun setWhiteboardEnabledState(state: Boolean) {
         prefWhiteboard = state
-        MetaDB.storeWhiteboardState(this, parentDid, state)
+        MetaDB.storeWhiteboardState(this, whiteboardDid(), state)
         if (state && whiteboard == null) {
             createWhiteboard()
         }
@@ -1717,13 +1732,13 @@ open class Reviewer :
 
         // We use the pen color of the selected deck at the time the whiteboard is enabled.
         // This is how all other whiteboard settings are
-        val whiteboardPenColor = MetaDB.getWhiteboardPenColor(this, parentDid).fromPreferences()
+        val whiteboardPenColor = MetaDB.getWhiteboardPenColor(this, whiteboardDid()).fromPreferences()
         if (whiteboardPenColor != null) {
             whiteboard.penColor = whiteboardPenColor
         }
         whiteboard.onPaintColorChangeListener =
             OnPaintColorChangeListener { color ->
-                MetaDB.storeWhiteboardPenColor(this@Reviewer, parentDid, currentTheme is DayTheme, color)
+                MetaDB.storeWhiteboardPenColor(this@Reviewer, whiteboardDid(), currentTheme is DayTheme, color)
             }
         whiteboard.setOnTouchListener { v: View, event: MotionEvent? ->
             if (event == null) return@setOnTouchListener false
@@ -1748,7 +1763,7 @@ open class Reviewer :
     // Show or hide the whiteboard
     private fun setWhiteboardVisibility(state: Boolean) {
         showWhiteboard = state
-        MetaDB.storeWhiteboardVisibility(this, parentDid, state)
+        MetaDB.storeWhiteboardVisibility(this, whiteboardDid(), state)
         if (state) {
             whiteboard!!.visibility = View.VISIBLE
             disableDrawerSwipe()
@@ -1845,6 +1860,13 @@ open class Reviewer :
          * Bundle key for the deck id to review.
          */
         const val EXTRA_DECK_ID = "deckId"
+
+        /**
+         * Sentinel deck id used by [whiteboardDid] when the user has opted into
+         * sharing whiteboard settings across every deck. Real deck ids are
+         * positive, so a negative value cannot collide.
+         */
+        private const val SHARED_WHITEBOARD_DID: DeckId = -1L
 
         private const val KEY_PREVIOUS_CARD_ID = "key_previous_card_id"
 

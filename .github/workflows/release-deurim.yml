@@ -45,6 +45,18 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
+      - name: Restore release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::KEYSTORE_BASE64 secret is missing; APK would be signed with the public fallback debug key (Play Protect / PackageInstaller rejects the resulting APK on many devices)."
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/keystore"
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/keystore/deurim-release.jks"
+          echo "KEYSTOREPATH=$RUNNER_TEMP/keystore/deurim-release.jks" >> "$GITHUB_ENV"
+
       - name: Parse fork build number from tag
         id: forkbuild
         # 태그 v0.0.X 의 마지막 숫자를 versionCode 오프셋으로 사용.
@@ -69,6 +81,10 @@ jobs:
           echo "Fork release timestamp (ms): $MS"
 
       - name: Build full release APK (universal)
+        env:
+          KEYSTOREPWD: ${{ secrets.KEYSTOREPWD }}
+          KEYALIAS: ${{ secrets.KEYALIAS }}
+          KEYPWD: ${{ secrets.KEYPWD }}
         run: |
           ./gradlew :AnkiDroid:assembleFullRelease \
             -Duniversal-apk=true \

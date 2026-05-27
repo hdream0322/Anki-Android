@@ -18,11 +18,11 @@ package com.ichi2.anki.dialogs
 
 import android.content.Context
 import android.view.Gravity
-import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.SeekBar.OnSeekBarChangeListener
 import androidx.appcompat.app.AlertDialog
+import com.google.android.material.color.MaterialColors
 import com.ichi2.anki.R
 import com.ichi2.ui.FixedTextView
 import com.ichi2.utils.negativeButton
@@ -69,16 +69,9 @@ class WhiteBoardWidthDialog(
         valueRow.orientation = LinearLayout.HORIZONTAL
         valueRow.gravity = Gravity.CENTER
 
-        val minusButton =
-            Button(context).apply {
-                text = "−"
-                setOnClickListener { adjustStrokeWidth(-1) }
-            }
-        val plusButton =
-            Button(context).apply {
-                text = "+"
-                setOnClickListener { adjustStrokeWidth(1) }
-            }
+        val brandColor = MaterialColors.getColor(context, androidx.appcompat.R.attr.colorPrimary, 0)
+        val minusButton = createNudgeButton("−", brandColor) { adjustStrokeWidth(-1) }
+        val plusButton = createNudgeButton("+", brandColor) { adjustStrokeWidth(1) }
 
         strokeWidthText =
             FixedTextView(context).apply {
@@ -123,6 +116,26 @@ class WhiteBoardWidthDialog(
             setView(layout)
         }
     }
+
+    private fun createNudgeButton(
+        label: String,
+        color: Int,
+        onClick: () -> Unit,
+    ): FixedTextView =
+        FixedTextView(context).apply {
+            text = label
+            textSize = 28f
+            setTextColor(color)
+            gravity = Gravity.CENTER
+            // Make the text behave like a button: clickable + ripple-friendly minimum
+            // touch target, no background chrome.
+            isClickable = true
+            isFocusable = true
+            minWidth = 48
+            minHeight = 48
+            setPadding(24, 8, 24, 8)
+            setOnClickListener { onClick() }
+        }
 
     private fun adjustStrokeWidth(delta: Int) {
         val bar = seekBar ?: return

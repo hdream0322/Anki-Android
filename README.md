@@ -1,9 +1,14 @@
+<p align="right">
+  <a href="https://github.com/ankidroid/Anki-Android"><img alt="원본 리포지토리" src="https://img.shields.io/badge/원본-ankidroid%2FAnki--Android-181717?logo=github&logoColor=white&style=for-the-badge"/></a>
+  <a href="README.en.md"><img alt="English" src="https://img.shields.io/badge/README-English-2C7BE5?style=for-the-badge"/></a>
+</p>
+
 <!-- ============================================================ -->
 <!-- Deurim Fork (마개조판) — 개인용 커스터마이즈 빌드           -->
 <!-- ============================================================ -->
 
 > **🛠 Deurim Fork (마개조판)**
-> [ankidroid/Anki-Android](https://github.com/ankidroid/Anki-Android)을 개인용 개조 빌드
+> [ankidroid/Anki-Android](https://github.com/ankidroid/Anki-Android)의 개인용 개조 빌드
 > 공식 AnkiDroid와 같은 기기에 함께 설치 가능
 >
 > **주요 변경점**
@@ -37,67 +42,66 @@
 <a href="https://github.com/ankidroid/Anki-Android/blob/main/COPYING"><img src="https://img.shields.io/github/license/ankidroid/Anki-Android" alt="license"/></a>
 
 # AnkiDroid
-A semi-official port of the open source [Anki](https://apps.ankiweb.net/index.html) spaced repetition flashcard system to Android. Memorize anything with AnkiDroid!
+오픈소스 [Anki](https://apps.ankiweb.net/index.html) 간격 반복 플래시카드 시스템의 준공식 안드로이드 포팅. AnkiDroid 와 함께라면 무엇이든 외울 수 있습니다!
 
 <img src="docs/graphics/logos/ankidroid_logo.png" align="right" width="40%" height="100%"></img>
 
-### Features
+### 주요 기능
 
 <div style="display:flex;">
- 
-- Night mode
-- Whiteboard 
-- Progress widget
-- Detailed statistics
-- Syncing with AnkiWeb
-- Write answers (optional)
-- Text-to-speech integration
-- More than 10,000 premade decks
-- Spaced repetition (AI-optimized [FSRS algorithm](https://github.com/open-spaced-repetition))
-- Supported contents: text, images, sounds, MathJax
-- Add cards by intent from other applications like dictionaries
+
+- 야간 모드
+- 화이트보드
+- 진행률 위젯
+- 상세 통계
+- AnkiWeb 와 동기화
+- 답 직접 입력 (선택)
+- TTS(텍스트 음성 변환) 연동
+- 10,000 개가 넘는 미리 만들어진 덱
+- 간격 반복 학습 (AI 최적화 [FSRS 알고리즘](https://github.com/open-spaced-repetition))
+- 지원 콘텐츠: 텍스트, 이미지, 사운드, MathJax
+- 사전 등 다른 앱에서 인텐트로 카드 추가
 
 </div>
 
-Install
+설치
 ---------
 <div style="display:flex;">
 
 <a href="https://play.google.com/store/apps/details?id=com.ichi2.anki&utm_source=global_co&utm_medium=prtnr&utm_content=Mar2515&utm_campaign=PartBadge&pcampaignid=MKT-Other-global-all-co-prtnr-py-PartBadge-Mar2515-1">
-    <img alt="Get it on Google Play" height="80"
+    <img alt="Google Play 에서 받기" height="80"
         src="docs/graphics/logos/google-badge.png" /></a>
 
 <a href="https://f-droid.org/repository/browse/?fdid=com.ichi2.anki">
-    <img alt="Get it on F-Droid" height="80"
+    <img alt="F-Droid 에서 받기" height="80"
         src="docs/graphics/logos/f-droid-badge.png"></a>
 
 <a href="http://apps.obtainium.imranr.dev/redirect.html?r=obtainium://add/https://github.com/ankidroid/Anki-Android">
-    <img alt="Get it on Obtainium" height="80"
+    <img alt="Obtainium 에서 받기" height="80"
         src="https://github.com/user-attachments/assets/713d71c5-3dec-4ec4-a3f2-8d28d025a9c6"/></a>
 
 </div>
 
-Signing certificate fingerprint to [verify](https://developer.android.com/studio/command-line/apksigner#usage-verify) the APK:
+APK [검증](https://developer.android.com/studio/command-line/apksigner#usage-verify)에 사용되는 서명 인증서 지문:
 ```
 SHA-256: 2071534f0f4b5e54ae952dd275d70da6e3459ee69909d2ab1b4843c4c5b21a45 
 SHA-1: f24e06a3657b190a12671100402df32d7b9b3d36
 ```
 
-Wiki
+위키
 ----
-View [Wiki](https://github.com/ankidroid/Anki-Android/wiki)
+[위키](https://github.com/ankidroid/Anki-Android/wiki) 참고
 
-Help
+도움말
 ----
 Check the [user manual](https://docs.ankidroid.org/) and the wiki for usage instructions. See the [help page](https://docs.ankidroid.org/help.html) 
 for how to submit a bug report or contact a project member, etc.
 
-Contribute
+기여하기
 ----------
-You can contribute to AnkiDroid by beta testing, translating, or submitting code. 
-See the [contribution wiki page](https://github.com/ankidroid/Anki-Android/wiki/Contributing) for more info.
+베타 테스트, 번역, 코드 기여 등으로 AnkiDroid 에 참여할 수 있습니다. 자세한 내용은 [기여 위키 페이지](https://github.com/ankidroid/Anki-Android/wiki/Contributing) 를 확인하세요.
 
-Join Us On
+함께하기
 ----------
 
 <a href="https://discord.gg/qjzcRTx"><img src="docs/graphics/logos/discord_logo_color.svg" height="46px"/></a>
@@ -106,38 +110,38 @@ Join Us On
 <a href="https://x.com/ankidroid"><img src="docs/graphics/logos/twitter_logo.png" height="50px"/></a>
 <a href="https://forums.ankiweb.net/"><img src="/docs/graphics/logos/anki_forums_logo.png" height="50px"/></a>
 
-## Credits
+## 크레딧
 <!--- Do not rename this section. AnkiDroid contains a deep link to the section
 header - see https://github.com/ankidroid/Anki-Android/pull/11803 --->
 
-### Code Contributors
+### 코드 기여자
 
-Thanks to these awesome code contributors who keep this project going
+이 프로젝트를 지탱해 주는 멋진 코드 기여자들에게 감사드립니다.
 
 <a href="https://github.com/ankidroid/Anki-Android/graphs/contributors"><img src="https://opencollective.com/ankidroid/contributors.svg?width=890&button=false" /></a>
 
-### [Sponsors](https://opencollective.com/ankidroid#sponsor)
+### [스폰서](https://opencollective.com/ankidroid#sponsor)
 <a href="https://opencollective.com/ankidroid#sponsor" target="_blank">
   <img alt="AnkiDroid Sponsors" src="https://opencollective.com/Ankidroid/sponsors.svg?width=890" />
 </a>
 
-### [Backers](https://opencollective.com/ankidroid#backer)
+### [후원자](https://opencollective.com/ankidroid#backer)
 
-A big thank you to each of our backers 🙏
+모든 후원자분들께 진심으로 감사드립니다 🙏
 <a href="https://opencollective.com/Ankidroid#backers" target="_blank"><img width=110 src="https://opencollective.com/Ankidroid/backers/badge.svg?"></a>
 
-<p>Your generous donations mean the world to us, and we can't express our gratitude enough. Your support fuels our mission and helps us make a real difference</p>
+<p>여러분의 너그러운 기부는 저희에게 큰 힘이 됩니다. 그 마음에 어떤 말로도 부족할 만큼 감사하며, 여러분의 후원이 우리의 목표를 이루고 의미 있는 변화를 만드는 원동력이 됩니다.</p>
 
 <a href="https://opencollective.com/Ankidroid/donate" target="_blank">
-  <img alt="Donate to AnkiDroid" src="https://opencollective.com/Ankidroid/donate/button@2x.png?color=blue" width=200 />
+  <img alt="AnkiDroid 후원하기" src="https://opencollective.com/Ankidroid/donate/button@2x.png?color=blue" width=200 />
 </a>
 
-### [Translators](https://crowdin.com/project/ankidroid/activity-stream)
+### [번역가](https://crowdin.com/project/ankidroid/activity-stream)
 
-Thanks to our 1400 translators, for allowing us to be available, partially or totally, in 99 languages as of July 2022.
+2022년 7월 기준, 부분 또는 전부 99개 언어로 제공될 수 있게 도와주신 1,400 명의 번역가 여러분께 감사드립니다.
 
-License
+라이선스
 -------
 * [GPL-3.0 License](https://github.com/ankidroid/Anki-Android/blob/main/COPYING)
-* [AGPL-3.0 License](https://github.com/ankitects/anki/blob/main/LICENSE) for some part of the back-end
-* [LGPL-3.0 License](https://github.com/ankidroid/Anki-Android/blob/main/api/COPYING.LESSER) for the AnkiDroid API
+* 백엔드 일부에 대해 [AGPL-3.0 License](https://github.com/ankitects/anki/blob/main/LICENSE)
+* AnkiDroid API 에 대해 [LGPL-3.0 License](https://github.com/ankidroid/Anki-Android/blob/main/api/COPYING.LESSER)

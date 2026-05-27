@@ -1,5 +1,5 @@
 <p align="right">
-  <a href="https://github.com/hdream0322/Anki-Android/releases/latest"><img alt="Download Deurim Fork latest release" src="https://img.shields.io/github/v/release/hdream0322/Anki-Android?label=Deurim%20Fork&color=DA291C&logo=github&style=for-the-badge"/></a>
+  <a href="https://github.com/hdream0322/Anki-Android/releases/latest"><img alt="Download" src="https://img.shields.io/badge/Download-DA291C?logo=github&logoColor=white&style=for-the-badge"/></a>
   <a href="https://github.com/ankidroid/Anki-Android"><img alt="Upstream Repository" src="https://img.shields.io/badge/Upstream-ankidroid%2FAnki--Android-181717?logo=github&logoColor=white&style=for-the-badge"/></a>
   <a href="README.md"><img alt="한국어" src="https://img.shields.io/badge/README-한국어-DA291C?style=for-the-badge"/></a>
 </p>

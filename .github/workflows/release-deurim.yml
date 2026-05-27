@@ -93,22 +93,43 @@ jobs:
             -PforkReleaseDate=${{ steps.forkdate.outputs.ms }} \
             --no-daemon
 
-      - name: Locate APK
+      - name: Collect & rename APKs
         id: apk
+        # assembleFullRelease 는 ABI 별 split 4개 + (`-Duniversal-apk=true` 덕에) universal 1개,
+        # 합 5개를 만든다. 파일명에 태그를 박아 릴리스에 모두 올린다.
         run: |
-          APK=$(find AnkiDroid/build/outputs/apk/full/release -name '*-universal-release*.apk' | head -1)
-          if [ -z "$APK" ]; then
-            APK=$(find AnkiDroid/build/outputs/apk/full/release -name '*.apk' | head -1)
+          SRC=AnkiDroid/build/outputs/apk/full/release
+          OUT="$RUNNER_TEMP/release-apks"
+          mkdir -p "$OUT"
+          TAG="${{ github.ref_name }}"
+          # 수동 실행(workflow_dispatch) 시 ref_name 은 브랜치명이므로 그대로 둬도 의미가 통함.
+          shopt -s nullglob
+          count=0
+          for apk in "$SRC"/*.apk; do
+            base=$(basename "$apk" .apk)
+            # gradle outputs look like:
+            #   AnkiDroid-full-arm64-v8a-release.apk
+            #   AnkiDroid-full-universal-release.apk
+            # → AnkiDroid-deurim-<tag>-<abi>.apk
+            abi=$(echo "$base" | sed -E 's/^AnkiDroid-full-(.+)-release$/\1/')
+            newname="AnkiDroid-deurim-${TAG}-${abi}.apk"
+            cp "$apk" "$OUT/$newname"
+            echo "  $base.apk  →  $newname"
+            count=$((count + 1))
+          done
+          if [ "$count" -eq 0 ]; then
+            echo "::error::No APKs found under $SRC"
+            exit 1
           fi
-          echo "path=$APK" >> "$GITHUB_OUTPUT"
-          echo "name=$(basename "$APK")" >> "$GITHUB_OUTPUT"
-          echo "Found APK: $APK"
+          echo "dir=$OUT" >> "$GITHUB_OUTPUT"
+          echo "Renamed $count APK(s) into $OUT"
+          ls -la "$OUT"
 
-      - name: Upload APK as workflow artifact
+      - name: Upload APKs as workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.apk.outputs.name }}
-          path: ${{ steps.apk.outputs.path }}
+          name: AnkiDroid-deurim-${{ github.ref_name }}-apks
+          path: ${{ steps.apk.outputs.dir }}/*.apk
           if-no-files-found: error
 
       - name: Resolve release notes body
@@ -131,7 +152,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v') && steps.notes.outputs.has_body == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ steps.apk.outputs.path }}
+          files: ${{ steps.apk.outputs.dir }}/*.apk
           name: ${{ github.ref_name }}
           body_path: ${{ steps.notes.outputs.body_path }}
           fail_on_unmatched_files: true
@@ -140,7 +161,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v') && steps.notes.outputs.has_body != 'true'
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ steps.apk.outputs.path }}
+          files: ${{ steps.apk.outputs.dir }}/*.apk
           name: ${{ github.ref_name }}
           generate_release_notes: true
           fail_on_unmatched_files: true

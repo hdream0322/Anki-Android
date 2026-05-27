@@ -26,6 +26,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # 이전 태그까지 거슬러 올라가서 git log 기반 release body 를 만들기 위해
+          # 전체 history 가 필요하다 (default shallow clone 으로는 prev 태그가 없음).
+          fetch-depth: 0
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -157,11 +161,39 @@ jobs:
           body_path: ${{ steps.notes.outputs.body_path }}
           fail_on_unmatched_files: true
 
-      - name: Create GitHub Release with generated notes
+      - name: Build git-log release body
+        id: gitlog
+        if: startsWith(github.ref, 'refs/tags/v') && steps.notes.outputs.has_body != 'true'
+        # PR-based generate_release_notes 는 deurim 브랜치 직접 푸시 커밋을 잡지 못해
+        # 본문이 비어 보이는 문제가 있었음. 대신 직전 v* 태그부터의 커밋을 풀어 쓴다.
+        run: |
+          TAG="${{ github.ref_name }}"
+          PREV=$(git tag --list 'v*' --sort=-v:refname | grep -v "^${TAG}$" | head -n1 || true)
+          BODY="$RUNNER_TEMP/release-body.md"
+          {
+            if [ -n "$PREV" ]; then
+              echo "## $PREV → $TAG"
+              echo ""
+              git log --no-merges --pretty=format:'- %s' "${PREV}..${TAG}"
+              echo ""
+              echo ""
+              echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV}...${TAG}"
+            else
+              echo "## $TAG"
+              echo ""
+              git log --no-merges --pretty=format:'- %s' "${TAG}" | head -n 50
+            fi
+          } > "$BODY"
+          echo "body_path=$BODY" >> "$GITHUB_OUTPUT"
+          echo "----- release body preview -----"
+          cat "$BODY"
+          echo "--------------------------------"
+
+      - name: Create GitHub Release with git-log notes
         if: startsWith(github.ref, 'refs/tags/v') && steps.notes.outputs.has_body != 'true'
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ steps.apk.outputs.dir }}/*.apk
           name: ${{ github.ref_name }}
-          generate_release_notes: true
+          body_path: ${{ steps.gitlog.outputs.body_path }}
           fail_on_unmatched_files: true

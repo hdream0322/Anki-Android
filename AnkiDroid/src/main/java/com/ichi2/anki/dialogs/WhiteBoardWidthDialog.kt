@@ -18,6 +18,7 @@ package com.ichi2.anki.dialogs
 
 import android.content.Context
 import android.view.Gravity
+import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.SeekBar.OnSeekBarChangeListener
@@ -35,6 +36,7 @@ class WhiteBoardWidthDialog(
     private var wbStrokeWidth: Int,
 ) {
     private var strokeWidthText: FixedTextView? = null
+    private var seekBar: SeekBar? = null
     var onStrokeWidthChanged: Consumer<Int>? = null
     private val seekBarChangeListener: OnSeekBarChangeListener =
         object : OnSeekBarChangeListener {
@@ -60,15 +62,51 @@ class WhiteBoardWidthDialog(
         val layout = LinearLayout(context)
         layout.orientation = LinearLayout.VERTICAL
         layout.setPaddingRelative(6, 6, 6, 6)
-        strokeWidthText = FixedTextView(context)
-        strokeWidthText!!.gravity = Gravity.CENTER_HORIZONTAL
-        strokeWidthText!!.textSize = 30f
-        strokeWidthText!!.text = "" + wbStrokeWidth
-        val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-        layout.addView(strokeWidthText, params)
-        val seekBar = SeekBar(context)
-        seekBar.progress = wbStrokeWidth
-        seekBar.setOnSeekBarChangeListener(seekBarChangeListener)
+
+        // Row with [-] [value] [+] so the user can nudge by 1 without
+        // fighting the seek bar for fine-grained adjustments.
+        val valueRow = LinearLayout(context)
+        valueRow.orientation = LinearLayout.HORIZONTAL
+        valueRow.gravity = Gravity.CENTER
+
+        val minusButton =
+            Button(context).apply {
+                text = "−"
+                setOnClickListener { adjustStrokeWidth(-1) }
+            }
+        val plusButton =
+            Button(context).apply {
+                text = "+"
+                setOnClickListener { adjustStrokeWidth(1) }
+            }
+
+        strokeWidthText =
+            FixedTextView(context).apply {
+                gravity = Gravity.CENTER
+                textSize = 30f
+                text = "" + wbStrokeWidth
+            }
+
+        val buttonParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        val textParams =
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginStart = 12
+                marginEnd = 12
+            }
+        valueRow.addView(minusButton, buttonParams)
+        valueRow.addView(strokeWidthText, textParams)
+        valueRow.addView(plusButton, buttonParams)
+
+        layout.addView(
+            valueRow,
+            LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT),
+        )
+
+        seekBar =
+            SeekBar(context).apply {
+                progress = wbStrokeWidth
+                setOnSeekBarChangeListener(seekBarChangeListener)
+            }
         layout.addView(
             seekBar,
             LinearLayout.LayoutParams(
@@ -84,6 +122,15 @@ class WhiteBoardWidthDialog(
             negativeButton(R.string.dialog_cancel)
             setView(layout)
         }
+    }
+
+    private fun adjustStrokeWidth(delta: Int) {
+        val bar = seekBar ?: return
+        val newValue = (wbStrokeWidth + delta).coerceIn(0, bar.max)
+        if (newValue == wbStrokeWidth) return
+        // Setting the SeekBar progress triggers the listener, which updates
+        // wbStrokeWidth and the text view.
+        bar.progress = newValue
     }
 
     fun onStrokeWidthChanged(c: Consumer<Int>?) {

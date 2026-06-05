@@ -149,7 +149,7 @@ class HeatmapWidget : AnalyticsWidgetProvider() {
             val configIntent =
                 Intent(context, HeatmapWidgetConfig::class.java).apply {
                     putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId.id)
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
             val pi =
                 PendingIntent.getActivity(

@@ -620,7 +620,9 @@
         </receiver>
         <activity
             android:name="com.ichi2.widget.heatmap.HeatmapWidgetConfig"
-            android:exported="false">
+            android:exported="false"
+            android:taskAffinity=""
+            android:excludeFromRecents="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
             </intent-filter>

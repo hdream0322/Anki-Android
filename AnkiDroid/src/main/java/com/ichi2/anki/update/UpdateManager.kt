@@ -33,10 +33,10 @@ import com.ichi2.anki.BuildConfig
 import com.ichi2.anki.Channel
 import com.ichi2.anki.NOTIFICATION_MIN_DELAY_MS
 import com.ichi2.anki.R
+import com.ichi2.anki.common.preferences.sharedPrefs
 import com.ichi2.anki.common.time.TimeManager
 import com.ichi2.anki.common.utils.android.showThemedToast
 import com.ichi2.anki.launchCatchingTask
-import com.ichi2.anki.preferences.sharedPrefs
 import com.ichi2.utils.message
 import com.ichi2.utils.negativeButton
 import com.ichi2.utils.positiveButton

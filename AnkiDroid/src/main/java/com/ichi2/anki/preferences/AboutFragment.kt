@@ -28,7 +28,6 @@ import androidx.core.text.parseAsHtml
 import androidx.fragment.app.Fragment
 import com.ichi2.anki.BuildConfig
 import com.ichi2.anki.CollectionManager.TR
-import com.ichi2.anki.Info
 import com.ichi2.anki.R
 import com.ichi2.anki.common.utils.android.showThemedToast
 import com.ichi2.anki.databinding.FragmentAboutBinding
@@ -38,6 +37,7 @@ import com.ichi2.anki.scheduling.Fsrs
 import com.ichi2.anki.servicelayer.DebugInfoService
 import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.ui.internationalization.sentenceCase
+import com.ichi2.anki.update.UpdateManager
 import com.ichi2.utils.IntentUtil
 import com.ichi2.utils.VersionUtils.pkgVersionName
 import com.ichi2.utils.copyToClipboard

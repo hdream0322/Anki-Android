@@ -95,8 +95,7 @@ SHA-1: f24e06a3657b190a12671100402df32d7b9b3d36
 
 도움말
 ----
-Check the [user manual](https://docs.ankidroid.org/) and the wiki for usage instructions. See the [help page](https://docs.ankidroid.org/help.html) 
-for how to submit a bug report or contact a project member, etc.
+사용 방법은 [사용자 매뉴얼](https://ankidroid.org/docs/manual.html) 과 위키를 확인하세요. 버그 신고나 프로젝트 멤버에게 연락하는 방법은 [도움말 페이지](https://ankidroid.org/docs/help.html) 를 참고하세요.
 
 기여하기
 ----------

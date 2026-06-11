@@ -470,10 +470,11 @@ class StudyOptionsFragment :
         if (name.size > 1) {
             nameBuilder.append("\n").append(name[1])
         }
-        if (name.size > 3) {
-            nameBuilder.append("...")
-        }
         if (name.size > 2) {
+            val middleParts = name.slice(2 until name.size - 1)
+            if (middleParts.isNotEmpty()) {
+                nameBuilder.append("\n").append(middleParts.joinToString("/"))
+            }
             nameBuilder.append("\n").append(name[name.size - 1])
         }
         textDeckName.text = nameBuilder.toString()

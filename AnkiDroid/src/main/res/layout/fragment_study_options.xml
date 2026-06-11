@@ -53,9 +53,7 @@
                     android:id="@+id/studyoptions_deck_name"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:ellipsize="end"
                     android:gravity="center"
-                    android:maxLines="3"
                     android:textSize="28sp"
                     android:textStyle="bold"
                     tools:text="Deck name here"/>

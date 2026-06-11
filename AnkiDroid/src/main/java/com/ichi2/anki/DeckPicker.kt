@@ -317,6 +317,9 @@ open class DeckPicker :
      */
     private var syncOnResume = false
 
+    /** Deck ID received from widget tap — scrolled to and selected once the deck list loads. Cleared after use. */
+    private var deckIdToScrollTo: DeckId? = null
+
     private var toolbarSearchItem: MenuItem? = null
     private var toolbarSearchView: AccessibleSearchView? = null
 
@@ -494,6 +497,9 @@ open class DeckPicker :
         if (intent.hasExtra(INTENT_SYNC_FROM_LOGIN)) {
             Timber.d("launched from introduction activity login: syncing")
             syncOnResume = true
+        }
+        if (intent.hasExtra(EXTRA_DECK_ID_TO_SELECT)) {
+            deckIdToScrollTo = intent.getLongExtra(EXTRA_DECK_ID_TO_SELECT, -1L)
         }
 
         setViewBinding(binding)
@@ -785,6 +791,12 @@ open class DeckPicker :
                 hasSubDecks = deckList.hasSubDecks,
                 dayStartMillis = deckList.dayStartMillis,
             )
+            val deckId = deckIdToScrollTo?.takeIf { deckList.data.isNotEmpty() } ?: return
+            deckIdToScrollTo = null
+            launchCatchingTask {
+                withCol { decks.select(deckId) }
+                viewModel.focusedDeck = deckId
+            }
         }
 
         fun onFocusedDeckChanged(deckId: DeckId?) {
@@ -2270,6 +2282,9 @@ open class DeckPicker :
          */
         const val INTENT_SYNC_FROM_LOGIN = "syncFromLogin"
 
+        /** If passed into the intent, DeckPicker will scroll to and select this deck without starting study. */
+        const val EXTRA_DECK_ID_TO_SELECT = "EXTRA_DECK_ID_TO_SELECT"
+
         /**
          * Available options performed by other activities (request codes for onActivityResult())
          */
@@ -2306,6 +2321,9 @@ open class DeckPicker :
         if (intent.hasExtra(INTENT_SYNC_FROM_LOGIN)) {
             Timber.i("Sync requested from Login")
             this.syncOnResume = true
+        }
+        if (intent.hasExtra(EXTRA_DECK_ID_TO_SELECT)) {
+            deckIdToScrollTo = intent.getLongExtra(EXTRA_DECK_ID_TO_SELECT, -1L)
         }
     }
 

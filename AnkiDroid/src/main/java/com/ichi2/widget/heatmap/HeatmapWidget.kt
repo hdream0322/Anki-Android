@@ -24,13 +24,12 @@ import android.content.Intent
 import android.view.View
 import android.widget.RemoteViews
 import com.ichi2.anki.CollectionManager.withCol
-import com.ichi2.anki.IntentHandler.Companion.intentToReviewDeckFromShortcuts
+import com.ichi2.anki.DeckPicker
 import com.ichi2.anki.R
 import com.ichi2.anki.analytics.UsageAnalytics
 import com.ichi2.anki.common.coroutines.applicationScope
 import com.ichi2.anki.common.crashreporting.CrashReportService
 import com.ichi2.anki.heatmap.fetchReviewHeatmapData
-import com.ichi2.anki.libanki.DeckId
 import com.ichi2.anki.libanki.Decks.Companion.NOT_FOUND_DECK_ID
 import com.ichi2.widget.ACTION_UPDATE_WIDGET
 import com.ichi2.widget.AnalyticsWidgetProvider
@@ -105,7 +104,11 @@ class HeatmapWidget : AnalyticsWidgetProvider() {
                     remoteViews.setViewVisibility(R.id.heatmap_widget_deck_name, View.VISIBLE)
                     remoteViews.setViewVisibility(R.id.heatmap_widget_summary, View.VISIBLE)
 
-                    val openIntent = intentToReviewDeckFromShortcuts(context, deckId)
+                    val openIntent =
+                        Intent(context, DeckPicker::class.java).apply {
+                            putExtra(DeckPicker.EXTRA_DECK_ID_TO_SELECT, deckId)
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        }
                     val pi =
                         PendingIntent.getActivity(
                             context,

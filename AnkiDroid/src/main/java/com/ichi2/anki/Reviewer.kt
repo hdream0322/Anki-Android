@@ -55,6 +55,7 @@ import com.ichi2.anki.CollectionManager.withCol
 import com.ichi2.anki.Whiteboard.Companion.createInstance
 import com.ichi2.anki.Whiteboard.OnPaintColorChangeListener
 import com.ichi2.anki.cardviewer.Gesture
+import com.ichi2.anki.cardviewer.SoundEffectPlayer
 import com.ichi2.anki.cardviewer.ViewerCommand
 import com.ichi2.anki.common.annotations.NeedsTest
 import com.ichi2.anki.common.crashreporting.CrashReportService
@@ -152,6 +153,16 @@ open class Reviewer :
     private var toggleStylus = false
     private var isEraserMode = false
     private var previousCardId: CardId? = null
+
+    /** 학습 중 효과음(SFX) 재생기 */
+    private val soundEffectPlayer by lazy { SoundEffectPlayer(this) }
+
+    /**
+     * 다시(Again)/어려움(Hard) 연속 누적 횟수.
+     * 좋음(Good)/쉬움(Easy)을 누르면 0으로 리셋되고, [AGAIN_HARD_STREAK_THRESHOLD]에
+     * 도달하면 낙담(aww-man) 효과음을 재생한다.
+     */
+    private var againHardStreak = 0
 
     // A flag that determines if the SchedulingStates in CurrentQueueState are
     // safe to persist in the database when answering a card. This is used to
@@ -712,6 +723,11 @@ open class Reviewer :
     }
 
     override fun closeReviewer(result: Int) {
+        // 덱의 모든 카드를 끝낸 경우 박수 효과음 재생 (학습 화면을 닫고 덱 목록으로 돌아오는 시점)
+        if (result == RESULT_NO_MORE_CARDS) {
+            soundEffectPlayer.playApplause()
+        }
+
         // Stop the mic recording if still pending
         if (isRecording) audioRecordingController?.stopAndSaveRecording()
 
@@ -1283,7 +1299,8 @@ open class Reviewer :
             }
         }.also {
             previousCardId = cardId
-            if (rating == Rating.AGAIN && wasLeech) {
+            val isLeech = rating == Rating.AGAIN && wasLeech
+            if (isLeech) {
                 state.topCard.load(getColUnsafe)
                 val leechMessage: String =
                     if (state.topCard.queue.buriedOrSuspended()) {
@@ -1293,12 +1310,46 @@ open class Reviewer :
                     }
                 showSnackbar(leechMessage, Snackbar.LENGTH_SHORT)
             }
+            playAnswerSoundEffect(rating, isLeech)
         }
 
         // showing the timebox reached dialog if the timebox is reached
         val timebox = withCol { timeboxReached() }
         if (timebox != null) {
             dealWithTimeBox(timebox)
+        }
+    }
+
+    /**
+     * 채점 결과에 따른 효과음을 재생한다.
+     * - 좋음(Good): 정답(correct) 효과음
+     * - 다시(Again): 오답(error) 효과음
+     * - leech 또는 다시/어려움 [AGAIN_HARD_STREAK_THRESHOLD]회 연속 누적: 낙담(aww-man) 효과음
+     *   (좋음/쉬움을 누르면 연속 카운터가 0으로 리셋됨)
+     * - 어려움(Hard)/쉬움(Easy) 자체는 무음
+     *
+     * 오답과 낙담이 동시에 발생하는 경우(예: 5번째 '다시')에는 오답 후 낙담을 순차 재생한다.
+     *
+     * @param isLeech 이 채점으로 카드가 leech가 되었는지 여부
+     */
+    private fun playAnswerSoundEffect(
+        rating: Rating,
+        isLeech: Boolean,
+    ) {
+        val isAgain = rating == Rating.AGAIN
+        val isHard = rating == Rating.HARD
+        againHardStreak = if (isAgain || isHard) againHardStreak + 1 else 0
+        val streakReached = againHardStreak >= AGAIN_HARD_STREAK_THRESHOLD
+        if (streakReached) {
+            againHardStreak = 0
+        }
+        val playAwwMan = isLeech || streakReached
+        when {
+            playAwwMan && isAgain -> soundEffectPlayer.playErrorThenAwwMan()
+            playAwwMan -> soundEffectPlayer.playAwwMan()
+            isAgain -> soundEffectPlayer.playError()
+            rating == Rating.GOOD -> soundEffectPlayer.playCorrect()
+            // 어려움(Hard), 쉬움(Easy)은 무음
         }
     }
 
@@ -1856,6 +1907,9 @@ open class Reviewer :
     }
 
     companion object {
+        /** 낙담(aww-man) 효과음을 울리는 다시/어려움 연속 누적 임계값 */
+        private const val AGAIN_HARD_STREAK_THRESHOLD = 5
+
         /**
          * Bundle key for the deck id to review.
          */

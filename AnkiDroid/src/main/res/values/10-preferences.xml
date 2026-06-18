@@ -35,11 +35,22 @@
     <string name="pref_cat_workarounds" maxLength="41">Workarounds</string>
     <string name="pref_cat_plugins" maxLength="41">Plugins</string>
     <string name="pref_cat_editing" maxLength="41">Editing</string>
+    <string name="pref_cat_sound_effects" maxLength="41">Sound effects</string>
 
     <!-- preferences.xml entries-->
     <string name="whiteboard_stroke_width" maxLength="41">Stroke width</string>
     <string name="pref_shared_whiteboard_settings" maxLength="41">Share whiteboard settings</string>
     <string name="pref_shared_whiteboard_settings_summ">Use the same whiteboard state, visibility, pen color and stylus mode for every deck</string>
+    <string name="pref_sound_effects" maxLength="41">Play sound effects</string>
+    <string name="pref_sound_effects_summ">Play sound effects while studying</string>
+    <string name="pref_sound_effect_correct" maxLength="41">Correct answer sound</string>
+    <string name="pref_sound_effect_correct_summ">Play a sound when answering with \"Good\"</string>
+    <string name="pref_sound_effect_error" maxLength="41">Wrong answer sound</string>
+    <string name="pref_sound_effect_error_summ">Play a sound when answering with \"Again\"</string>
+    <string name="pref_sound_effect_applause" maxLength="41">Deck completion sound</string>
+    <string name="pref_sound_effect_applause_summ">Play applause when a deck is finished</string>
+    <string name="pref_sound_effect_aww_man" maxLength="41">Discouragement sound</string>
+    <string name="pref_sound_effect_aww_man_summ">Play a sound on leeches or 5 consecutive \"Again\"/\"Hard\" answers</string>
     <string name="use_input_tag" maxLength="41">Type answer into the card</string>
     <string name="use_input_tag_summ">Use a text input box inside the card to type in the answer</string>
     <string name="reset_languages" maxLength="41">Reset languages</string>

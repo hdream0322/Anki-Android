@@ -15,6 +15,11 @@
     <string name="keep_screen_on_preference">keepScreenOn</string>
     <string name="shared_whiteboard_settings_key">sharedWhiteboardSettings</string>
     <string name="double_tap_timeout_pref_key">doubleTapTimeout</string>
+    <string name="sound_effects_enabled_key">soundEffectsEnabled</string>
+    <string name="sound_effect_correct_key">soundEffectCorrect</string>
+    <string name="sound_effect_error_key">soundEffectError</string>
+    <string name="sound_effect_applause_key">soundEffectApplause</string>
+    <string name="sound_effect_aww_man_key">soundEffectAwwMan</string>
     <!-- Sync -->
     <string name="pref_sync_screen_key">syncScreen</string>
     <string name="sync_account_key">syncAccount</string>

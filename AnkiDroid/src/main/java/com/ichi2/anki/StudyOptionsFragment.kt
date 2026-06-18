@@ -60,10 +60,17 @@ import com.ichi2.ui.CollectionMediaImageGetter
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import nl.dionsegijn.konfetti.core.Angle
+import nl.dionsegijn.konfetti.core.Party
+import nl.dionsegijn.konfetti.core.Position
+import nl.dionsegijn.konfetti.core.Spread
+import nl.dionsegijn.konfetti.core.emitter.Emitter
+import nl.dionsegijn.konfetti.xml.KonfettiView
 import org.intellij.lang.annotations.Language
 import timber.log.Timber
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import java.util.concurrent.TimeUnit
 
 /**
  * Displays an overview of a deck (title, counts, description) and allows studying or modification
@@ -85,6 +92,9 @@ class StudyOptionsFragment :
     private lateinit var textDeckDescription: TextView
     private lateinit var buryInfoLabel: TextView
     private lateinit var congratsMessage: TextView
+
+    /** 덱 학습 완료 시 축하 파티클을 띄우는 오버레이 뷰 */
+    private lateinit var konfettiView: KonfettiView
     private lateinit var newCountText: TextView
     private lateinit var newBuryText: TextView
     private lateinit var learningCountText: TextView
@@ -176,6 +186,7 @@ class StudyOptionsFragment :
         // make links clickable
         textDeckDescription.movementMethod = LinkMovementMethod.getInstance()
         congratsMessage = studyOptionsView.findViewById(R.id.studyoptions_congrats_message)
+        konfettiView = studyOptionsView.findViewById(R.id.studyoptions_konfetti)
         buryInfoLabel =
             studyOptionsView.findViewById<TextView>(R.id.studyoptions_bury_counts_label).apply {
                 // TODO see if we could further improve the display and discoverability of buried cards here
@@ -567,6 +578,18 @@ class StudyOptionsFragment :
 
     private fun showCongratsMessage() {
         congratsMessage.isVisible = true
+        // 덱 학습 완료를 축하하는 파티클을 우측 패널 상단 가로 전체에서 아래로 떨어뜨린다.
+        konfettiView.start(
+            Party(
+                speed = 0f,
+                maxSpeed = 15f,
+                damping = 0.9f,
+                angle = Angle.BOTTOM,
+                spread = Spread.ROUND,
+                emitter = Emitter(2L, TimeUnit.SECONDS).perSecond(30),
+                position = Position.Relative(0.0, 0.0).between(Position.Relative(1.0, 0.0)),
+            ),
+        )
         // 일단 기본 문구를 보여 두고, 비동기로 다음 학습 시각이 반영된 문구로 교체한다.
         congratsMessage.text = CONGRATS_EMOJI_PREFIX + getString(R.string.studyoptions_congrats_finished)
         launchCatchingTask {

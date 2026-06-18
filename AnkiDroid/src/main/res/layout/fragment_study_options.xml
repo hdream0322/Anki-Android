@@ -263,4 +263,12 @@
         </ScrollView>
     </androidx.constraintlayout.widget.ConstraintLayout>
     <include layout="@layout/include_anki_progress"/>
+
+    <!-- 덱 학습 완료 시 축하 파티클(confetti). 터치를 가로채지 않도록 clickable/focusable=false -->
+    <nl.dionsegijn.konfetti.xml.KonfettiView
+        android:id="@+id/studyoptions_konfetti"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clickable="false"
+        android:focusable="false"/>
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

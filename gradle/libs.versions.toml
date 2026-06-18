@@ -97,6 +97,8 @@ jsoup = "1.22.2"
 androidTestJunit = "1.3.0"
 # https://github.com/junit-team/junit5/releases/
 junit = "6.0.3"
+# https://github.com/DanielMartinus/Konfetti/releases
+konfetti = "2.0.5"
 # https://github.com/JetBrains/kotlin/releases/
 kotlin = '2.3.21'
 # https://github.com/Kotlin/kotlinx.serialization/releases
@@ -178,6 +180,7 @@ jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
 kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+konfetti-xml = { module = "nl.dionsegijn:konfetti-xml", version.ref = "konfetti" }
 leakcanary-android = { module = "com.squareup.leakcanary:leakcanary-android", version.ref = "leakcanaryAndroid" }
 google-material = { module = "com.google.android.material:material", version.ref = "material" }
 nanohttpd = { module = "org.nanohttpd:nanohttpd", version.ref = "nanohttpd" }

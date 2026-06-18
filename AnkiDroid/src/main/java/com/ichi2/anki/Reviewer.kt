@@ -1324,13 +1324,14 @@ open class Reviewer :
 
     /**
      * 채점 결과에 따른 효과음을 재생한다.
-     * - 좋음(Good): 정답(correct) 효과음
+     * - 좋음(Good)/어려움(Hard): 정답(correct) 효과음
      * - 다시(Again): 오답(error) 효과음
      * - leech 또는 다시/어려움 [AGAIN_HARD_STREAK_THRESHOLD]회 연속 누적: 낙담(aww-man) 효과음
      *   (좋음/쉬움을 누르면 연속 카운터가 0으로 리셋됨)
-     * - 어려움(Hard)/쉬움(Easy) 자체는 무음
+     * - 쉬움(Easy)은 무음
      *
-     * 오답과 낙담이 동시에 발생하는 경우(예: 5번째 '다시')에는 오답 후 낙담을 순차 재생한다.
+     * 낙담 트리거(연속 누적/leech)는 정답·오답음보다 우선한다. 특히 오답과 낙담이
+     * 동시에 발생하는 경우(예: 5번째 '다시')에는 오답과 낙담을 동시에 재생한다.
      *
      * @param isLeech 이 채점으로 카드가 leech가 되었는지 여부
      */
@@ -1347,11 +1348,11 @@ open class Reviewer :
         }
         val playAwwMan = isLeech || streakReached
         when {
-            playAwwMan && isAgain -> soundEffectPlayer.playErrorThenAwwMan()
+            playAwwMan && isAgain -> soundEffectPlayer.playErrorAndAwwMan()
             playAwwMan -> soundEffectPlayer.playAwwMan()
             isAgain -> soundEffectPlayer.playError()
-            rating == Rating.GOOD -> soundEffectPlayer.playCorrect()
-            // 어려움(Hard), 쉬움(Easy)은 무음
+            rating == Rating.GOOD || isHard -> soundEffectPlayer.playCorrect()
+            // 쉬움(Easy)은 무음
         }
     }
 

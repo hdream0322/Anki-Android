@@ -51,22 +51,17 @@ class SoundEffectPlayer(
     fun playAwwMan() = playIfEnabled(R.string.sound_effect_aww_man_key, R.raw.sfx_aww_man)
 
     /**
-     * 오답(error) 효과음을 재생한 뒤 이어서 낙담(aww-man) 효과음을 순차 재생한다.
-     * 5번째 '다시'를 누르는 순간처럼 두 효과음이 동시에 발생하는 경우에 사용한다.
-     * 각 효과음은 개별 설정에 따라 생략될 수 있다.
+     * 오답(error) 효과음과 낙담(aww-man) 효과음을 동시에 시작한다.
+     * 5번째 '다시'를 누르는 순간처럼 두 효과음이 함께 발생하는 경우에 사용한다.
+     * 각 효과음은 독립적인 MediaPlayer로 재생되며, 개별 설정에 따라 생략될 수 있다.
      */
-    fun playErrorThenAwwMan() {
-        val errorEnabled = isEnabled(R.string.sound_effect_error_key)
-        val awwEnabled = isEnabled(R.string.sound_effect_aww_man_key)
-        when {
-            errorEnabled && awwEnabled -> play(R.raw.sfx_error) { play(R.raw.sfx_aww_man) }
-            errorEnabled -> play(R.raw.sfx_error)
-            awwEnabled -> play(R.raw.sfx_aww_man)
-        }
+    fun playErrorAndAwwMan() {
+        if (isEnabled(R.string.sound_effect_error_key)) play(R.raw.sfx_error)
+        if (isEnabled(R.string.sound_effect_aww_man_key)) play(R.raw.sfx_aww_man)
     }
 
     /**
-     * 덱 학습 완료 시 박수 소리. 음원은 약 26초이므로 약 5초 재생 후
+     * 덱 학습 완료 시 박수 소리. 음원은 약 26초이므로 약 3초 재생 후
      * 디졸브(페이드아웃)로 자연스럽게 소리를 줄여 멈춘다.
      */
     fun playApplause() {
@@ -179,7 +174,7 @@ class SoundEffectPlayer(
 
     companion object {
         /** 박수 소리 정상 재생 시간(ms). 이후 페이드아웃 시작. */
-        private const val APPLAUSE_PLAY_MS = 5_000L
+        private const val APPLAUSE_PLAY_MS = 3_000L
 
         /** 페이드아웃 단계 수 */
         private const val FADE_STEPS = 20

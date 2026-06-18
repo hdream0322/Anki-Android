@@ -63,6 +63,7 @@ import com.ichi2.anki.CollectionManager.withCol
 import com.ichi2.anki.android.input.ShortcutGroup
 import com.ichi2.anki.android.input.shortcut
 import com.ichi2.anki.cardviewer.SingleCardSide
+import com.ichi2.anki.common.android.animationDisabled
 import com.ichi2.anki.common.android.appContext
 import com.ichi2.anki.common.annotations.NeedsTest
 import com.ichi2.anki.common.utils.android.getColorFromAttr
@@ -635,6 +636,9 @@ open class CardTemplateEditor : AnkiActivity(R.layout.activity_card_template_edi
                 binding.mainLayout.addView(cardView, 0)
             }
 
+            binding.bottomNavigation.menu
+                .findItem(R.id.front_edit)
+                .title = TR.notetypesFrontField()
             binding.bottomNavigation.menu
                 .findItem(R.id.styling_edit)
                 .title = TR.cardTemplatesTemplateStyling()

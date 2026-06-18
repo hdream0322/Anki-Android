@@ -106,6 +106,8 @@ import com.ichi2.anki.browser.search.iconRes
 import com.ichi2.anki.browser.search.savedFilters
 import com.ichi2.anki.common.ALL_DECKS_ID
 import com.ichi2.anki.common.annotations.NeedsTest
+import com.ichi2.anki.common.destinations.navigate
+import com.ichi2.anki.common.utils.ext.ifNotZero
 import com.ichi2.anki.dialogs.BrowserOptionsDialog
 import com.ichi2.anki.dialogs.CardBrowserOrderDialog
 import com.ichi2.anki.dialogs.ChangeNoteTypeDialog
@@ -146,7 +148,6 @@ import com.ichi2.anki.undoAndShowSnackbar
 import com.ichi2.anki.utils.ext.addPrepareMenuProvider
 import com.ichi2.anki.utils.ext.getParcelableCompat
 import com.ichi2.anki.utils.ext.hasCheckedBackground
-import com.ichi2.anki.utils.ext.ifNotZero
 import com.ichi2.anki.utils.ext.launchCollectionInLifecycleScope
 import com.ichi2.anki.utils.ext.setFragmentResultListener
 import com.ichi2.anki.utils.ext.showDialogFragment
@@ -519,7 +520,7 @@ class CardBrowserFragment :
                                         }
 
                                         override fun onQueryTextSubmit(query: String): Boolean {
-                                            vm.setQuery(query)
+                                            vm.setQuery(query, fromUserSearch = true)
                                             legacySearchView!!.clearFocus()
                                             return true
                                         }
@@ -928,6 +929,8 @@ class CardBrowserFragment :
             }
 
             when (val result = state.resultMessage) {
+                // no message for browser open / deck change / order change: only user searches
+                null -> return
                 is SearchResultMessage.CardCount ->
                     showSnackbar(
                         message = state.formatCardCount(resources),
@@ -1048,7 +1051,7 @@ class CardBrowserFragment :
             launchCatchingTask { searchBar?.setText(value.toUserSpannable()) }
 
             Timber.i("relaying submitted search to activity")
-            activityViewModel.launchSearchForCards(value, forceRefresh = false)
+            activityViewModel.launchSearchForCards(value, forceRefresh = false, fromUserSearch = true)
         }
 
         fun onUserMessage(message: UserMessage) =
@@ -1423,7 +1426,7 @@ class CardBrowserFragment :
     fun displayCardInfo() =
         launchCatchingTask {
             activityViewModel.queryCardInfoDestination()?.let { destination ->
-                startActivity(destination.toIntent(requireContext()))
+                navigate(destination)
             }
         }
 
@@ -1764,7 +1767,11 @@ class CardBrowserFragment :
 
     @VisibleForTesting
     val addNoteLauncher: NoteEditorLauncher
-        get() = NoteEditorLauncher.AddNoteFromCardBrowser(activityViewModel)
+        get() =
+            NoteEditorLauncher.AddNoteFromCardBrowser(
+                searchTerms = activityViewModel.searchTerms,
+                deckId = activityViewModel.lastDeckId,
+            )
 
     private fun addNote() {
         onAddNoteActivityResult.launch(addNoteLauncher.toIntent(requireContext()))

@@ -78,7 +78,7 @@
     <string name="slide_to_cancel" comment="Message shown when pressing the record button">Wischen zum Abbrechen</string>
     <string name="filter_by_flags" maxLength="41">Fahnen</string>
     <!-- filtered deck options -->
-    <string name="filtered_option_delay_again">Delay for again</string>
+    <string name="filtered_option_delay_again">Wartezeit für ›Nochmal‹</string>
     <string name="filtered_option_delay_hard">Verzögerung für Schwer</string>
     <string name="filtered_option_delay_good">Verzögerung für gut</string>
     <!-- Custom study options -->
@@ -164,7 +164,6 @@
     <string name="export_choice_save_to">Speichern unter</string>
     <string name="export_saving_exported_collection">Exportierte Datei speichern&#8230;</string>
     <string name="study_options" comment="Name for a preference category in Filtered deck (aka Cram deck, aka Custom study) options" maxLength="28">Einstellungen</string>
-    <string name="menu__deck_options" maxLength="28">Einstellungen</string>
     <string name="menu__study_options" comment="Menu item that opens options for a Filtered deck (aka Cram deck, aka Custom study)">Lerneinstellungen</string>
     <string name="select_tts" maxLength="28">Vorlesesprache festlegen</string>
     <string name="dyn_deck_desc">Dies ist ein besonderer Stapel, um außerhalb des regulären Zeitplans zu lernen. Karten werden nach dem Wiederholen automatisch in ihren ursprünglichen Stapel zurückgelegt. Beim Löschen dieses Stapels aus der Stapelliste werden alle verbleibenden Karten in ihren ursprünglichen Stapel zurückgelegt.</string>

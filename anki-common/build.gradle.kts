@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import com.android.build.api.dsl.LibraryExtension
+import com.ichi2.anki.gradle.addAnkiBackendDependencies
 
 plugins {
     id("ankidroid.android.library")
@@ -17,6 +18,9 @@ dependencies {
     implementation(project(":common"))
     implementation(project(":libanki"))
 
+    addAnkiBackendDependencies(project)
+
     implementation(libs.androidx.activity)
     implementation(libs.androidx.fragment.ktx)
+    implementation(libs.jakewharton.timber)
 }

@@ -89,6 +89,7 @@ import com.ichi2.anki.android.back.exitViaDoubleTapBackCallback
 import com.ichi2.anki.android.input.ShortcutGroup
 import com.ichi2.anki.android.input.shortcut
 import com.ichi2.anki.android.view.locationInWindow
+import com.ichi2.anki.common.android.animationDisabled
 import com.ichi2.anki.common.android.appContext
 import com.ichi2.anki.common.annotations.NeedsTest
 import com.ichi2.anki.common.crashreporting.CrashReportService
@@ -209,6 +210,7 @@ import timber.log.Timber
 import java.io.File
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
+import com.ichi2.anki.common.android.R as CommonR
 
 /**
  * The current entry point for AnkiDroid. Displays decks, allowing users to study. Many other functions.
@@ -590,7 +592,7 @@ open class DeckPicker :
             IMPORT_MIME_TYPES,
             DropHelper.Options
                 .Builder()
-                .setHighlightColor(R.color.material_lime_green_A700)
+                .setHighlightColor(CommonR.color.material_lime_green_A700)
                 .setHighlightCornerRadiusPx(0)
                 .build(),
             onReceiveContentListener,

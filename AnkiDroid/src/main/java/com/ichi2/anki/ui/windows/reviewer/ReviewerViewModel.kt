@@ -30,6 +30,8 @@ import com.ichi2.anki.asyncIO
 import com.ichi2.anki.cardviewer.SingleCardSide
 import com.ichi2.anki.common.annotations.NeedsTest
 import com.ichi2.anki.common.destinations.BrowserDestination
+import com.ichi2.anki.common.destinations.CardInfoDestination
+import com.ichi2.anki.common.destinations.CardInfoDestination.EntryPoint
 import com.ichi2.anki.launchCatchingIO
 import com.ichi2.anki.libanki.Card
 import com.ichi2.anki.libanki.CardId
@@ -43,7 +45,6 @@ import com.ichi2.anki.noteeditor.NoteEditorLauncher
 import com.ichi2.anki.observability.ChangeManager
 import com.ichi2.anki.observability.undoableOp
 import com.ichi2.anki.pages.AnkiServer
-import com.ichi2.anki.pages.CardInfoDestination
 import com.ichi2.anki.pages.DeckOptionsDestination
 import com.ichi2.anki.pages.DeckOptionsEntry
 import com.ichi2.anki.pages.PostRequestUri
@@ -68,10 +69,8 @@ import com.ichi2.anki.ui.windows.reviewer.autoadvance.QuestionAction
 import com.ichi2.anki.utils.Destination
 import com.ichi2.anki.utils.ext.answerCard
 import com.ichi2.anki.utils.ext.cardStatsNoCardClean
-import com.ichi2.anki.utils.ext.currentCardStudy
 import com.ichi2.anki.utils.ext.flag
 import com.ichi2.anki.utils.ext.getLongOrNull
-import com.ichi2.anki.utils.ext.previousCardStudy
 import com.ichi2.anki.utils.ext.setUserFlagForCards
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
@@ -150,6 +149,7 @@ class ReviewerViewModel(
      */
     private var mutationSignal = CompletableDeferred(Unit)
 
+    val isAutoAdvanceEnabledFlow = MutableStateFlow(autoAdvance.isEnabled)
     val answerButtonsNextTimeFlow: MutableStateFlow<AnswerButtonsNextTime?> = MutableStateFlow(null)
     private val shouldShowNextTimes = asyncIO { repository.getShouldShowNextTimes() }
 
@@ -285,9 +285,9 @@ class ReviewerViewModel(
 
     private suspend fun emitCardInfoDestination() {
         val cardId = currentCard.await().id
-        val destination = CardInfoDestination(cardId, TR.currentCardStudy())
+        val destination = CardInfoDestination(cardId, EntryPoint.CURRENT_CARD_STUDY)
         Timber.i("Launching 'card info' for card %d", cardId)
-        destinationFlow.emit(destination)
+        navigateFlow.emit(destination)
     }
 
     private suspend fun emitPreviousCardInfoDestination() {
@@ -297,9 +297,9 @@ class ReviewerViewModel(
             actionFeedbackFlow.emit(TR.cardStatsNoCardClean())
             return
         }
-        val destination = CardInfoDestination(previousCardId, TR.previousCardStudy())
+        val destination = CardInfoDestination(previousCardId, EntryPoint.PREVIOUS_CARD_STUDY)
         Timber.i("Launching 'previous card info' for card %d", previousCardId)
-        destinationFlow.emit(destination)
+        navigateFlow.emit(destination)
     }
 
     @NeedsTest("verify that we show the proper deck option targets for the current card")
@@ -425,6 +425,7 @@ class ReviewerViewModel(
     private suspend fun toggleAutoAdvance() {
         Timber.v("ReviewerViewModel::toggleAutoAdvance")
         autoAdvance.isEnabled = !autoAdvance.isEnabled
+        isAutoAdvanceEnabledFlow.value = autoAdvance.isEnabled
         val message =
             if (autoAdvance.isEnabled) {
                 TR.actionsAutoAdvanceActivated()

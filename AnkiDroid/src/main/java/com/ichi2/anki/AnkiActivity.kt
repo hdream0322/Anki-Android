@@ -62,6 +62,8 @@ import com.ichi2.anki.android.input.ShortcutGroup
 import com.ichi2.anki.android.input.ShortcutGroupProvider
 import com.ichi2.anki.android.input.shortcut
 import com.ichi2.anki.common.android.AnkiBroadcastReceiver
+import com.ichi2.anki.common.android.animationDisabled
+import com.ichi2.anki.common.android.themes.disableXiaomiForceDarkMode
 import com.ichi2.anki.common.annotations.LegacyNotifications
 import com.ichi2.anki.common.annotations.NeedsTest
 import com.ichi2.anki.common.crashreporting.CrashReportService
@@ -88,7 +90,6 @@ import com.ichi2.anki.libanki.Collection
 import com.ichi2.anki.receiver.SdCardReceiver
 import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.snackbar.showSnackbar
-import com.ichi2.anki.utils.AnimUtils
 import com.ichi2.anki.utils.ext.requireString
 import com.ichi2.anki.utils.ext.showDialogFragment
 import com.ichi2.anki.workarounds.AppLoadedFromBackupWorkaround.showedActivityFailedScreen
@@ -105,6 +106,7 @@ import timber.log.Timber
 import java.io.File
 import java.io.FileOutputStream
 import androidx.browser.customtabs.CustomTabsIntent.Builder as CustomTabsIntentBuilder
+import com.ichi2.anki.common.android.R as CommonR
 
 @UiThread
 open class AnkiActivity(
@@ -144,7 +146,7 @@ open class AnkiActivity(
         volumeControlStream = AudioManager.STREAM_MUSIC
         // Set the theme
         Themes.setTheme(this)
-        Themes.disableXiaomiForceDarkMode(this)
+        disableXiaomiForceDarkMode(this)
         super.onCreate(savedInstanceState)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             @Suppress("deprecation")
@@ -293,24 +295,6 @@ open class AnkiActivity(
         get() = CollectionManager.getColUnsafe()
 
     fun colIsOpenUnsafe(): Boolean = CollectionManager.isOpenUnsafe()
-
-    /**
-     * Whether animations should not be displayed
-     * This is used to improve the UX for e-ink devices
-     * Can be tested via Settings - Advanced - Safe display mode
-     *
-     * @see .animationEnabled
-     */
-    fun animationDisabled(): Boolean = !AnimUtils.areAnimationsEnabled(this)
-
-    /**
-     * Whether animations should be displayed
-     * This is used to improve the UX for e-ink devices
-     * Can be tested via Settings - Advanced - Safe display mode
-     *
-     * @see .animationDisabled
-     */
-    fun animationEnabled(): Boolean = !animationDisabled()
 
     override fun setContentView(view: View?) {
         if (animationDisabled()) {
@@ -479,8 +463,8 @@ open class AnkiActivity(
             showSnackbar(getString(R.string.no_browser_msg, url.toString()))
             return
         }
-        val toolbarColor = MaterialColors.getColor(this, R.attr.appBarColor, 0)
-        val navBarColor = MaterialColors.getColor(this, R.attr.customTabNavBarColor, 0)
+        val toolbarColor = MaterialColors.getColor(this, CommonR.attr.appBarColor, 0)
+        val navBarColor = MaterialColors.getColor(this, CommonR.attr.customTabNavBarColor, 0)
         val colorSchemeParams =
             CustomTabColorSchemeParams
                 .Builder()
@@ -598,7 +582,7 @@ open class AnkiActivity(
                 ).setSmallIcon(R.drawable.ic_star_notify)
                 .setContentTitle(title)
                 .setContentText(message)
-                .setColor(getColor(R.color.material_light_blue_500))
+                .setColor(getColor(CommonR.color.material_light_blue_500))
                 .setStyle(NotificationCompat.BigTextStyle().bigText(message))
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setTicker(ticker)

@@ -5,7 +5,10 @@ import com.ichi2.anki.gradle.GitHubActionsTestListener
 import com.ichi2.anki.gradle.TestSummaryService
 import com.slack.keeper.optInToKeeper
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
+import org.gradle.buildconfiguration.tasks.UpdateDaemonJvm
 import org.gradle.internal.jvm.Jvm
+import org.gradle.jvm.toolchain.JavaLanguageVersion
+import org.gradle.jvm.toolchain.JvmVendorSpec
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import org.jlleitschuh.gradle.ktlint.KtlintExtension
 import java.lang.management.ManagementFactory
@@ -18,9 +21,12 @@ plugins {
     // Use `id` to avoid classpath conflicts. Versions are pinned by buildSrc/.
     id("com.android.application") apply false
     id("com.android.library") apply false
+    id("com.android.test") apply false
     id("org.jetbrains.kotlin.android") apply false
     id("org.jetbrains.kotlin.plugin.parcelize") apply false
     id("org.jetbrains.kotlin.jvm") apply false
+    // Separate AndroidX artifact, not pinned by AGP version comes from the catalog.
+    alias(libs.plugins.androidx.baselineprofile) apply false
     // Serialization is a separate artifact, not pinned transitively by AGP.
     alias(libs.plugins.kotlin.serialization) apply false
     alias(libs.plugins.ktlint.gradle.plugin) apply false
@@ -175,7 +181,7 @@ if (jvmVersion !in jvmVersionLowerBound..jvmVersionUpperBound && !aligningDaemon
             appendLine("  Please make sure the `jacocoTestReport` target works on an emulator with our minSdk (currently $minSdk).")
         } else {
             appendLine("  The Gradle daemon is on an unsupported JVM (set by gradle/gradle-daemon-jvm.properties).")
-            appendLine("  Align it to a supported version: ./gradlew updateDaemonJvm --jvm-version=<version>")
+            appendLine("  Align it to the pinned daemon JVM: ./gradlew updateDaemonJvm")
         }
     }
     throw GradleException(message.trimEnd())
@@ -197,6 +203,14 @@ if (requestedJvm != null && requestedJvm != jvmVersion && !aligningDaemon) {
             git checkout gradle/gradle-daemon-jvm.properties
         """.trimIndent(),
     )
+}
+
+// Ensure `./gradlew updateDaemonJvm` uses consistent defaults.
+// overridable with: `--jvm-vendor`/`--jvm-version` if necessary.
+tasks.withType<UpdateDaemonJvm>().configureEach {
+    @Suppress("UnstableApiUsage") // JvmVendorSpec.JETBRAINS
+    vendor.convention(JvmVendorSpec.JETBRAINS)
+    languageVersion.convention(JavaLanguageVersion.of(21))
 }
 
 val ciBuild by extra(System.getenv("CI") == "true") // true when running on GitHub Actions

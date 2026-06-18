@@ -155,6 +155,9 @@ object SentenceCase {
     context(_: Context)
     val deckOptions get() = TR.deckConfigTitle().toSentenceCase(R.string.sentence_deck_options)
 
+    context(_: Fragment)
+    val deckOptions get() = TR.deckConfigTitle().toSentenceCase(R.string.sentence_deck_options)
+
     context(_: Context)
     val deleteDeck get() = TR.decksDeleteDeck().toSentenceCase(R.string.sentence_delete_deck)
 
@@ -275,6 +278,16 @@ object SentenceCase {
 
     context(_: Fragment)
     val selectImage get() = TR.notetypesIoSelectImage().toSentenceCase(R.string.sentence_select_image)
+
+    // 'Answer easy' is not provided by the backend
+    context(_: Fragment)
+    val answerAgain get() = TR.deckConfigAnswerAgain().toSentenceCase(R.string.sentence_answer_again)
+
+    context(_: Fragment)
+    val answerHard get() = TR.deckConfigAnswerHard().toSentenceCase(R.string.sentence_answer_hard)
+
+    context(_: Fragment)
+    val answerGood get() = TR.deckConfigAnswerGood().toSentenceCase(R.string.sentence_answer_good)
 }
 
 /**

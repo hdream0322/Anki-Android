@@ -35,6 +35,7 @@ import com.google.android.material.color.MaterialColors
 import com.google.android.material.navigation.NavigationView
 import com.ichi2.anki.IntentHandler.Companion.grantedStoragePermissions
 import com.ichi2.anki.NoteEditorFragment.Companion.NoteEditorCaller
+import com.ichi2.anki.common.android.animationEnabled
 import com.ichi2.anki.common.preferences.sharedPrefs
 import com.ichi2.anki.common.utils.android.HandlerUtils
 import com.ichi2.anki.dialogs.help.HelpDialog
@@ -45,6 +46,7 @@ import com.ichi2.anki.utils.ext.showDialogFragment
 import com.ichi2.anki.workarounds.FullDraggableContainerFix
 import com.ichi2.utils.IntentUtil
 import timber.log.Timber
+import com.ichi2.anki.common.android.R as CommonR
 
 abstract class NavigationDrawerActivity(
     @LayoutRes contentLayoutId: Int? = null,
@@ -152,7 +154,7 @@ abstract class NavigationDrawerActivity(
         drawerLayout.setStatusBarBackgroundColor(
             MaterialColors.getColor(
                 this,
-                R.attr.appBarColor,
+                CommonR.attr.appBarColor,
                 0,
             ),
         )

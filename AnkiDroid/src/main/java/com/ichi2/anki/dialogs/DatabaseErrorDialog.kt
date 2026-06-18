@@ -27,7 +27,6 @@ import androidx.annotation.StringRes
 import androidx.appcompat.app.AlertDialog
 import androidx.core.app.ActivityCompat
 import androidx.core.os.BundleCompat
-import androidx.core.os.bundleOf
 import androidx.lifecycle.lifecycleScope
 import com.ichi2.anki.AnkiActivity
 import com.ichi2.anki.BackupManager
@@ -42,6 +41,8 @@ import com.ichi2.anki.InitialActivity.StartupFailure.InitializationError
 import com.ichi2.anki.LocalizedUnambiguousBackupTimeFormatter
 import com.ichi2.anki.R
 import com.ichi2.anki.ankiActivity
+import com.ichi2.anki.backend.DatabaseCorruption
+import com.ichi2.anki.backend.getDatabaseVersion
 import com.ichi2.anki.common.time.TimeManager
 import com.ichi2.anki.dialogs.DatabaseErrorDialog.DatabaseErrorDialogType.DIALOG_CONFIRM_DATABASE_CHECK
 import com.ichi2.anki.dialogs.DatabaseErrorDialog.DatabaseErrorDialogType.DIALOG_CONFIRM_RESTORE_BACKUP
@@ -593,7 +594,7 @@ class DatabaseErrorDialog : AsyncDialogFragment() {
         get() =
             when (requireDialogType()) {
                 DIALOG_LOAD_FAILED ->
-                    if (databaseCorruptFlag) {
+                    if (DatabaseCorruption.isDetected) {
                         // The sqlite database has been corrupted (DatabaseErrorHandler.onCorrupt() was called)
                         // Show a specific message appropriate for the situation
                         res().getString(R.string.corrupt_db_message, res().getString(R.string.repair_deck))
@@ -613,7 +614,7 @@ class DatabaseErrorDialog : AsyncDialogFragment() {
                 INCOMPATIBLE_DB_VERSION -> {
                     var databaseVersion = -1
                     try {
-                        databaseVersion = CollectionHelper.getDatabaseVersion(requireContext())
+                        databaseVersion = getDatabaseVersion(requireContext(), CollectionHelper.getCollectionPath(requireContext()))
                     } catch (e: Exception) {
                         Timber.w(e, "Failed to get database version, using -1")
                     }
@@ -688,9 +689,6 @@ class DatabaseErrorDialog : AsyncDialogFragment() {
     }
 
     companion object {
-        // public flag which lets us distinguish between inaccessible and corrupt database
-        var databaseCorruptFlag = false
-
         /**
          * Key for passing a CustomExceptionData object in a Bundle,
          * contains error message and stack trace.
@@ -736,9 +734,9 @@ class DatabaseErrorDialog : AsyncDialogFragment() {
             Message.obtain().apply {
                 what = this@ShowDatabaseErrorDialog.what
                 data =
-                    bundleOf(
-                        ARG_DIALOG to dialogType,
-                    )
+                    Bundle().apply {
+                        putParcelable(ARG_DIALOG, dialogType)
+                    }
             }
 
         companion object {

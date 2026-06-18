@@ -30,7 +30,6 @@ import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.VisibleForTesting
 import androidx.constraintlayout.widget.Group
-import androidx.core.os.bundleOf
 import androidx.core.text.HtmlCompat
 import androidx.core.text.parseAsHtml
 import androidx.core.view.MenuProvider
@@ -111,7 +110,7 @@ class StudyOptionsFragment :
                 if (currentContentView != CONTENT_CONGRATS) {
                     parentFragmentManager.setFragmentResult(
                         REQUEST_STUDY_OPTIONS_STUDY,
-                        bundleOf(),
+                        Bundle(),
                     )
                 } else {
                     showCustomStudyContextMenu()
@@ -314,7 +313,7 @@ class StudyOptionsFragment :
                 menu.findItem(R.id.action_rebuild)?.isVisible = false
                 menu.findItem(R.id.action_empty)?.isVisible = false
                 menu.findItem(R.id.action_custom_study)?.isVisible = true
-                menu.findItem(R.id.action_deck_or_study_options)?.setTitle(R.string.menu__deck_options)
+                menu.findItem(R.id.action_deck_or_study_options)?.title = TR.sentenceCase.deckOptions
             }
             // Don't show custom study icon if congrats shown
             if (currentContentView == CONTENT_CONGRATS) {

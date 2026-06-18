@@ -33,6 +33,7 @@ import com.ichi2.anki.canUserAccessDeck
 import com.ichi2.anki.common.android.AnkiBroadcastReceiver
 import com.ichi2.anki.common.annotations.LegacyNotifications
 import com.ichi2.anki.common.preferences.sharedPrefs
+import com.ichi2.anki.common.utils.ext.allDecksCounts
 import com.ichi2.anki.libanki.Decks
 import com.ichi2.anki.libanki.EpochMilliseconds
 import com.ichi2.anki.preferences.PENDING_NOTIFICATIONS_ONLY
@@ -44,7 +45,6 @@ import com.ichi2.anki.runGloballyWithTimeout
 import com.ichi2.anki.services.NotificationService.Companion.addAction
 import com.ichi2.anki.services.NotificationService.Companion.getIntent
 import com.ichi2.anki.settings.Prefs
-import com.ichi2.anki.utils.ext.allDecksCounts
 import com.ichi2.anki.utils.ext.getParcelableCompat
 import com.ichi2.anki.utils.remainingTime
 import com.ichi2.widget.WidgetStatus
@@ -56,6 +56,7 @@ import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
+import com.ichi2.anki.common.android.R as CommonR
 
 /**
  * Performs the actual firing of review reminder notifications, both recurring ones and snoozed ones.
@@ -225,7 +226,7 @@ class NotificationService : AnkiBroadcastReceiver() {
                     .Builder(context, Channel.REVIEW_REMINDERS.id)
                     .setCategory(NotificationCompat.CATEGORY_REMINDER)
                     .setSmallIcon(R.drawable.ic_star_notify)
-                    .setColor(context.getColor(R.color.material_light_blue_700))
+                    .setColor(context.getColor(CommonR.color.material_light_blue_700))
                     .setContentTitle(title)
                     .setContentText(description)
                     .setContentIntent(pendingIntent)
@@ -351,7 +352,7 @@ class NotificationService : AnkiBroadcastReceiver() {
                             Channel.GENERAL.id,
                         ).setCategory(NotificationCompat.CATEGORY_REMINDER)
                         .setSmallIcon(R.drawable.ic_star_notify)
-                        .setColor(context.getColor(R.color.material_light_blue_700))
+                        .setColor(context.getColor(CommonR.color.material_light_blue_700))
                         .setContentTitle(cardsDueText)
                         .setTicker(cardsDueText)
                 // Enable vibrate and blink if set in preferences

@@ -118,4 +118,42 @@ fun ReviewerMenuView.setup(
             }
         }
     }
+    findItem(ViewerAction.RECORD_VOICE.menuId)?.let { recordVoiceItem ->
+        val recordVoiceFlow = viewModel.voiceRecorderEnabledFlow.flowWithLifecycle(lifecycle)
+        recordVoiceFlow.collectLatestIn(lifecycle.coroutineScope) { isEnabled ->
+            if (isEnabled) {
+                recordVoiceItem.setPaddedIcon(context, R.drawable.ic_action_mic)
+                recordVoiceItem.setTitle(R.string.disable_voice_recording)
+            } else {
+                recordVoiceItem.setPaddedIcon(context, R.drawable.ic_mic_outlined)
+                recordVoiceItem.setTitle(R.string.enable_voice_recording)
+            }
+        }
+    }
+
+    findItem(ViewerAction.TOGGLE_WHITEBOARD.menuId)?.let { toggleWhiteboardItem ->
+        val toggleWhiteboardFlow = viewModel.whiteboardEnabledFlow.flowWithLifecycle(lifecycle)
+        toggleWhiteboardFlow.collectLatestIn(lifecycle.coroutineScope) { isEnabled ->
+            if (isEnabled) {
+                toggleWhiteboardItem.setPaddedIcon(context, R.drawable.ic_draw_filled)
+                toggleWhiteboardItem.setTitle(R.string.disable_whiteboard)
+            } else {
+                toggleWhiteboardItem.setPaddedIcon(context, R.drawable.ic_enable_whiteboard)
+                toggleWhiteboardItem.setTitle(R.string.enable_whiteboard)
+            }
+        }
+    }
+
+    findItem(ViewerAction.TOGGLE_AUTO_ADVANCE.menuId)?.let { autoAdvanceItem ->
+        val isAutoAdvancedEnabledFlow = viewModel.isAutoAdvanceEnabledFlow.flowWithLifecycle(lifecycle)
+        isAutoAdvancedEnabledFlow.collectLatestIn(lifecycle.coroutineScope) { isEnabled ->
+            if (isEnabled) {
+                autoAdvanceItem.setPaddedIcon(context, R.drawable.ic_fast_forward)
+                autoAdvanceItem.setTitle(R.string.disable_auto_advance)
+            } else {
+                autoAdvanceItem.setPaddedIcon(context, R.drawable.ic_fast_forward_outlined)
+                autoAdvanceItem.setTitle(R.string.enable_auto_advance)
+            }
+        }
+    }
 }

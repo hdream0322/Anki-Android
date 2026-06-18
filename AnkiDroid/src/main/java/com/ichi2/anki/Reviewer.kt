@@ -59,6 +59,8 @@ import com.ichi2.anki.cardviewer.SoundEffectPlayer
 import com.ichi2.anki.cardviewer.ViewerCommand
 import com.ichi2.anki.common.annotations.NeedsTest
 import com.ichi2.anki.common.crashreporting.CrashReportService
+import com.ichi2.anki.common.destinations.CardInfoDestination
+import com.ichi2.anki.common.destinations.CardInfoDestination.EntryPoint
 import com.ichi2.anki.common.preferences.sharedPrefs
 import com.ichi2.anki.common.time.TimeManager
 import com.ichi2.anki.common.utils.android.HandlerUtils.executeFunctionWithDelay
@@ -84,8 +86,8 @@ import com.ichi2.anki.multimedia.audio.AudioRecordingController.Companion.tempAu
 import com.ichi2.anki.multimedia.audio.AudioRecordingController.RecordingState
 import com.ichi2.anki.noteeditor.NoteEditorLauncher
 import com.ichi2.anki.observability.undoableOp
-import com.ichi2.anki.pages.CardInfoDestination
 import com.ichi2.anki.pages.PostRequestUri
+import com.ichi2.anki.pages.toIntent
 import com.ichi2.anki.reviewer.ActionButtons
 import com.ichi2.anki.reviewer.AnswerButtons.Companion.getBackgroundColors
 import com.ichi2.anki.reviewer.AnswerButtons.Companion.getTextColors
@@ -112,10 +114,8 @@ import com.ichi2.anki.snackbar.showSnackbar
 import com.ichi2.anki.ui.internationalization.sentenceCase
 import com.ichi2.anki.ui.windows.reviewer.ReviewerFragment
 import com.ichi2.anki.utils.ext.cardStatsNoCardClean
-import com.ichi2.anki.utils.ext.currentCardStudy
 import com.ichi2.anki.utils.ext.flag
 import com.ichi2.anki.utils.ext.getLongOrNull
-import com.ichi2.anki.utils.ext.previousCardStudy
 import com.ichi2.anki.utils.ext.setUserFlagForCards
 import com.ichi2.anki.utils.ext.showDialogFragment
 import com.ichi2.anki.utils.navBarNeedsScrim
@@ -137,6 +137,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import timber.log.Timber
 import kotlin.coroutines.resume
+import com.ichi2.anki.common.android.R as CommonR
 
 @Suppress("LeakingThis")
 @NeedsTest("#14709: Timebox shouldn't appear instantly when the Reviewer is opened")
@@ -843,7 +844,7 @@ open class Reviewer :
             return
         }
         Timber.i("opening card info")
-        val intent = CardInfoDestination(currentCard!!.id, TR.currentCardStudy()).toIntent(this)
+        val intent = CardInfoDestination(currentCard!!.id, EntryPoint.CURRENT_CARD_STUDY).toIntent(this)
         val animation = getAnimationTransitionFromGesture(fromGesture)
         intent.putExtra(FINISH_ANIMATION_EXTRA, getInverseTransition(animation) as Parcelable)
         startActivityWithAnimation(intent, animation)
@@ -856,7 +857,7 @@ open class Reviewer :
             return
         }
         Timber.i("opening previous card info")
-        val intent = CardInfoDestination(previousCardId!!, TR.previousCardStudy()).toIntent(this)
+        val intent = CardInfoDestination(previousCardId!!, EntryPoint.PREVIOUS_CARD_STUDY).toIntent(this)
         val animation = getAnimationTransitionFromGesture(fromGesture)
         intent.putExtra(FINISH_ANIMATION_EXTRA, getInverseTransition(animation) as Parcelable)
         startActivityWithAnimation(intent, animation)
@@ -894,6 +895,7 @@ open class Reviewer :
 
         // Anki Desktop Translations
         menu.findItem(R.id.action_flag)?.title = TR.sentenceCase.flagCard
+        menu.findItem(R.id.action_open_deck_options)?.title = TR.sentenceCase.deckOptions
         menu.findItem(R.id.action_reschedule_card).title = TR.sentenceCase.setDueDate
         menu.findItem(R.id.action_card_info)?.title = TR.sentenceCase.cardInfo
         menu.findItem(R.id.action_previous_card_info)?.title = TR.sentenceCase.previousCardInfo
@@ -1662,7 +1664,7 @@ open class Reviewer :
         // Show / hide the Action bar together with the status bar
         val prefs = a.sharedPrefs()
         val fullscreenMode = fromPreference(prefs)
-        a.window.statusBarColor = MaterialColors.getColor(a, R.attr.appBarColor, 0)
+        a.window.statusBarColor = MaterialColors.getColor(a, CommonR.attr.appBarColor, 0)
         val decorView = a.window.decorView
         decorView.setOnSystemUiVisibilityChangeListener { flags: Int ->
             val toolbar = a.findViewById<View>(R.id.toolbar)

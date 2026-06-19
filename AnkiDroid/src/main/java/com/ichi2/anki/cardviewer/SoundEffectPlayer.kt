@@ -21,6 +21,7 @@ import android.os.Handler
 import android.os.Looper
 import androidx.annotation.RawRes
 import androidx.annotation.StringRes
+import androidx.annotation.VisibleForTesting
 import com.ichi2.anki.R
 import com.ichi2.anki.common.preferences.sharedPrefs
 import timber.log.Timber
@@ -41,8 +42,23 @@ class SoundEffectPlayer(
     private val appContext = context.applicationContext
     private val handler = Handler(Looper.getMainLooper())
 
+    /** 박수 소리가 실제로 재생을 시작한 횟수 (테스트에서 재생 순서를 검증하기 위함). */
+    @VisibleForTesting
+    internal var applauseStartCount = 0
+        private set
+
+    /** 정답(correct) 효과음이 현재 재생 중인지 여부. 박수 소리를 이어 재생할지 판단에 사용. */
+    private var correctPlaying = false
+
+    /** 정답 효과음이 끝날 때까지 박수 재생을 보류했는지 여부. */
+    private var applausePending = false
+
     /** 좋음(Good) 버튼: 정답 효과음 */
-    fun playCorrect() = playIfEnabled(R.string.sound_effect_correct_key, R.raw.sfx_correct)
+    fun playCorrect() {
+        if (!isEnabled(R.string.sound_effect_correct_key)) return
+        correctPlaying = true
+        play(R.raw.sfx_correct) { onCorrectFinished() }
+    }
 
     /** 다시(Again) 버튼: 오답 효과음 */
     fun playError() = playIfEnabled(R.string.sound_effect_error_key, R.raw.sfx_error)
@@ -63,9 +79,31 @@ class SoundEffectPlayer(
     /**
      * 덱 학습 완료 시 박수 소리. 음원은 약 26초이므로 약 3초 재생 후
      * 디졸브(페이드아웃)로 자연스럽게 소리를 줄여 멈춘다.
+     *
+     * 마지막 카드를 정답 처리하면 정답 효과음과 박수가 거의 동시에 발생한다.
+     * 두 소리가 겹쳐 정답음이 잘리지 않도록, 정답 효과음이 재생 중이면
+     * 그 재생이 끝난 뒤에 박수를 시작한다.
      */
     fun playApplause() {
         if (!isEnabled(R.string.sound_effect_applause_key)) return
+        if (correctPlaying) {
+            applausePending = true
+            return
+        }
+        startApplause()
+    }
+
+    /** 정답 효과음 재생이 끝났을 때 호출. 보류된 박수 소리가 있으면 이어서 재생한다. */
+    private fun onCorrectFinished() {
+        correctPlaying = false
+        if (applausePending) {
+            applausePending = false
+            startApplause()
+        }
+    }
+
+    private fun startApplause() {
+        applauseStartCount++
         val mp = create(R.raw.sfx_applause) ?: return
         // 5초보다 짧을 경우를 대비해 완료 리스너로도 해제
         mp.setOnCompletionListener { release(it) }

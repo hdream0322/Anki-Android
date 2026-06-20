@@ -72,5 +72,6 @@ hs_err_pid*
 
 # Claude Code related
 /.claude/worktrees/
+/.claude/scheduled_tasks.lock
 CLAUDE.md
 .omc/

@@ -21,8 +21,14 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.RelativeSizeSpan
+import android.text.style.StyleSpan
+import android.view.LayoutInflater
 import androidx.appcompat.app.AlertDialog
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -36,7 +42,9 @@ import com.ichi2.anki.R
 import com.ichi2.anki.common.preferences.sharedPrefs
 import com.ichi2.anki.common.time.TimeManager
 import com.ichi2.anki.common.utils.android.showThemedToast
+import com.ichi2.anki.databinding.DialogUpdateProgressBinding
 import com.ichi2.anki.launchCatchingTask
+import com.ichi2.utils.customView
 import com.ichi2.utils.message
 import com.ichi2.utils.negativeButton
 import com.ichi2.utils.positiveButton
@@ -47,6 +55,10 @@ import timber.log.Timber
 object UpdateManager {
     private const val CHECK_INTERVAL_MS = 24L * 60 * 60 * 1000
     private const val NOTIFICATION_ID = 0xD20A7E
+
+    /** 진행 중인 다운로드가 있으면 "지금 설치" 재실행이 새 다운로드를 시작하지 않도록 막는다. */
+    @Volatile
+    private var isDownloading = false
 
     /**
      * Auto-check entry point called from [com.ichi2.anki.DeckPicker] startup.
@@ -103,10 +115,12 @@ object UpdateManager {
         release: GitHubRelease,
     ) {
         val current = BuildConfig.FORK_VERSION.ifEmpty { "(dev)" }
-        val notes = formatReleaseNotes(release.body)
+        // 헤더(현재/새 버전)는 평문, 릴리즈 노트는 Markdown 서식을 살려 이어 붙인다.
+        val header = activity.getString(R.string.update_available_message, current, release.tag, "")
+        val message = SpannableStringBuilder(header).append(formatReleaseNotes(release.body))
         AlertDialog.Builder(activity).show {
             title(R.string.update_available_title)
-            message(text = activity.getString(R.string.update_available_message, current, release.tag, notes))
+            message(text = message)
             positiveButton(R.string.update_install_now) { startDownload(activity, release) }
             negativeButton(R.string.update_later)
         }
@@ -116,6 +130,13 @@ object UpdateManager {
         activity: FragmentActivity,
         release: GitHubRelease,
     ) {
+        // 진행 중인 다운로드가 있으면 무시 — 사용자가 "지금 설치"를 반복해도 한 번만 받는다.
+        if (isDownloading) {
+            Timber.d("Update download already in progress; ignoring duplicate request")
+            return
+        }
+        isDownloading = true
+
         // 새 버전 첫 실행 때 보여 줄 수 있도록 release 노트 본문을 미리 저장한다.
         stashPendingReleaseNotes(activity, release)
 
@@ -133,6 +154,18 @@ object UpdateManager {
                 .setProgress(100, 0, true)
         safeNotify(nm, appCtx, ongoing.build())
 
+        // 인앱 진행률 다이얼로그 — 알림 권한이 없어도 사용자가 진행 상황을 볼 수 있게 한다.
+        val binding = DialogUpdateProgressBinding.inflate(LayoutInflater.from(activity))
+        binding.updateProgressVersion.text = release.tag
+        val progressDialog =
+            AlertDialog
+                .Builder(activity)
+                .customView(binding.root)
+                .setTitle(R.string.update_downloading)
+                .setCancelable(false)
+                .create()
+        progressDialog.show()
+
         // 알림 업데이트 throttle — Android는 초당 ~5건 제한이 있어 매 read마다 보내면 무시됨.
         var lastNotifyMs = 0L
 
@@ -140,6 +173,18 @@ object UpdateManager {
             try {
                 val uri =
                     UpdateDownloader.download(activity, release) { pct ->
+                        // 콜백은 Dispatchers.IO 에서 호출되므로 뷰 갱신은 메인 스레드로 마샬링한다.
+                        if (pct != null) {
+                            val percent = (pct * 100).toInt()
+                            activity.runOnUiThread {
+                                if (progressDialog.isShowing) {
+                                    binding.updateProgressIndicator.isIndeterminate = false
+                                    binding.updateProgressIndicator.setProgressCompat(percent, true)
+                                    binding.updateProgressPercent.text =
+                                        activity.getString(R.string.update_download_progress, percent)
+                                }
+                            }
+                        }
                         val now = TimeManager.time.intTimeMS()
                         if (pct != null && now - lastNotifyMs >= NOTIFICATION_MIN_DELAY_MS) {
                             lastNotifyMs = now
@@ -147,6 +192,7 @@ object UpdateManager {
                             safeNotify(nm, appCtx, ongoing.build())
                         }
                     }
+                progressDialog.dismiss()
                 if (!UpdateInstaller.canRequestInstall(activity)) {
                     nm.cancel(NOTIFICATION_ID)
                     AlertDialog.Builder(activity).show {
@@ -164,8 +210,11 @@ object UpdateManager {
                 if (!activity.isFinishing) UpdateInstaller.launchInstall(activity, uri)
             } catch (e: Exception) {
                 Timber.w(e, "Update download failed")
+                progressDialog.dismiss()
                 nm.cancel(NOTIFICATION_ID)
                 showThemedToast(activity, R.string.update_download_failed, true)
+            } finally {
+                isDownloading = false
             }
         }
     }
@@ -259,38 +308,100 @@ object UpdateManager {
         }
     }
 
+    // 릴리즈 노트가 쓰는 제한된 Markdown 문법만 처리한다.
+    private val inlineMarkdownRegex =
+        Regex("""\*\*(.+?)\*\*|(?<![*_])[*_](?!\s)([^*_\n]+?)[*_](?![*_])|\[([^\]]+)]\(([^)]+)\)""")
+
     /**
-     * Strips the most common Markdown chrome from a GitHub release body so it
-     * reads cleanly as plain text inside an [AlertDialog]. Keeps line breaks,
-     * link URLs and the actual content; drops `**`, `##`/`#` headings, and
-     * bullet markers (`*`/`-`/`+`) — replacing bullets with `•`. Inline
-     * `[label](url)` becomes `label (url)`.
+     * Renders the limited Markdown subset used by the fork's release notes into a
+     * styled [CharSequence] for display inside an [AlertDialog]. Applies real
+     * formatting instead of stripping it: `**bold**` → bold, `*italic*`/`_italic_`
+     * → italic, `#`/`##`/`###` headings → bold + larger, bullet markers
+     * (`*`/`-`/`+`) → `• `. Inline `[label](url)` becomes `label (url)`.
      */
     @Suppress("MemberVisibilityCanBePrivate")
-    internal fun formatReleaseNotes(body: String): String {
+    internal fun formatReleaseNotes(body: String): CharSequence {
         if (body.isBlank()) return body
-        val linkRegex = Regex("""\[([^\]]+)]\(([^)]+)\)""")
-        val boldRegex = Regex("""\*\*(.+?)\*\*""")
-        val italicRegex = Regex("""(?<![*_])[*_](?!\s)([^*_\n]+?)[*_](?![*_])""")
-        return body
-            .lineSequence()
-            .map { line ->
-                var out = line.trimEnd()
-                out = out.replace(linkRegex) { "${it.groupValues[1]} (${it.groupValues[2]})" }
-                out = out.replace(boldRegex) { it.groupValues[1] }
-                out = out.replace(italicRegex) { it.groupValues[1] }
-                out =
-                    when {
-                        out.startsWith("### ") -> out.removePrefix("### ")
-                        out.startsWith("## ") -> out.removePrefix("## ")
-                        out.startsWith("# ") -> out.removePrefix("# ")
-                        else -> out
-                    }
-                // Bullet markers: "* ", "- ", "+ " (with optional leading indent)
-                out = out.replace(Regex("""^(\s*)[*+\-]\s+"""), "$1• ")
-                out
-            }.joinToString("\n")
-            .trim()
+        val builder = SpannableStringBuilder()
+        body.trim().lineSequence().forEachIndexed { index, rawLine ->
+            if (index > 0) builder.append("\n")
+            appendReleaseNoteLine(builder, rawLine.trimEnd())
+        }
+        return builder
+    }
+
+    private fun appendReleaseNoteLine(
+        builder: SpannableStringBuilder,
+        line: String,
+    ) {
+        var text = line
+        val headingLevel =
+            when {
+                text.startsWith("### ") -> 3
+                text.startsWith("## ") -> 2
+                text.startsWith("# ") -> 1
+                else -> 0
+            }
+        if (headingLevel > 0) {
+            text = text.removePrefix("#".repeat(headingLevel)).trimStart()
+        } else {
+            // Bullet markers: "* ", "- ", "+ " (with optional leading indent)
+            val bullet = Regex("""^(\s*)[*+\-]\s+""").find(text)
+            if (bullet != null) {
+                builder.append(bullet.groupValues[1]).append("• ")
+                text = text.substring(bullet.value.length)
+            }
+        }
+
+        val start = builder.length
+        appendInlineMarkdown(builder, text)
+        if (headingLevel > 0) {
+            val end = builder.length
+            builder.setSpan(StyleSpan(Typeface.BOLD), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            val scale =
+                if (headingLevel == 1) {
+                    1.3f
+                } else if (headingLevel == 2) {
+                    1.15f
+                } else {
+                    1.05f
+                }
+            builder.setSpan(RelativeSizeSpan(scale), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+    }
+
+    private fun appendInlineMarkdown(
+        builder: SpannableStringBuilder,
+        text: String,
+    ) {
+        var last = 0
+        for (match in inlineMarkdownRegex.findAll(text)) {
+            if (match.range.first > last) builder.append(text.substring(last, match.range.first))
+            val bold = match.groupValues[1]
+            val italic = match.groupValues[2]
+            val linkLabel = match.groupValues[3]
+            when {
+                bold.isNotEmpty() -> {
+                    val s = builder.length
+                    builder.append(bold)
+                    builder.setSpan(StyleSpan(Typeface.BOLD), s, builder.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+                italic.isNotEmpty() -> {
+                    val s = builder.length
+                    builder.append(italic)
+                    builder.setSpan(StyleSpan(Typeface.ITALIC), s, builder.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+                linkLabel.isNotEmpty() -> {
+                    builder
+                        .append(linkLabel)
+                        .append(" (")
+                        .append(match.groupValues[4])
+                        .append(")")
+                }
+            }
+            last = match.range.last + 1
+        }
+        if (last < text.length) builder.append(text.substring(last))
     }
 
     private fun stashPendingReleaseNotes(

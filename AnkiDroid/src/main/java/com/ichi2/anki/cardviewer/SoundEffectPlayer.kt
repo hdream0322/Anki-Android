@@ -16,7 +16,9 @@
 package com.ichi2.anki.cardviewer
 
 import android.content.Context
+import android.media.AudioAttributes
 import android.media.MediaPlayer
+import android.media.SoundPool
 import android.os.Handler
 import android.os.Looper
 import androidx.annotation.RawRes
@@ -29,9 +31,18 @@ import timber.log.Timber
 /**
  * 학습 중 재생되는 효과음(SFX) 플레이어.
  *
- * 각 효과음은 `res/raw`의 음원이며, 재생할 때마다 독립적인 [MediaPlayer]를 만들고
- * 재생이 끝나면 스스로 해제한다. [applicationContext][Context.getApplicationContext]를
- * 사용하므로 학습 화면이 닫히는 시점(예: 덱 완료 시 박수 소리)에도 재생이 끊기지 않는다.
+ * 짧은 효과음(정답·오답·낙담)은 [SoundPool]로 재생한다. 음원을 미리 메모리에
+ * 디코딩해 두므로, 버튼을 누르는 순간 `prepare()`나 오디오 트랙 준비로 인한
+ * 지연 없이 즉시 재생된다. 매번 [MediaPlayer]를 새로 만들던 방식에서 가끔
+ * 소리 앞부분이 잘리던(씹히던) 문제를 없애기 위함이다.
+ *
+ * 박수 소리는 길이가 길고(약 26초) 페이드아웃이 필요하므로 [MediaPlayer]로 재생한다.
+ * [applicationContext][Context.getApplicationContext]를 사용하므로 학습 화면이
+ * 닫히는 시점(예: 덱 완료 시 박수 소리)에도 재생이 끊기지 않는다.
+ *
+ * [SoundPool]은 프로세스 전역에서 하나만 만들어 공유한다. 그래야 학습 화면을
+ * 여닫을 때마다 풀을 만들고 해제하느라 생기는 누수·지연이 없고, 덱 완료로 학습
+ * 화면이 곧바로 파괴되어도 마지막 정답 효과음이 잘리지 않는다.
  *
  * 재생 여부는 설정의 마스터 스위치([R.string.sound_effects_enabled_key])와
  * 각 효과음별 개별 스위치로 제어된다. 둘 중 하나라도 꺼져 있으면 재생되지 않는다.
@@ -53,27 +64,41 @@ class SoundEffectPlayer(
     /** 정답 효과음이 끝날 때까지 박수 재생을 보류했는지 여부. */
     private var applausePending = false
 
-    /** 좋음(Good) 버튼: 정답 효과음 */
+    /** 정답 효과음 재생이 끝났다고 간주하는 시점에 호출되는 작업. */
+    private val correctFinishedRunnable = Runnable { onCorrectFinished() }
+
+    /**
+     * 좋음(Good) 버튼: 정답 효과음.
+     *
+     * SoundPool에는 재생 완료 콜백이 없으므로, 음원 길이만큼 뒤에 [onCorrectFinished]를
+     * 호출하도록 예약해 박수 소리와의 순서를 맞춘다.
+     */
     fun playCorrect() {
         if (!isEnabled(R.string.sound_effect_correct_key)) return
+        if (playShortSfx(appContext, R.raw.sfx_correct) == 0) return
         correctPlaying = true
-        play(R.raw.sfx_correct) { onCorrectFinished() }
+        handler.removeCallbacks(correctFinishedRunnable)
+        handler.postDelayed(correctFinishedRunnable, CORRECT_SFX_DURATION_MS)
     }
 
     /** 다시(Again) 버튼: 오답 효과음 */
-    fun playError() = playIfEnabled(R.string.sound_effect_error_key, R.raw.sfx_error)
+    fun playError() {
+        if (isEnabled(R.string.sound_effect_error_key)) playShortSfx(appContext, R.raw.sfx_error)
+    }
 
     /** leech 카드 또는 다시/어려움 5회 연속 누적 시: 낙담 효과음 */
-    fun playAwwMan() = playIfEnabled(R.string.sound_effect_aww_man_key, R.raw.sfx_aww_man)
+    fun playAwwMan() {
+        if (isEnabled(R.string.sound_effect_aww_man_key)) playShortSfx(appContext, R.raw.sfx_aww_man)
+    }
 
     /**
      * 오답(error) 효과음과 낙담(aww-man) 효과음을 동시에 시작한다.
      * 5번째 '다시'를 누르는 순간처럼 두 효과음이 함께 발생하는 경우에 사용한다.
-     * 각 효과음은 독립적인 MediaPlayer로 재생되며, 개별 설정에 따라 생략될 수 있다.
+     * 각 효과음은 SoundPool의 독립 스트림으로 재생되며, 개별 설정에 따라 생략될 수 있다.
      */
     fun playErrorAndAwwMan() {
-        if (isEnabled(R.string.sound_effect_error_key)) play(R.raw.sfx_error)
-        if (isEnabled(R.string.sound_effect_aww_man_key)) play(R.raw.sfx_aww_man)
+        if (isEnabled(R.string.sound_effect_error_key)) playShortSfx(appContext, R.raw.sfx_error)
+        if (isEnabled(R.string.sound_effect_aww_man_key)) playShortSfx(appContext, R.raw.sfx_aww_man)
     }
 
     /**
@@ -104,7 +129,7 @@ class SoundEffectPlayer(
 
     private fun startApplause() {
         applauseStartCount++
-        val mp = create(R.raw.sfx_applause) ?: return
+        val mp = createMediaPlayer(R.raw.sfx_applause) ?: return
         // 5초보다 짧을 경우를 대비해 완료 리스너로도 해제
         mp.setOnCompletionListener { release(it) }
         try {
@@ -144,36 +169,7 @@ class SoundEffectPlayer(
         )
     }
 
-    private fun playIfEnabled(
-        @StringRes keyRes: Int,
-        @RawRes res: Int,
-    ) {
-        if (isEnabled(keyRes)) play(res)
-    }
-
-    private fun play(
-        @RawRes res: Int,
-        onComplete: (() -> Unit)? = null,
-    ) {
-        val mp = create(res)
-        if (mp == null) {
-            onComplete?.invoke()
-            return
-        }
-        mp.setOnCompletionListener {
-            release(it)
-            onComplete?.invoke()
-        }
-        try {
-            mp.start()
-        } catch (e: Exception) {
-            Timber.w(e, "failed to start sfx")
-            release(mp)
-            onComplete?.invoke()
-        }
-    }
-
-    private fun create(
+    private fun createMediaPlayer(
         @RawRes res: Int,
     ): MediaPlayer? =
         try {
@@ -211,6 +207,12 @@ class SoundEffectPlayer(
     }
 
     companion object {
+        /**
+         * 정답 효과음(`sfx_correct`, 약 1.36초)이 끝났다고 보는 시간(ms).
+         * 이 시간 뒤에 보류된 박수 소리를 시작한다. 음원을 교체하면 함께 조정한다.
+         */
+        private const val CORRECT_SFX_DURATION_MS = 1_400L
+
         /** 박수 소리 정상 재생 시간(ms). 이후 페이드아웃 시작. */
         private const val APPLAUSE_PLAY_MS = 3_000L
 
@@ -219,5 +221,71 @@ class SoundEffectPlayer(
 
         /** 페이드아웃 각 단계 간격(ms). 총 페이드 시간 = FADE_STEPS * FADE_STEP_MS = 1초 */
         private const val FADE_STEP_MS = 50L
+
+        /** SoundPool 동시 재생 스트림 수. 오답+낙담 동시 재생 등을 고려한 여유분. */
+        private const val MAX_STREAMS = 4
+
+        /** SoundPool로 미리 로드해 둘 짧은 효과음 음원들. */
+        private val SHORT_SFX = intArrayOf(R.raw.sfx_correct, R.raw.sfx_error, R.raw.sfx_aww_man)
+
+        @Volatile
+        private var soundPool: SoundPool? = null
+
+        /** 음원 리소스 id → SoundPool 샘플 id */
+        private val sampleIds = mutableMapOf<Int, Int>()
+
+        private fun soundPool(appContext: Context): SoundPool {
+            soundPool?.let { return it }
+            return synchronized(this) {
+                soundPool ?: SoundPool
+                    .Builder()
+                    .setMaxStreams(MAX_STREAMS)
+                    .setAudioAttributes(
+                        AudioAttributes
+                            .Builder()
+                            .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build(),
+                    ).build()
+                    .also { pool ->
+                        for (res in SHORT_SFX) {
+                            sampleIds[res] = pool.load(appContext, res, 1)
+                        }
+                        soundPool = pool
+                    }
+            }
+        }
+
+        /**
+         * 공유 SoundPool로 짧은 효과음을 재생한다.
+         * @return 재생 스트림 id. 재생에 실패하면 0.
+         */
+        private fun playShortSfx(
+            appContext: Context,
+            @RawRes res: Int,
+        ): Int {
+            val pool = soundPool(appContext)
+            val sampleId = sampleIds[res] ?: return 0
+            return try {
+                pool.play(sampleId, 1f, 1f, 1, 0, 1f)
+            } catch (e: Exception) {
+                Timber.w(e, "failed to play sfx")
+                0
+            }
+        }
+
+        /** 테스트 간 공유 SoundPool 상태를 초기화한다. */
+        @VisibleForTesting
+        internal fun resetSharedSoundPoolForTest() {
+            synchronized(this) {
+                soundPool?.release()
+                soundPool = null
+                sampleIds.clear()
+            }
+        }
+
+        /** 테스트에서 SoundPool 재생 여부를 검증하기 위한 접근자. */
+        @VisibleForTesting
+        internal fun soundPoolForTest(appContext: Context): SoundPool = soundPool(appContext)
     }
 }

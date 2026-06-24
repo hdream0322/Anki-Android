@@ -1211,8 +1211,24 @@ open class Reviewer :
         if (actionBar != null) {
             if (prefShowETA) {
                 launchCatchingTask {
-                    eta = withCol { sched.eta(counts, false) }
-                    actionBar.subtitle = remainingTime(this@Reviewer, (eta * 60).toLong())
+                    val (newEta, reviewedToday) =
+                        withCol {
+                            val newEta = sched.eta(counts, false)
+                            val dayCutoff = sched.dayCutoff
+                            val todayStartMs = (dayCutoff - 86400L) * 1000L
+                            val deckIds = sched.deckLimit()
+                            val reviewed =
+                                db.queryScalar(
+                                    "SELECT count() FROM revlog JOIN cards ON revlog.cid = cards.id WHERE revlog.id >= ? AND cards.did IN $deckIds",
+                                    todayStartMs,
+                                )
+                            Pair(newEta, reviewed)
+                        }
+                    eta = newEta
+                    val remaining = counts.count()
+                    val total = reviewedToday + remaining
+                    val timeStr = remainingTime(this@Reviewer, (eta * 60).toLong())
+                    actionBar.subtitle = "$timeStr($reviewedToday/$total)"
                 }
             }
         }

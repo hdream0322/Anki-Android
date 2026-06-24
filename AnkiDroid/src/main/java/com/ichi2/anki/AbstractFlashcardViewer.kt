@@ -69,7 +69,6 @@ import anki.collection.OpChanges
 import anki.scheduler.CardAnswer.Rating
 import com.drakeet.drawer.FullDraggableContainer
 import com.google.android.material.snackbar.Snackbar
-import com.ichi2.anim.ActivityTransitionAnimation
 import com.ichi2.anki.AbstractFlashcardViewer.Signal.Companion.toSignal
 import com.ichi2.anki.CollectionManager.TR
 import com.ichi2.anki.CollectionManager.withCol
@@ -100,7 +99,10 @@ import com.ichi2.anki.cardviewer.handledGamepadKeyUp
 import com.ichi2.anki.common.android.animationDisabled
 import com.ichi2.anki.common.android.animationEnabled
 import com.ichi2.anki.common.annotations.NeedsTest
+import com.ichi2.anki.common.destinations.PreferencesDestination
+import com.ichi2.anki.common.destinations.navigate
 import com.ichi2.anki.common.preferences.sharedPrefs
+import com.ichi2.anki.common.ui.TransitionDirection
 import com.ichi2.anki.common.utils.HashUtil.hashSetInit
 import com.ichi2.anki.common.utils.android.HandlerUtils.newHandler
 import com.ichi2.anki.common.utils.android.getResFromAttr
@@ -129,8 +131,6 @@ import com.ichi2.anki.pages.AnkiServer
 import com.ichi2.anki.pages.CongratsPage
 import com.ichi2.anki.pages.PostRequestHandler
 import com.ichi2.anki.pages.PostRequestUri
-import com.ichi2.anki.preferences.AccessibilitySettingsFragment
-import com.ichi2.anki.preferences.PreferencesActivity
 import com.ichi2.anki.reviewer.AutomaticAnswer
 import com.ichi2.anki.reviewer.AutomaticAnswer.AutomaticallyAnswered
 import com.ichi2.anki.reviewer.AutomaticAnswerAction
@@ -1869,12 +1869,7 @@ abstract class AbstractFlashcardViewer :
             minimalClickSpeed + Reviewer.ACTION_SNACKBAR_TIME,
         ) {
             setAction(R.string.settings) {
-                val settingsIntent =
-                    PreferencesActivity.getIntent(
-                        this@AbstractFlashcardViewer,
-                        AccessibilitySettingsFragment::class,
-                    )
-                startActivity(settingsIntent)
+                navigate(PreferencesDestination.Accessibility)
             }
         }
     }
@@ -2761,15 +2756,15 @@ abstract class AbstractFlashcardViewer :
 
         /**
          * @return if [gesture] is a swipe, a transition to the same direction of the swipe
-         * else return [ActivityTransitionAnimation.Direction.FADE]
+         * else return [TransitionDirection.FADE]
          */
-        fun getAnimationTransitionFromGesture(gesture: Gesture?): ActivityTransitionAnimation.Direction =
+        fun getAnimationTransitionFromGesture(gesture: Gesture?): TransitionDirection =
             when (gesture) {
-                Gesture.SWIPE_UP -> ActivityTransitionAnimation.Direction.UP
-                Gesture.SWIPE_DOWN -> ActivityTransitionAnimation.Direction.DOWN
-                Gesture.SWIPE_RIGHT -> ActivityTransitionAnimation.Direction.RIGHT
-                Gesture.SWIPE_LEFT -> ActivityTransitionAnimation.Direction.LEFT
-                else -> ActivityTransitionAnimation.Direction.FADE
+                Gesture.SWIPE_UP -> TransitionDirection.UP
+                Gesture.SWIPE_DOWN -> TransitionDirection.DOWN
+                Gesture.SWIPE_RIGHT -> TransitionDirection.RIGHT
+                Gesture.SWIPE_LEFT -> TransitionDirection.LEFT
+                else -> TransitionDirection.FADE
             }
 
         fun Gesture?.toAnimationTransition() = getAnimationTransitionFromGesture(this)

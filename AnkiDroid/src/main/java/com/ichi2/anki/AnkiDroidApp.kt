@@ -20,10 +20,12 @@ import androidx.annotation.VisibleForTesting
 import androidx.core.net.toUri
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ProcessLifecycleOwner
 import anki.collection.OpChanges
 import com.ichi2.anki.AnkiDroidApp.Companion.sharedPreferencesTestingOverride
 import com.ichi2.anki.analytics.UsageAnalytics
 import com.ichi2.anki.browser.SharedPreferencesLastDeckIdRepository
+import com.ichi2.anki.common.android.AdaptionUtil
 import com.ichi2.anki.common.android.Animations
 import com.ichi2.anki.common.android.ApplicationContextInitializer
 import com.ichi2.anki.common.android.getCurrentLocaleTag
@@ -56,7 +58,6 @@ import com.ichi2.anki.services.NotificationService
 import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.settings.PrefsRepository
 import com.ichi2.anki.ui.dialogs.ActivityAgnosticDialogs
-import com.ichi2.utils.AdaptionUtil
 import com.ichi2.utils.ExceptionUtil
 import com.ichi2.utils.LanguageUtil
 import com.ichi2.utils.measureTime
@@ -118,25 +119,11 @@ open class AnkiDroidApp :
     override fun onCreate() {
         initAnkiBackend(debugTraceSqlCalls = false)
         super.onCreate()
-        val appLifecycleObserver = AppLifecycleObserver(applicationContext)
-
-        androidx.lifecycle.ProcessLifecycleOwner
-            .get()
-            .lifecycle
-            .addObserver(appLifecycleObserver)
-        if (isInitialized) {
-            Timber.i("onCreate() called multiple times")
-            // 5887 - fix crash.
-            if (instance.resources == null) {
-                Timber.w("Skipping re-initialisation - no resources. Maybe uninstalling app?")
-                return
-            }
+        if (!setupAnkiDroidApp()) {
+            return
         }
-        instance = this
-        ApplicationContextInitializer.setInstance(this)
 
-        // Ensures any change is propagated to widgets
-        ChangeManager.subscribe(this)
+        ApplicationContextInitializer.setInstance(this)
 
         initializeAcraCrashReporter()
         initializeNavigator()
@@ -185,6 +172,8 @@ open class AnkiDroidApp :
 
         setup("makeBackendUsable") { makeBackendUsable(this) }
         setupNotifications()
+        setupAppLifecycleObserver()
+        setupBackendChangeManager()
 
         // Probe WebView availability before any other init touches it (#5794).
         if (!checkWebViewAvailable()) {
@@ -193,21 +182,15 @@ open class AnkiDroidApp :
 
         // Forget the last deck that was used in the CardBrowser
         CardBrowser.clearLastDeckId()
-        LanguageUtil.setDefaultBackendLanguages()
-
-        initializeAnkiDroidDirectory()
-
-        // listen for day rollover: time + timezone changes
-        DayRolloverHandler.listenForRolloverEvents(this)
-        DayRolloverAlarm.scheduleNext(this)
+        val anki = AnkiContext.apply { setupAnkiBackend() }
+        with(anki) { initializeAnkiDroidDirectory() }
+        with(anki) { setupDayRollover() }
 
         restoreRecurringAlarms(this)
 
         setupLifecycleLogging()
         activityAgnosticDialogs = ActivityAgnosticDialogs.register(this)
-        TtsVoices.launchBuildLocalesJob()
-        // enable {{tts-voices:}} field filter
-        TtsVoicesFieldFilter.ensureApplied()
+        setupTextToSpeech()
     }
 
     /**
@@ -235,6 +218,28 @@ open class AnkiDroidApp :
     }
 
     /**
+     * Sets [isInitialized] to `true` ([instance] != null)
+     *
+     * [onCreate] can be called multiple times due to ACRA using a separate sender process
+     *
+     * @return false if `instance.resources` is unusable
+     */
+    private fun setupAnkiDroidApp(): Boolean {
+        return setup("setupAnkiDroidApp") {
+            if (isInitialized) {
+                Timber.i("onCreate() called multiple times")
+                // 5887 - fix crash.
+                if (instance.resources == null) {
+                    Timber.w("Skipping re-initialisation - no resources. Maybe uninstalling app?")
+                    return@setup false
+                }
+            }
+            instance = this
+            true
+        }
+    }
+
+    /**
      * Manually initializes the collection directory and `.nomedia` if
      * [hasLegacyStorageAccessPermission] is set
      *
@@ -243,6 +248,7 @@ open class AnkiDroidApp :
      * In most cases the Anki Backend now creates the collection and [initializeAnkiDroidDirectory]
      *  is called on startup of the activity.
      */
+    context(_: AnkiContext)
     private fun initializeAnkiDroidDirectory() =
         setup("initializeAnkiDroidDirectory") {
             // #13207: `getCurrentAnkiDroidDirectory` failing is an unconditional be a fatal error
@@ -323,6 +329,42 @@ open class AnkiDroidApp :
             }
         }
 
+    private fun setupAppLifecycleObserver() =
+        setup("setupAppLifecycleObserver") {
+            val appLifecycleObserver = AppLifecycleObserver(applicationContext)
+
+            ProcessLifecycleOwner
+                .get()
+                .lifecycle
+                .addObserver(appLifecycleObserver)
+        }
+
+    /**
+     * Ensures any changes in the backend are propagated to:
+     *
+     * - widgets
+     *
+     * @see opExecuted
+     * @see ChangeManager
+     */
+    private fun setupBackendChangeManager() =
+        setup("setupBackendChangeManager") {
+            ChangeManager.subscribe(this)
+        }
+
+    private fun setupAnkiBackend() =
+        setup("setupAnkiBackend") {
+            LanguageUtil.setDefaultBackendLanguages()
+        }
+
+    /** Listen for day rollover: time + timezone changes and refresh on the day cutoff. */
+    context(_: AnkiContext)
+    private fun setupDayRollover() =
+        setup("setupDayRollover") {
+            DayRolloverHandler.listenForRolloverEvents(this)
+            DayRolloverAlarm.scheduleNext(this)
+        }
+
     private fun setupLifecycleLogging() =
         setup("setupLifecycleLogging") {
             registerActivityLifecycleCallbacks(
@@ -372,6 +414,14 @@ open class AnkiDroidApp :
                 },
             )
         }
+
+    private fun setupTextToSpeech() {
+        setup("setupTextToSpeech") {
+            TtsVoices.launchBuildLocalesJob()
+            // enable {{tts-voices:}} field filter
+            TtsVoicesFieldFilter.ensureApplied()
+        }
+    }
 
     /**
      * @return the app version, OS version and device model, provided when syncing.
@@ -430,6 +480,16 @@ open class AnkiDroidApp :
             Timber.d("No relevant changes to update the widget")
         }
     }
+
+    /**
+     * Initialization for the Anki Backend has completed:
+     * - [initAnkiBackend] - platform environment variables/logging
+     * - [makeBackendUsable] - load rsdroid.so
+     * - [setupBackendChangeManager] - change manager is subscribed
+     * - [setupAnkiBackend] - i18n is set up
+     */
+
+    object AnkiContext
 
     companion object {
         /**

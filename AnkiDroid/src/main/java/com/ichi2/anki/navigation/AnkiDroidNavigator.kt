@@ -8,9 +8,13 @@ import com.ichi2.anki.browser.toIntent
 import com.ichi2.anki.common.destinations.BrowserDestination
 import com.ichi2.anki.common.destinations.CardInfoDestination
 import com.ichi2.anki.common.destinations.CsvImporterDestination
+import com.ichi2.anki.common.destinations.DeckOptionsDestination
 import com.ichi2.anki.common.destinations.Destination
 import com.ichi2.anki.common.destinations.Navigator
+import com.ichi2.anki.common.destinations.PreferencesDestination
+import com.ichi2.anki.common.destinations.StatisticsDestination
 import com.ichi2.anki.pages.toIntent
+import com.ichi2.anki.preferences.toIntent
 
 /** AnkiDroid's [Navigator] implementation. */
 object AnkiDroidNavigator : Navigator {
@@ -25,6 +29,9 @@ object AnkiDroidNavigator : Navigator {
             is BrowserDestination -> destination.toIntent(navContext)
             is CardInfoDestination -> destination.toIntent(navContext)
             is CsvImporterDestination -> destination.toIntent(navContext)
+            is DeckOptionsDestination -> destination.toIntent(navContext)
+            is PreferencesDestination -> destination.toIntent(navContext)
+            is StatisticsDestination -> destination.toIntent(navContext)
         }
 }
 

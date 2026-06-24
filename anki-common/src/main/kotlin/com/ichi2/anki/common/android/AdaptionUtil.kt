@@ -1,19 +1,7 @@
-/*
- * Copyright (c) 2020 gaoyingjun@xiaomi.com
- *
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 3 of the License, or (at your option) any later
- * version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- * PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-package com.ichi2.utils
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2020 gaoyingjun@xiaomi.com
+
+package com.ichi2.anki.common.android
 
 import android.annotation.SuppressLint
 import android.app.ActivityManager
@@ -27,7 +15,6 @@ import android.content.pm.ResolveInfo
 import android.os.Build
 import android.provider.Settings
 import androidx.core.net.toUri
-import com.ichi2.anki.common.android.appContext
 import com.ichi2.anki.compat.CompatHelper.Companion.getPackageInfoCompat
 import com.ichi2.anki.compat.CompatHelper.Companion.queryIntentActivitiesCompat
 import com.ichi2.anki.compat.MATCH_DEFAULT_ONLY_L
@@ -37,16 +24,16 @@ import timber.log.Timber
 import java.util.Locale
 
 object AdaptionUtil {
-    private var sHasRunWebBrowserCheck = false
-    private var sHasWebBrowser = true
+    private var hasRunWebBrowserCheck = false
+    private var hasWebBrowser = true
 
     fun hasWebBrowser(context: Context): Boolean {
-        if (sHasRunWebBrowserCheck) {
-            return sHasWebBrowser
+        if (hasRunWebBrowserCheck) {
+            return hasWebBrowser
         }
-        sHasWebBrowser = checkHasWebBrowser(context)
-        sHasRunWebBrowserCheck = true
-        return sHasWebBrowser
+        hasWebBrowser = checkHasWebBrowser(context)
+        hasRunWebBrowserCheck = true
+        return hasWebBrowser
     }
 
     val isUserATestClient: Boolean

@@ -198,6 +198,12 @@ open class Reviewer :
      * re-queued for relearning.
      */
     private var sessionMaxCount = 0
+
+    /**
+     * True once we have initialised [sessionMaxCount] from today's review log so the
+     * progress bar reflects cards already done before re-entering this session.
+     */
+    private var progressBarSessionInitialized = false
     private lateinit var answerTimer: AnswerTimer
     private var prefHideDueCount = false
 
@@ -1228,6 +1234,31 @@ open class Reviewer :
                     val total = reviewedToday + remaining
                     val timeStr = remainingTime(this@Reviewer, (eta * 60).toLong())
                     actionBar.subtitle = "$timeStr($reviewedToday/$total)"
+                    if (total > sessionMaxCount) {
+                        sessionMaxCount = total
+                        updateReviewProgressBar(remaining)
+                    }
+                }
+            }
+        }
+        if (!prefShowETA && !progressBarSessionInitialized) {
+            progressBarSessionInitialized = true
+            launchCatchingTask {
+                val reviewedToday =
+                    withCol {
+                        val dayCutoff = sched.dayCutoff
+                        val todayStartMs = (dayCutoff - 86400L) * 1000L
+                        val deckIds = sched.deckLimit()
+                        db.queryScalar(
+                            "SELECT count() FROM revlog JOIN cards ON revlog.cid = cards.id WHERE revlog.id >= ? AND cards.did IN $deckIds",
+                            todayStartMs,
+                        )
+                    }
+                val remaining = queueState?.counts?.count() ?: return@launchCatchingTask
+                val total = reviewedToday + remaining
+                if (total > sessionMaxCount) {
+                    sessionMaxCount = total
+                    updateReviewProgressBar(remaining)
                 }
             }
         }

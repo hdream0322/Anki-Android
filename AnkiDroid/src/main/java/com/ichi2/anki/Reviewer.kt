@@ -199,11 +199,16 @@ open class Reviewer :
      */
     private var sessionMaxCount = 0
 
+    /** True once the non-ETA init coroutine has been launched (prevents re-launch). */
+    private var progressBarInitLaunched = false
+
     /**
-     * True once we have initialised [sessionMaxCount] from today's review log so the
+     * True once [sessionMaxCount] has been initialised with today's review history so the
      * progress bar reflects cards already done before re-entering this session.
+     * Guards the synchronous [updateReviewProgressBar] call in [updateScreenCounts] so the
+     * bar never jumps to 0 while the async query is still in flight.
      */
-    private var progressBarSessionInitialized = false
+    private var sessionMaxCountReady = false
     private lateinit var answerTimer: AnswerTimer
     private var prefHideDueCount = false
 
@@ -1236,13 +1241,14 @@ open class Reviewer :
                     actionBar.subtitle = "$timeStr($reviewedToday/$total)"
                     if (total > sessionMaxCount) {
                         sessionMaxCount = total
-                        updateReviewProgressBar(remaining)
                     }
+                    sessionMaxCountReady = true
+                    updateReviewProgressBar(remaining)
                 }
             }
         }
-        if (!prefShowETA && !progressBarSessionInitialized) {
-            progressBarSessionInitialized = true
+        if (!prefShowETA && !progressBarInitLaunched) {
+            progressBarInitLaunched = true
             launchCatchingTask {
                 val reviewedToday =
                     withCol {
@@ -1258,8 +1264,9 @@ open class Reviewer :
                 val total = reviewedToday + remaining
                 if (total > sessionMaxCount) {
                     sessionMaxCount = total
-                    updateReviewProgressBar(remaining)
                 }
+                sessionMaxCountReady = true
+                updateReviewProgressBar(remaining)
             }
         }
         newCount = SpannableString(counts.new.toString())
@@ -1281,7 +1288,9 @@ open class Reviewer :
         textBarLearn.text = lrnCount
         textBarReview.text = revCount
 
-        updateReviewProgressBar(counts.count())
+        if (sessionMaxCountReady) {
+            updateReviewProgressBar(counts.count())
+        }
     }
 
     /**

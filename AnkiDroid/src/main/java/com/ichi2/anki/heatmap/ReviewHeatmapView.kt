@@ -17,7 +17,6 @@ package com.ichi2.anki.heatmap
 
 import android.content.Context
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.util.AttributeSet
@@ -25,6 +24,7 @@ import android.util.TypedValue
 import android.view.MotionEvent
 import android.view.View
 import androidx.core.graphics.ColorUtils
+import androidx.core.graphics.toColorInt
 import com.google.android.material.color.MaterialColors
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -85,7 +85,7 @@ class ReviewHeatmapView
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 style = Paint.Style.STROKE
                 strokeWidth = dp(2f)
-                color = Color.parseColor("#FF8C00") // a warm accent that stands out on green & grey
+                color = "#FF8C00".toColorInt() // a warm accent that stands out on green & grey
             }
 
         /** Outline marking today's cell, drawn inside the cell so it never clips or clashes
@@ -94,7 +94,7 @@ class ReviewHeatmapView
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 style = Paint.Style.STROKE
                 strokeWidth = dp(1.5f)
-                color = Color.parseColor("#1565C0")
+                color = "#1565C0".toColorInt()
             }
         private val rect = RectF()
 

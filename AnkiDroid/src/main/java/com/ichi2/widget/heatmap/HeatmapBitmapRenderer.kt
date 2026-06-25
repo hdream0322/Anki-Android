@@ -21,6 +21,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.view.View
 import androidx.appcompat.view.ContextThemeWrapper
+import androidx.core.graphics.createBitmap
 import com.ichi2.anki.R
 import com.ichi2.anki.heatmap.ReviewHeatmapData
 import com.ichi2.anki.heatmap.ReviewHeatmapView
@@ -52,7 +53,7 @@ object HeatmapBitmapRenderer {
         view.layout(0, 0, view.measuredWidth, view.measuredHeight.coerceAtLeast(1))
 
         val bitmap =
-            Bitmap.createBitmap(
+            createBitmap(
                 view.measuredWidth.coerceAtLeast(1),
                 view.measuredHeight.coerceAtLeast(1),
                 Bitmap.Config.ARGB_8888,

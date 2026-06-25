@@ -17,13 +17,13 @@ package com.ichi2.anki.preferences
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.text.format.DateFormat
 import android.text.method.LinkMovementMethod
 import android.view.View
 import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AlertDialog
+import androidx.core.net.toUri
 import androidx.core.text.parseAsHtml
 import androidx.fragment.app.Fragment
 import com.ichi2.anki.BuildConfig
@@ -113,8 +113,8 @@ class AboutFragment : Fragment(R.layout.fragment_about) {
         // Deurim: 원본 AnkiDroid 설치 페이지로 보냄 (Play Store가 없으면 웹으로 폴백)
         binding.rateAnkiDroid.setText(R.string.deurim_install_upstream)
         binding.rateAnkiDroid.setOnClickListener {
-            val market = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.ichi2.anki"))
-            val web = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.ichi2.anki"))
+            val market = Intent(Intent.ACTION_VIEW, "market://details?id=com.ichi2.anki".toUri())
+            val web = Intent(Intent.ACTION_VIEW, "https://play.google.com/store/apps/details?id=com.ichi2.anki".toUri())
             try {
                 startActivity(market)
             } catch (_: android.content.ActivityNotFoundException) {
@@ -129,7 +129,7 @@ class AboutFragment : Fragment(R.layout.fragment_about) {
 
         // Deurim: in-app 업데이트 기록을 GitHub Releases 페이지로 연결
         binding.openChangelog.setOnClickListener {
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/hdream0322/Anki-Android/releases"))
+            val intent = Intent(Intent.ACTION_VIEW, "https://github.com/hdream0322/Anki-Android/releases".toUri())
             IntentUtil.tryOpenIntent(requireAnkiActivity(), intent)
         }
 

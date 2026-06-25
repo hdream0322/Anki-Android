@@ -17,9 +17,9 @@ package com.ichi2.anki.update
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.core.net.toUri
 
 object UpdateInstaller {
     /**
@@ -42,7 +42,7 @@ object UpdateInstaller {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val intent =
             Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
-                .setData(Uri.parse("package:${context.packageName}"))
+                .setData("package:${context.packageName}".toUri())
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(intent)
     }

@@ -112,6 +112,7 @@ import com.ichi2.anki.deckpicker.DeckPickerViewModel
 import com.ichi2.anki.deckpicker.DeckPickerViewModel.AnkiDroidEnvironment
 import com.ichi2.anki.deckpicker.DeckPickerViewModel.FlattenedDeckList
 import com.ichi2.anki.deckpicker.DeckPickerViewModel.StartupResponse
+import com.ichi2.anki.deckpicker.DeckSortOrder
 import com.ichi2.anki.deckpicker.EmptyCardsResult
 import com.ichi2.anki.deckpicker.OptionsMenuState
 import com.ichi2.anki.deckpicker.ShortcutData
@@ -542,6 +543,8 @@ open class DeckPicker :
             )
         deckPickerBinding.decks.adapter = deckListAdapter
 
+        deckPickerBinding.deckSortBar.setOnClickListener { viewModel.cycleDeckSortOrder() }
+
         lifecycleScope.launch { applyDeckPickerBackground() }
 
         setupPullToSync()
@@ -800,6 +803,16 @@ open class DeckPicker :
             }
         }
 
+        fun onDeckSortOrderChanged(order: DeckSortOrder) {
+            val labelRes =
+                when (order) {
+                    DeckSortOrder.NAME -> R.string.deck_sort_order_name
+                    DeckSortOrder.LEAST_RECENT -> R.string.deck_sort_order_least_recent
+                    DeckSortOrder.MOST_RECENT -> R.string.deck_sort_order_most_recent
+                }
+            deckPickerBinding.deckSortLabel.text = getString(labelRes)
+        }
+
         fun onFocusedDeckChanged(deckId: DeckId?) {
             val position = deckId?.let { viewModel.findDeckPosition(it) } ?: 0
 
@@ -879,6 +892,7 @@ open class DeckPicker :
         viewModel.flowOfCardsDue.launchCollectionInLifecycleScope(::onCardsDueChanged)
         viewModel.flowOfCollectionHasNoCards.launchCollectionInLifecycleScope(::onStudyOptionsVisibilityChanged)
         viewModel.flowOfDeckList.launchCollectionInLifecycleScope(::onDeckListChanged)
+        viewModel.flowOfDeckSortOrder.launchCollectionInLifecycleScope(::onDeckSortOrderChanged)
         viewModel.flowOfFocusedDeck.launchCollectionInLifecycleScope(::onFocusedDeckChanged)
         viewModel.flowOfResizingDividerVisible.launchCollectionInLifecycleScope(::onResizingDividerVisibilityChanged)
         viewModel.flowOfDecksReloaded.launchCollectionInLifecycleScope(::onDecksReloaded)

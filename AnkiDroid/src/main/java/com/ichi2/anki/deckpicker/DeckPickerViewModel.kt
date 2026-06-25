@@ -47,6 +47,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
@@ -96,13 +98,19 @@ class DeckPickerViewModel :
      */
     private val flowOfRefreshDeckList = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
+    private val _flowOfDeckSortOrder = MutableStateFlow(loadSortOrderPref())
+
+    /** The active deck list sort order. Persisted across sessions. */
+    val flowOfDeckSortOrder: StateFlow<DeckSortOrder> = _flowOfDeckSortOrder.asStateFlow()
+
     val flowOfDeckList =
         combine(
             flowOfDeckDueTree,
             flowOfCurrentDeckFilter,
             flowOfFocusedDeck,
             flowOfRefreshDeckList.onStart { emit(Unit) },
-        ) { tree, filter, _, _ ->
+            _flowOfDeckSortOrder,
+        ) { tree, filter, _, _, sortOrder ->
             if (tree == null) return@combine FlattenedDeckList.empty
 
             // TODO: use flowOfFocusedDeck once it's set on all instances
@@ -116,8 +124,13 @@ class DeckPickerViewModel :
                     lastReviewMillisByDeck() to (sched.dayCutoff - 86_400L) * 1000L
                 }
 
+            val data =
+                tree
+                    .filterAndFlattenDisplay(filter, currentDeckId, lastStudiedByDeck)
+                    .sortedByStudyOrder(sortOrder, dayStartMillis)
+
             FlattenedDeckList(
-                data = tree.filterAndFlattenDisplay(filter, currentDeckId, lastStudiedByDeck),
+                data = data,
                 hasSubDecks = tree.children.any { it.children.any() },
                 dayStartMillis = dayStartMillis,
             )
@@ -665,8 +678,28 @@ class DeckPickerViewModel :
         return previous
     }
 
+    /** Advances the deck sort order to the next mode and persists the choice. */
+    fun cycleDeckSortOrder() {
+        val next = _flowOfDeckSortOrder.value.next()
+        _flowOfDeckSortOrder.value = next
+        saveSortOrderPref(next)
+    }
+
+    private fun loadSortOrderPref(): DeckSortOrder {
+        val name = Prefs.sharedPrefs.getString(PREF_DECK_SORT_ORDER, null) ?: return DeckSortOrder.NAME
+        return DeckSortOrder.entries.find { it.name == name } ?: DeckSortOrder.NAME
+    }
+
+    private fun saveSortOrderPref(order: DeckSortOrder) {
+        Prefs.sharedPrefs
+            .edit()
+            .putString(PREF_DECK_SORT_ORDER, order.name)
+            .apply()
+    }
+
     companion object {
         const val UPGRADE_VERSION_KEY = "lastUpgradeVersion"
+        const val PREF_DECK_SORT_ORDER = "deurim_deck_sort_order"
     }
 }
 

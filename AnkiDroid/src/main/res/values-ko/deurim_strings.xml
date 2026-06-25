@@ -6,4 +6,9 @@
     <string name="deck_picker_last_studied">마지막 학습</string>
     <string name="deck_last_studied_today">오늘</string>
     <string name="deck_last_studied_days_ago">%d일 전</string>
+
+    <!-- Deck list sort order labels -->
+    <string name="deck_sort_order_name">이름 순</string>
+    <string name="deck_sort_order_least_recent">오래된 순</string>
+    <string name="deck_sort_order_most_recent">최근 순</string>
 </resources>

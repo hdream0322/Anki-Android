@@ -19,6 +19,7 @@ import com.ichi2.anki.libanki.Collection
 import com.ichi2.anki.libanki.DeckId
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import java.time.temporal.TemporalAdjusters
@@ -81,7 +82,8 @@ fun Collection.fetchReviewHeatmapData(
     weeks: Int = DEFAULT_HEATMAP_WEEKS,
     forecastWeeks: Int = DEFAULT_FORECAST_WEEKS,
 ): ReviewHeatmapData {
-    val today = LocalDate.now()
+    val now = LocalDateTime.now()
+    val today = if (now.hour < 4) now.toLocalDate().minusDays(1) else now.toLocalDate()
     // Snap the grid so each column is a full Sunday-to-Saturday week.
     val lastWeekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
     val startDate = lastWeekStart.minusWeeks((weeks - 1).toLong())

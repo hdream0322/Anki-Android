@@ -1309,7 +1309,7 @@ open class Reviewer :
             return
         }
         val done = (sessionMaxCount - remaining).coerceIn(0, sessionMaxCount)
-        progressBar.progress = (done * progressBar.max) / sessionMaxCount
+        progressBar.setProgress((done * progressBar.max) / sessionMaxCount, true)
     }
 
     override fun fillFlashcard() {

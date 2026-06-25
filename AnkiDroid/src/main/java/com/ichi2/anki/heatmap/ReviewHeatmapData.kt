@@ -83,7 +83,8 @@ fun Collection.fetchReviewHeatmapData(
     forecastWeeks: Int = DEFAULT_FORECAST_WEEKS,
 ): ReviewHeatmapData {
     val now = LocalDateTime.now()
-    val today = if (now.hour < 4) now.toLocalDate().minusDays(1) else now.toLocalDate()
+    val rolloverHour = getPreferences().scheduling.rollover
+    val today = if (now.hour < rolloverHour) now.toLocalDate().minusDays(1) else now.toLocalDate()
     // Snap the grid so each column is a full Sunday-to-Saturday week.
     val lastWeekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
     val startDate = lastWeekStart.minusWeeks((weeks - 1).toLong())

@@ -116,10 +116,11 @@ class DeckListSorterTest {
     }
 
     @Test
-    fun `parent order reflects max child study time`() {
-        // Parent "Lang" has a child studied 1d ago → parent's lastStudiedMillis = 1d ago.
-        // Parent "Math" was studied 10d ago, no children.
-        // LEAST_RECENT: Math (10d) before Lang (1d).
+    fun `flat sort ignores parent-child nesting`() {
+        // Lang (parent, never studied directly) has child English (1d ago).
+        // Lang's lastStudiedMillis = 1d ago (inherited from child).
+        // Math was studied 10d ago.
+        // LEAST_RECENT: Math(10d) first, then Lang and English (both 1d ago).
         val (child) = makeNode("English", freshRecent)
         val (lang) = makeNode("Lang", null, listOf(child to freshRecent))
         val (math) = makeNode("Math", freshOld)
@@ -136,8 +137,7 @@ class DeckListSorterTest {
         val root = DeckNode(rootNode, "")
         val list = root.filterAndFlattenDisplay(DeckFilters.create(""), selectedDeckId = -1, lastStudiedByDeck)
         val sorted = list.sortedByStudyOrder(DeckSortOrder.LEAST_RECENT, dayStartMillis)
-        // top-level order: Math(10d) before Lang(1d via child)
-        val topLevel = sorted.filter { it.depth == 0 }.map { it.lastDeckNameComponent }
-        assertEquals(listOf("Math", "Lang"), topLevel)
+        // All decks sorted together: Math(10d) before Lang(1d) and English(1d)
+        assertEquals(listOf("Math", "Lang", "English"), sorted.map { it.lastDeckNameComponent })
     }
 }

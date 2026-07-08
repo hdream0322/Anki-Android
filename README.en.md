@@ -15,15 +15,16 @@
 > **Key changes**
 > - **Review heatmap on the Study Options screen** — scoped to the selected deck + its sub-decks, with today's cell highlighted, month/weekday labels, tab-based daily statistics, upcoming-card forecast, and longest streak / studied-day count / totals.
 > - **Review heatmap home-screen widget** — see the heatmap for a chosen deck right from the home screen (pick a deck when adding the widget; auto re-render on resize).
-> - **Polished tablet split-screen** — when a finished deck is selected the right pane no longer goes blank: it shows card stats + a 🎉 congratulations message, with no flicker when switching decks.
-> - **Last-studied date on the deck picker** — shows "Today / N days ago" per deck.
-> - **Session progress bar at the top of the reviewer.**
-> - **In-app auto-update** — checks GitHub Releases every 24 hours; if a new version is available, download it from the notification shade and install it through the system installer in one tap. Available immediately from Settings → General → Deurim and the About screen.
-> - **New-version dialog** — on first launch after an update, shows human-written Korean release notes (`release-notes/v0.0.X.md` is used both for the GitHub Release body and the in-app dialog; works offline).
+> - **Polished tablet split-screen** — when a finished deck is selected the right pane no longer goes blank: it shows card stats + a 🎉 congratulations message (with a confetti effect), with no flicker when switching decks.
+> - **Last-studied date & sorting on the deck picker** — shows "Today / N days ago" per deck; tapping the sort bar cycles between name / oldest-first / most-recent-first (setting persists).
+> - **Session progress bar at the top of the reviewer**, plus **today's progress (done/total) shown in the Appbar ETA.**
+> - **Study sound effects (SFX)** — correct/incorrect answer sounds, applause on deck completion, and a discouragement sound on leech or repeated "Again" answers (toggle all or individually in settings; legacy reviewer only).
+> - **Whiteboard improvements** — flicker fix (multi-touch instance scoping + upstream HW-layer fix), an option to share whiteboard settings (pen color, width, visibility, etc.) across decks, and an option to **keep the whiteboard in sync with the card's own zoom/scroll** (ink pans and scales together with a pinch-zoomed/scrolled card; off by default).
+> - **In-app auto-update** — checks GitHub Releases every 24 hours; if a new version is available, download it (with progress shown) from the notification shade and install it through the system installer in one tap. Available immediately from Settings → General → Deurim and the About screen.
+> - **New-version dialog** — on first launch after an update, shows human-written Korean release notes with their markdown formatting preserved (`release-notes/v0.0.X.md` is used both for the GitHub Release body and the in-app dialog; works offline).
 > - **Refreshed About screen** — Deurim fork version + versionCode + actual release date, plus shortcuts to "Install upstream AnkiDroid" and the GitHub release notes.
 > - **App label `AnkiDroid.d`** — same label for both debug and release; debug uses a red icon + `.debug` package so it can be installed alongside the official AnkiDroid.
 > - **Fork-only versionCode auto-increment** — `upstreamVersionCode + forkBuild`, so the fork keeps tracking upstream while every fork build is recognized as an OS-level upgrade.
-> - **Whiteboard flicker fix** (multi-touch instance scoping + upstream HW-layer fix applied).
 
 ---
 

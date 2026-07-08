@@ -98,6 +98,15 @@ class WhiteboardRepository(
         get() = sharedPreferences.getBoolean(KEY_IS_TOOLBAR_SHOWN, true)
         set(value) = sharedPreferences.edit { putBoolean(KEY_IS_TOOLBAR_SHOWN, value) }
 
+    /**
+     * Whether the whiteboard drawing should scale and pan together with the card's
+     * own zoom/scroll, so ink stays visually attached to the card content it was
+     * drawn on top of.
+     */
+    var isCardZoomSyncEnabled: Boolean
+        get() = sharedPreferences.getBoolean(KEY_IS_CARD_ZOOM_SYNC_ENABLED, false)
+        set(value) = sharedPreferences.edit { putBoolean(KEY_IS_CARD_ZOOM_SYNC_ENABLED, value) }
+
     private fun List<BrushInfo>.toPreferenceString(): String = this.joinToString(",") { "${it.color}|${it.width}" }
 
     private fun String.fromPreferenceString(): List<BrushInfo> =
@@ -125,6 +134,7 @@ class WhiteboardRepository(
         private const val KEY_STYLUS_ONLY_MODE = "stylus_only_mode"
         private const val KEY_TOOLBAR_ALIGNMENT = "toolbar_alignment"
         private const val KEY_IS_TOOLBAR_SHOWN = "is_toolbar_shown"
+        private const val KEY_IS_CARD_ZOOM_SYNC_ENABLED = "is_card_zoom_sync_enabled"
         const val DEFAULT_STROKE_WIDTH = 10f
         const val DEFAULT_ERASER_WIDTH = 30f
 

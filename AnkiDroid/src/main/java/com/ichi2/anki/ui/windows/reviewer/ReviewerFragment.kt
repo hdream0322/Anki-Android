@@ -530,6 +530,21 @@ class ReviewerFragment :
                     f.setOnScrollByListener { y ->
                         webViewLayout.scrollVerticallyBy(y)
                     }
+                    f.updateContentTransform(
+                        webViewLayout.scale,
+                        webViewLayout.webViewScrollX.toFloat(),
+                        webViewLayout.webViewScrollY.toFloat(),
+                    )
+                    f.isCardZoomSyncEnabledFlow
+                        .onEach { isEnabled ->
+                            if (isEnabled) {
+                                f.updateContentTransform(
+                                    webViewLayout.scale,
+                                    webViewLayout.webViewScrollX.toFloat(),
+                                    webViewLayout.webViewScrollY.toFloat(),
+                                )
+                            }
+                        }.launchIn(f.viewLifecycleOwner.lifecycleScope)
                 }
             },
             false,
@@ -660,7 +675,7 @@ class ReviewerFragment :
         private var hasShownUnsupportedFeatureWarning = false
 
         init {
-            webViewLayout.setOnScrollChangeListener { _, _, _, _, _ ->
+            webViewLayout.setOnScrollChangeListener { _, scrollX, scrollY, _, _ ->
                 isScrolling = true
                 isScrollingJob?.cancel()
                 isScrollingJob =
@@ -668,6 +683,7 @@ class ReviewerFragment :
                         delay(300)
                         isScrolling = false
                     }
+                whiteboardFragment?.updateContentTransform(scale, scrollX.toFloat(), scrollY.toFloat())
             }
         }
 
@@ -711,6 +727,11 @@ class ReviewerFragment :
         ) {
             super.onScaleChanged(view, oldScale, newScale)
             scale = newScale
+            whiteboardFragment?.updateContentTransform(
+                newScale,
+                webViewLayout.webViewScrollX.toFloat(),
+                webViewLayout.webViewScrollY.toFloat(),
+            )
         }
 
         override fun onPageFinished(

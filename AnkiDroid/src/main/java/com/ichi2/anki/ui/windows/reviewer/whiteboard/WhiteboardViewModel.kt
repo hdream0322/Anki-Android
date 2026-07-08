@@ -104,6 +104,7 @@ class WhiteboardViewModel(
     val isStylusOnlyMode = MutableStateFlow(false)
     val toolbarAlignment = MutableStateFlow(ToolbarAlignment.BOTTOM)
     val isToolbarShown = MutableStateFlow(true)
+    val isCardZoomSyncEnabled = MutableStateFlow(false)
 
     /**
      * Whether the whiteboard is hosted in a "drawing" flow (e.g. multimedia drawing
@@ -135,6 +136,7 @@ class WhiteboardViewModel(
         isStylusOnlyMode.value = repository.stylusOnlyMode
         toolbarAlignment.value = repository.toolbarAlignment
         isToolbarShown.value = repository.isToolbarShown
+        isCardZoomSyncEnabled.value = repository.isCardZoomSyncEnabled
 
         val lastActiveIndex = repository.loadLastActiveBrushIndex(isDarkMode)
 
@@ -492,6 +494,16 @@ class WhiteboardViewModel(
             isToolbarShown.value = isShown
             repository.isToolbarShown = isShown
         }
+    }
+
+    /**
+     * Toggles whether the whiteboard drawing scales and pans together with the card's
+     * own zoom/scroll.
+     */
+    fun toggleCardZoomSync() {
+        val newValue = !isCardZoomSyncEnabled.value
+        isCardZoomSyncEnabled.value = newValue
+        repository.isCardZoomSyncEnabled = newValue
     }
 
     /**

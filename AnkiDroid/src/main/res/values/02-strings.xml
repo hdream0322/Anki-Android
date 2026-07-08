@@ -52,6 +52,8 @@
         >Stroke</string>
     <string name="stylus_mode" comment="Title of the menu item that toggles the whiteboard stylus mode" maxLength="28"
         >Stylus mode</string>
+    <string name="whiteboard_card_zoom_sync" comment="Title of the menu item that toggles whether the whiteboard scales and scrolls together with the card's own zoom/scroll" maxLength="28"
+        >Zoom with card</string>
     <string name="cannot_remove_last_brush_message">The last brush may not be removed</string>
     <string name="enable_whiteboard" maxLength="28">Enable whiteboard</string>
     <string name="disable_whiteboard">Disable whiteboard</string>

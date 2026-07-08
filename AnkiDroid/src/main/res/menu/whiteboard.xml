@@ -29,6 +29,13 @@
         app:showAsAction="never"
         />
     <item
+        android:id="@+id/action_toggle_card_zoom_sync"
+        android:title="@string/whiteboard_card_zoom_sync"
+        android:checkable="true"
+        android:icon="@drawable/ic_sync"
+        app:showAsAction="never"
+        />
+    <item
         android:id="@+id/action_align"
         android:title="@string/toolbar_position"
         android:icon="@drawable/ic_align"

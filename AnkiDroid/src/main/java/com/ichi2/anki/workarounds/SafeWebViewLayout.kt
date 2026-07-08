@@ -56,6 +56,9 @@ open class SafeWebViewLayout :
     @Suppress("DEPRECATION")
     val scale get() = webView.scale
 
+    val webViewScrollX get() = webView.scrollX
+    val webViewScrollY get() = webView.scrollY
+
     @MainThread
     fun setWebViewClient(webViewClient: SafeWebViewClient) {
         webViewClient.setOnRenderProcessGoneListener(this)

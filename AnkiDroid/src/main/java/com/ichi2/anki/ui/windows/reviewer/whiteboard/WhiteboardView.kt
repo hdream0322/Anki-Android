@@ -19,6 +19,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PorterDuff
@@ -47,6 +48,25 @@ class WhiteboardView : View {
     var eraserMode: EraserMode = EraserMode.INK
     var isStylusOnlyMode: Boolean = false
 
+    /**
+     * Whether the drawing should scale and pan together with the card's own zoom/scroll.
+     * When enabled, [setContentTransform] drives what's drawn, and new strokes are recorded
+     * in the card's content space (via [inverseContentMatrix]) instead of raw screen pixels.
+     */
+    var isContentSyncEnabled: Boolean = false
+        set(value) {
+            if (field == value) return
+            field = value
+            if (!value) {
+                contentMatrix.reset()
+                inverseContentMatrix.reset()
+            }
+            redrawHistory()
+        }
+
+    private val contentMatrix = Matrix()
+    private val inverseContentMatrix = Matrix()
+
     private val currentPath = SmoothPath()
     private val currentPaint =
         Paint().apply {
@@ -64,6 +84,14 @@ class WhiteboardView : View {
     private lateinit var bufferCanvas: Canvas
     private lateinit var bufferBitmap: Bitmap
     private val canvasPaint = Paint(Paint.DITHER_FLAG)
+    private val historyPaint =
+        Paint().apply {
+            isAntiAlias = true
+            isDither = true
+            style = Paint.Style.STROKE
+            strokeJoin = Paint.Join.ROUND
+            strokeCap = Paint.Cap.ROUND
+        }
 
     private var hasMoved = false
     private var isDrawing = false
@@ -78,6 +106,25 @@ class WhiteboardView : View {
 
     fun setOnScrollByListener(listener: OnScrollByListener) {
         multiTouchDetector.setOnScrollByListener(listener)
+    }
+
+    /**
+     * Mirrors the card's current zoom [scale] and scroll offset ([scrollX], [scrollY]) so the
+     * whiteboard's ink stays visually attached to the card content. No-op unless
+     * [isContentSyncEnabled] is set.
+     */
+    fun setContentTransform(
+        scale: Float,
+        scrollX: Float,
+        scrollY: Float,
+    ) {
+        if (!isContentSyncEnabled) return
+        contentMatrix.setScale(scale, scale)
+        contentMatrix.postTranslate(-scrollX, -scrollY)
+        if (!contentMatrix.invert(inverseContentMatrix)) {
+            inverseContentMatrix.reset()
+        }
+        invalidate()
     }
 
     /**
@@ -107,8 +154,17 @@ class WhiteboardView : View {
      */
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        // Draw the committed history
-        canvas.drawBitmap(bufferBitmap, 0f, 0f, canvasPaint)
+        canvas.save()
+        canvas.concat(contentMatrix)
+
+        if (isContentSyncEnabled) {
+            // The card's zoom/scroll can move content outside the buffer's fixed bounds,
+            // so paths are drawn straight from history instead of a screen-space buffer.
+            drawActions(canvas, history)
+        } else {
+            // Draw the committed history
+            canvas.drawBitmap(bufferBitmap, 0f, 0f, canvasPaint)
+        }
 
         // Draw the live preview path for the current gesture
         if (isEraserActive) {
@@ -117,6 +173,7 @@ class WhiteboardView : View {
             // Draw the normal brush or pixel eraser preview
             canvas.drawPath(currentPath, currentPaint)
         }
+        canvas.restore()
     }
 
     /**
@@ -136,51 +193,59 @@ class WhiteboardView : View {
             return false
         }
 
-        val touchX = event.x
-        val touchY = event.y
-        val isPathEraser = isEraserActive && eraserMode == EraserMode.STROKE
+        // Map screen coordinates into the card's content space so strokes stay put when
+        // isContentSyncEnabled later re-projects them via a different contentMatrix.
+        // A no-op copy when content sync is disabled, since inverseContentMatrix is then identity.
+        val contentEvent = MotionEvent.obtain(event).apply { transform(inverseContentMatrix) }
+        try {
+            val touchX = contentEvent.x
+            val touchY = contentEvent.y
+            val isPathEraser = isEraserActive && eraserMode == EraserMode.STROKE
 
-        when (event.action) {
-            MotionEvent.ACTION_DOWN -> {
-                isDrawing = true
-                hasMoved = false
-                currentPath.moveTo(touchX, touchY)
-                if (isPathEraser) {
-                    onEraseGestureStart?.invoke(touchX, touchY)
-                }
-                invalidate()
-            }
-            MotionEvent.ACTION_MOVE -> {
-                if (!isDrawing) return false
-
-                hasMoved = true
-                currentPath.drawAlong(event)
-                if (isPathEraser) {
-                    onEraseGestureMove?.invoke(touchX, touchY)
-                }
-                invalidate()
-            }
-            MotionEvent.ACTION_UP -> {
-                if (!isDrawing) return false
-
-                if (isPathEraser) {
-                    onEraseGestureEnd?.invoke()
-                } else {
-                    if (!hasMoved) {
-                        // A single tap. Add a tiny line segment to ensure it has a non-zero length,
-                        // which makes it more robust for path operations.
-                        currentPath.lineTo(touchX + 0.2f, touchY + 0.2f)
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    isDrawing = true
+                    hasMoved = false
+                    currentPath.moveTo(touchX, touchY)
+                    if (isPathEraser) {
+                        onEraseGestureStart?.invoke(touchX, touchY)
                     }
-                    onNewPath?.invoke(currentPath.clone())
+                    invalidate()
                 }
-                // Reset the path for the next gesture
-                currentPath.reset()
-                isDrawing = false
-                invalidate()
+                MotionEvent.ACTION_MOVE -> {
+                    if (!isDrawing) return false
+
+                    hasMoved = true
+                    currentPath.drawAlong(contentEvent)
+                    if (isPathEraser) {
+                        onEraseGestureMove?.invoke(touchX, touchY)
+                    }
+                    invalidate()
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (!isDrawing) return false
+
+                    if (isPathEraser) {
+                        onEraseGestureEnd?.invoke()
+                    } else {
+                        if (!hasMoved) {
+                            // A single tap. Add a tiny line segment to ensure it has a non-zero length,
+                            // which makes it more robust for path operations.
+                            currentPath.lineTo(touchX + 0.2f, touchY + 0.2f)
+                        }
+                        onNewPath?.invoke(currentPath.clone())
+                    }
+                    // Reset the path for the next gesture
+                    currentPath.reset()
+                    isDrawing = false
+                    invalidate()
+                }
+                else -> return false
             }
-            else -> return false
+            return true
+        } finally {
+            contentEvent.recycle()
         }
-        return true
     }
 
     /**
@@ -207,30 +272,35 @@ class WhiteboardView : View {
     }
 
     /**
-     * Redraws all historical paths onto the offscreen buffer.
+     * Redraws all historical paths onto the offscreen buffer, or just triggers a direct
+     * redraw when [isContentSyncEnabled] (see [onDraw]).
      */
     private fun redrawHistory() {
+        if (isContentSyncEnabled) {
+            invalidate()
+            return
+        }
         if (!::bufferCanvas.isInitialized) return
         bufferCanvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
-        val tempPaint =
-            Paint().apply {
-                isAntiAlias = true
-                isDither = true
-                style = Paint.Style.STROKE
-                strokeJoin = Paint.Join.ROUND
-                strokeCap = Paint.Cap.ROUND
-            }
-        for (action in history) {
-            tempPaint.strokeWidth = action.strokeWidth
-            if (action.isEraser) {
-                tempPaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
-            } else {
-                tempPaint.xfermode = null
-                tempPaint.color = action.color
-            }
-            bufferCanvas.drawPath(action.path, tempPaint)
-        }
+        drawActions(bufferCanvas, history)
         invalidate()
+    }
+
+    /** Draws a list of [DrawingAction]s onto [canvas], in order. */
+    private fun drawActions(
+        canvas: Canvas,
+        actions: List<DrawingAction>,
+    ) {
+        for (action in actions) {
+            historyPaint.strokeWidth = action.strokeWidth
+            if (action.isEraser) {
+                historyPaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
+            } else {
+                historyPaint.xfermode = null
+                historyPaint.color = action.color
+            }
+            canvas.drawPath(action.path, historyPaint)
+        }
     }
 }
 

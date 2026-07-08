@@ -146,6 +146,7 @@ class WhiteboardFragment :
             requireActivity().menuInflater.inflate(R.menu.whiteboard, popupMenu.menu)
             with(popupMenu.menu) {
                 findItem(R.id.action_toggle_stylus).isChecked = viewModel.isStylusOnlyMode.value
+                findItem(R.id.action_toggle_card_zoom_sync).isChecked = viewModel.isCardZoomSyncEnabled.value
                 (this as? MenuBuilder)?.setOptionalIconsVisible(true)
                 context?.increaseHorizontalPaddingOfMenuIcons(this)
 
@@ -272,6 +273,11 @@ class WhiteboardFragment :
         viewModel.isStylusOnlyMode
             .onEach { isEnabled ->
                 whiteboardView.isStylusOnlyMode = isEnabled
+            }.launchIn(lifecycleScope)
+
+        viewModel.isCardZoomSyncEnabled
+            .onEach { isEnabled ->
+                whiteboardView.isContentSyncEnabled = isEnabled
             }.launchIn(lifecycleScope)
 
         viewModel.toolbarAlignment
@@ -467,6 +473,10 @@ class WhiteboardFragment :
                 item.isChecked = !item.isChecked
                 viewModel.toggleStylusOnlyMode()
             }
+            R.id.action_toggle_card_zoom_sync -> {
+                item.isChecked = !item.isChecked
+                viewModel.toggleCardZoomSync()
+            }
             R.id.action_hide_toolbar -> viewModel.setIsToolbarShown(false)
             R.id.action_align_left -> viewModel.setToolbarAlignment(ToolbarAlignment.LEFT)
             R.id.action_align_bottom -> viewModel.setToolbarAlignment(ToolbarAlignment.BOTTOM)
@@ -486,6 +496,19 @@ class WhiteboardFragment :
         binding.whiteboardView.setOnScrollByListener(listener)
     }
 
+    /**
+     * Mirrors the card's current zoom [scale] and scroll offset ([scrollX], [scrollY]) onto the
+     * whiteboard so ink stays visually attached to the card content. No-op unless the user has
+     * enabled the "Zoom with card" option.
+     */
+    fun updateContentTransform(
+        scale: Float,
+        scrollX: Float,
+        scrollY: Float,
+    ) {
+        binding.whiteboardView.setContentTransform(scale, scrollX, scrollY)
+    }
+
     fun resetCanvas() = viewModel.reset()
 
     /**
@@ -503,4 +526,12 @@ class WhiteboardFragment :
             combine(viewModel.canUndo, viewModel.canRedo) { canUndo, canRedo ->
                 !canUndo && !canRedo
             }
+
+    /**
+     * Emits whenever the user toggles the "Zoom with card" option. Hosts should push a fresh
+     * [updateContentTransform] call when this emits `true`, so the whiteboard immediately
+     * catches up to the card's current zoom/scroll instead of waiting for the next change.
+     */
+    val isCardZoomSyncEnabledFlow: Flow<Boolean>
+        get() = viewModel.isCardZoomSyncEnabled
 }

@@ -33,6 +33,7 @@ import com.ichi2.anki.dialogs.startDeckSelection
 import com.ichi2.anki.isCollectionEmpty
 import com.ichi2.anki.launchCatchingTask
 import com.ichi2.anki.model.SelectableDeck
+import com.ichi2.anki.startup.ensureStorageIsReady
 import com.ichi2.anki.ui.internationalization.sentenceCase
 import com.ichi2.anki.withProgress
 import com.ichi2.widget.AppWidgetId.Companion.INVALID_APPWIDGET_ID
@@ -55,7 +56,7 @@ class HeatmapWidgetConfig : AnkiActivity(R.layout.activity_heatmap_widget_config
     override fun onCreate(savedInstanceState: Bundle?) {
         if (showedActivityFailedScreen(savedInstanceState)) return
         super.onCreate(savedInstanceState)
-        if (!ensureStoragePermissions()) return
+        if (!ensureStorageIsReady()) return
 
         preferences = HeatmapWidgetPreferences(this)
         appWidgetId = intent.getAppWidgetId()

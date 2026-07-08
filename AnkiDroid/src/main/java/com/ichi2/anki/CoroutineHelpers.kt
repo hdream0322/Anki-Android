@@ -34,10 +34,12 @@ import com.ichi2.anki.common.destinations.DeckOptionsDestination
 import com.ichi2.anki.dialogs.DatabaseErrorDialog
 import com.ichi2.anki.dialogs.DatabaseErrorDialog.DatabaseErrorDialogType
 import com.ichi2.anki.exception.StorageAccessException
+import com.ichi2.anki.exception.StorageNotConfiguredException
 import com.ichi2.anki.libanki.exception.InvalidSearchException
 import com.ichi2.anki.pages.fromCurrentDeck
 import com.ichi2.anki.pages.toIntent
 import com.ichi2.anki.snackbar.showSnackbar
+import com.ichi2.anki.startup.redirectToMainEntryPoint
 import com.ichi2.anki.ui.internationalization.sentenceCase
 import com.ichi2.anki.utils.openUrl
 import com.ichi2.utils.create
@@ -189,6 +191,12 @@ suspend fun <T> FragmentActivity.runCatching(
             is BackendInterruptedException -> {
                 Timber.w(exc, errorMessage)
                 exc.localizedMessage?.let { showSnackbar(it) }
+            }
+            is StorageNotConfiguredException -> {
+                // expected before first-run setup completes: no crash report
+                // edge case when 'ensureStorageIsReady' was insufficient
+                Timber.w(exc, errorMessage)
+                if (!isFinishing) redirectToMainEntryPoint()
             }
             is BackendNetworkException, is BackendSyncException, is StorageAccessException, is BackendCardTypeException -> {
                 // these exceptions do not generate worthwhile crash reports
@@ -596,6 +604,10 @@ private fun Activity.showError(
  * helper function is required to run a suspending function from an `onReceiveBroadcast` method.
  * [AnkiBroadcastReceiver.goAsync] extends the lifetime of the `onReceiveBroadcast` method and tells
  * the OS not to kill the process prematurely.
+ *
+ * Theoretically, an expedited Worker could also be used to run a suspending function from `onReceiveBroadcast`.
+ * However, AnkiDroid is only allotted a fixed number of expedited Worker calls per day
+ * and those expedited calls are also used by the sync service, so it's best to conserve them.
  *
  * Do not call [AnkiBroadcastReceiver.goAsync] directly before calling this function.
  *

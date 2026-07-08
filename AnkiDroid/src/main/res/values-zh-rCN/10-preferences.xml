@@ -39,7 +39,6 @@
     <string name="pref_cat_sync" comment="title of the sync preferences category" maxLength="41">同步</string>
     <string name="pref_cat_scheduling" maxLength="41">计划任务</string>
     <string name="pref_cat_whiteboard" maxLength="41">白板</string>
-    <string name="pref_cat_appearance" maxLength="41">外观</string>
     <string name="pref_cat_themes" maxLength="41">主题</string>
     <string name="pref_cat_gestures" maxLength="41">手势操作</string>
     <string name="pref_cat_controls" maxLength="41">控制</string>
@@ -252,10 +251,10 @@
     <string name="user_action_8" maxLength="28">用户动作 8</string>
     <string name="user_action_9" maxLength="28">用户动作 9</string>
     <string name="toggle_auto_advance" maxLength="28">切换自动前进</string>
-    <string name="enable_auto_advance" maxLength="28">Enable auto advance</string>
-    <string name="disable_auto_advance" maxLength="28">Disable auto advance</string>
-    <string name="enable_voice_recording" maxLength="28">Enable voice recording</string>
-    <string name="disable_voice_recording" maxLength="28">Disable voice recording</string>
+    <string name="enable_auto_advance" maxLength="28">启用自动前进</string>
+    <string name="disable_auto_advance" maxLength="28">禁用自动前进</string>
+    <string name="enable_voice_recording" maxLength="28">启用录音</string>
+    <string name="disable_voice_recording" maxLength="28">禁用录音</string>
     <!-- Select card side -->
     <string name="card_side_selection_title">选择卡片正/反面</string>
     <string name="card_side_question">问题</string>

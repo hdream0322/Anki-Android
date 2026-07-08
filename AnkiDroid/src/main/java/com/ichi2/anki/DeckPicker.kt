@@ -61,6 +61,7 @@ import androidx.core.view.updatePadding
 import androidx.draganddrop.DropHelper
 import androidx.fragment.app.FragmentContainerView
 import androidx.fragment.app.commit
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -82,6 +83,7 @@ import com.ichi2.anki.InitialActivity.StartupFailure.DirectoryNotAccessible
 import com.ichi2.anki.InitialActivity.StartupFailure.DiskFull
 import com.ichi2.anki.InitialActivity.StartupFailure.FutureAnkidroidVersion
 import com.ichi2.anki.InitialActivity.StartupFailure.SDCardNotMounted
+import com.ichi2.anki.InitialActivity.StartupFailure.StorageUndecided
 import com.ichi2.anki.IntentHandler.Companion.intentToReviewDeckFromShortcuts
 import com.ichi2.anki.account.AccountActivity
 import com.ichi2.anki.analytics.UsageAnalytics
@@ -132,9 +134,9 @@ import com.ichi2.anki.dialogs.DialogHandlerMessage
 import com.ichi2.anki.dialogs.EditDeckDescriptionDialog
 import com.ichi2.anki.dialogs.EmptyCardsDialogFragment
 import com.ichi2.anki.dialogs.FatalErrorDialog
-import com.ichi2.anki.dialogs.ImportDialog.ImportDialogListener
 import com.ichi2.anki.dialogs.ImportFileSelectionFragment.ApkgImportResultLauncherProvider
 import com.ichi2.anki.dialogs.ImportFileSelectionFragment.CsvImportResultLauncherProvider
+import com.ichi2.anki.dialogs.ImportViewModel
 import com.ichi2.anki.dialogs.SchedulerUpgradeDialog
 import com.ichi2.anki.dialogs.SyncErrorDialog
 import com.ichi2.anki.dialogs.SyncErrorDialog.Companion.newInstance
@@ -233,7 +235,7 @@ import com.ichi2.anki.common.android.R as CommonR
  *   * Blocks the UI and displays sync progress when syncing
  * * Displaying 'General' AnkiDroid options: backups, import, 'check media' etc...
  *   * General handler for error/global dialogs (search for 'as DeckPicker')
- *   * Such as import: [ImportDialogListener]
+ *   * Such as import: [ImportViewModel]
  * * A Floating Action Button [floatingActionMenu] allowing the user to quickly add notes/cards.
  * * A custom image as a background can be added: [applyDeckPickerBackground]
  */
@@ -244,7 +246,6 @@ import com.ichi2.anki.common.android.R as CommonR
 open class DeckPicker :
     NavigationDrawerActivity(),
     SyncErrorDialogListener,
-    ImportDialogListener,
     OnRequestPermissionsResultCallback,
     ChangeManager.Subscriber,
     ImportColpkgListener,
@@ -253,6 +254,8 @@ open class DeckPicker :
     CsvImportResultLauncherProvider,
     CollectionPermissionScreenLauncher {
     val viewModel: DeckPickerViewModel by viewModels()
+
+    private val importViewModel: ImportViewModel by viewModels()
 
     private lateinit var binding: ActivityHomescreenBinding
 
@@ -516,6 +519,11 @@ open class DeckPicker :
 
         // create inherited navigation drawer layout here so that it can be used by parent class
         initNavigationDrawer()
+        if (Prefs.devBottomNavEnabled && !fragmented) {
+            disableDrawerSwipe()
+            disableDrawerIndicator()
+        }
+        setupBottomNavigation()
         setupEdgeToEdge()
         title = resources.getString(R.string.app_name)
 
@@ -648,7 +656,9 @@ open class DeckPicker :
 
             // hack for Roborazzi screenshot tests
             val fabBottomOffset = if (isRobolectric) 12.dp.toPx(this) else -12.dp.toPx(this)
-            floatingActionButtonBinding.root.updatePadding(bottom = bars.bottom + fabBottomOffset)
+            val bottomNavView = findViewById<View?>(R.id.bottom_navigation)
+            val bottomNavOffset = if (bottomNavView?.isVisible == true) BOTTOM_NAV_HEIGHT_DP.dp.toPx(this) else 0
+            floatingActionButtonBinding.root.updatePadding(bottom = bars.bottom + fabBottomOffset + bottomNavOffset)
 
             setRecyclerViewBottomPaddingAbove(floatingActionButtonBinding.fabMain)
             insets
@@ -899,6 +909,9 @@ open class DeckPicker :
         viewModel.flowOfStartupResponse.filterNotNull().launchCollectionInLifecycleScope(::onStartupResponse)
         viewModel.flowOfShowContextMenu.launchCollectionInLifecycleScope(::showDeckPickerContextMenu)
         viewModel.flowOfShowRightClickContextMenu.launchCollectionInLifecycleScope(::showDeckPickerRightClickContextMenu)
+        // navigation should be done on RESUMED
+        importViewModel.importAddFlow.launchCollectionInLifecycleScope(Lifecycle.State.RESUMED, ::importAdd)
+        importViewModel.importReplaceFlow.launchCollectionInLifecycleScope(Lifecycle.State.RESUMED, ::importReplace)
     }
 
     private val onReceiveContentListener =
@@ -1053,6 +1066,11 @@ open class DeckPicker :
             is StartupFailure.InitializationError -> FatalErrorDialog.build(this, failure).show()
             is DiskFull -> displayNoStorageError()
             is DBError -> displayDatabaseFailure(CustomExceptionData.fromException(failure.exception))
+            is StorageUndecided -> {
+                Timber.i("Displaying storage setup required")
+                // unreachable: storageDecision() cannot yet return Undecided outside tests
+                TODO("#19552 - replace with the storage setup flow.")
+            }
         }
     }
 
@@ -1126,6 +1144,7 @@ open class DeckPicker :
         toolbarSearchView?.maxWidth = Integer.MAX_VALUE
 
         menu.findItem(R.id.action_export_collection)?.title = TR.actionsExport()
+        menu.findItem(R.id.action_import)?.title = TR.actionsImport()
         menu.findItem(R.id.action_check_database)?.title = TR.sentenceCase.checkDatabase
         menu.findItem(R.id.action_check_media)?.title = TR.sentenceCase.checkMediaAction
         menu.findItem(R.id.action_empty_cards)?.title = TR.sentenceCase.emptyCards
@@ -1949,13 +1968,13 @@ open class DeckPicker :
     }
 
     // Callback to import a file -- adding it to existing collection
-    override fun importAdd(importPath: String) {
+    fun importAdd(importPath: String) {
         Timber.d("importAdd() for file %s", importPath)
         startActivity(AnkiPackageImporterFragment.getIntent(this, importPath))
     }
 
     // Callback to import a file -- replacing the existing collection
-    override fun importReplace(importPath: String) {
+    fun importReplace(importPath: String) {
         Timber.d("importReplace() for file %s", importPath)
         importColpkg(importPath)
     }
@@ -2276,13 +2295,22 @@ open class DeckPicker :
                     shortcut("P", R.string.open_settings),
                     shortcut("M") { this.sentenceCase.checkMediaAction },
                     shortcut("Ctrl+E", R.string.export_collection),
-                    shortcut("Ctrl+Shift+I", R.string.menu_import),
+                    shortcut("Ctrl+Shift+I", Translations::actionsImport),
                     shortcut("Ctrl+Shift+N", R.string.model_browser_label),
                 ),
                 R.string.deck_picker_group,
             )
 
     companion object {
+        /**
+         * Material 3 BottomNavigationView content height in dp, *excluding* the system
+         * navigation-bar inset (that inset is added separately here via `bars.bottom`).
+         * Used to offset the FAB above the bar. The hosted-fragment container instead uses
+         * the bar's measured height, which already includes the inset so the two must not
+         * be swapped for one another.
+         */
+        private const val BOTTOM_NAV_HEIGHT_DP = 80
+
         /**
          * Result codes from other activities
          */

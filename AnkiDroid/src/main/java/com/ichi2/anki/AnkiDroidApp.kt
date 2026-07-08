@@ -57,6 +57,7 @@ import com.ichi2.anki.services.AlarmManagerService
 import com.ichi2.anki.services.NotificationService
 import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.settings.PrefsRepository
+import com.ichi2.anki.startup.getDefaultAnkiDroidDirectory
 import com.ichi2.anki.ui.dialogs.ActivityAgnosticDialogs
 import com.ichi2.utils.ExceptionUtil
 import com.ichi2.utils.LanguageUtil
@@ -113,7 +114,8 @@ open class AnkiDroidApp :
     }
 
     /**
-     * On application creation.
+     * On application creation, i.e. when the application process starts.
+     * This is called before any activities, services, or receivers are created.
      */
     @KotlinCleanup("analytics can be moved to attachBaseContext()")
     override fun onCreate() {
@@ -127,6 +129,7 @@ open class AnkiDroidApp :
 
         initializeAcraCrashReporter()
         initializeNavigator()
+        initializeWidgetRepository()
         Animations.setPreferencesProvider { context -> PrefsRepository(context) }
         val logType = LogType.value
         when (logType) {
@@ -272,7 +275,7 @@ open class AnkiDroidApp :
             } catch (e: StorageAccessException) {
                 Timber.e(e, "Could not initialize AnkiDroid directory")
                 try {
-                    val defaultDir = CollectionHelper.getDefaultAnkiDroidDirectory(this)
+                    val defaultDir = getDefaultAnkiDroidDirectory(this)
                     if (SdCard.isMounted && CollectionHelper.getCurrentAnkiDroidDirectory(this) == defaultDir) {
                         // Don't send report if the user is using a custom directory as SD cards trip up here a lot
                         sendExceptionReport(e, "AnkiDroidApp.onCreate")
@@ -321,7 +324,9 @@ open class AnkiDroidApp :
             val context = this.withAppLocale()
             if (Prefs.newReviewRemindersEnabled) {
                 Timber.i("Setting review reminder notifications if they have not already been set")
-                AlarmManagerService.scheduleAllNotifications(context)
+                applicationScope.launch {
+                    AlarmManagerService.scheduleAllNotifications(context)
+                }
             } else {
                 // Register for notifications
                 Timber.i("AnkiDroidApp: Starting Services")

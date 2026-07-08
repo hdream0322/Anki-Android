@@ -33,6 +33,7 @@ import androidx.fragment.app.Fragment
 import androidx.viewbinding.ViewBinding
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.navigation.NavigationView
+import com.ichi2.anki.CollectionManager.TR
 import com.ichi2.anki.IntentHandler.Companion.grantedStoragePermissions
 import com.ichi2.anki.NoteEditorFragment.Companion.NoteEditorCaller
 import com.ichi2.anki.common.android.animationEnabled
@@ -160,8 +161,12 @@ abstract class NavigationDrawerActivity(
             ),
         )
         // Setup toolbar and hamburger
-        navigationView = drawerLayout.findViewById(R.id.navdrawer_items_container)
-        navigationView!!.setNavigationItemSelectedListener(this)
+        navigationView =
+            drawerLayout.findViewById<NavigationView>(R.id.navdrawer_items_container).apply {
+                setNavigationItemSelectedListener(this@NavigationDrawerActivity)
+                menu.findItem(R.id.nav_decks)?.title = TR.actionsDecks()
+                menu.findItem(R.id.nav_stats)?.title = TR.statisticsTitle()
+            }
         val toolbar: Toolbar? = mainView.findViewById(R.id.toolbar)
         if (toolbar != null) {
             setSupportActionBar(toolbar)
@@ -404,6 +409,16 @@ abstract class NavigationDrawerActivity(
     // Override this to specify a specific card id
     protected open val currentCardId: CardId?
         get() = null
+
+    /**
+     * Hides the navigation drawer indicator (hamburger icon) and any back arrows
+     * from the toolbar. Used when bottom navigation is active.
+     */
+    protected fun disableDrawerIndicator() {
+        drawerToggle.isDrawerIndicatorEnabled = false
+        supportActionBar?.setDisplayHomeAsUpEnabled(false)
+        navButtonGoesBack = false
+    }
 
     protected fun showBackIcon() {
         drawerToggle.isDrawerIndicatorEnabled = false

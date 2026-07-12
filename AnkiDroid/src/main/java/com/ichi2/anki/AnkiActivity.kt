@@ -214,22 +214,29 @@ open class AnkiActivity(
     }
 
     /**
-     * Sets the title of the toolbar (support action bar) for the activity.
+     * Sets the title (and possibly subtitle) of the toolbar (support action bar) for the activity.
      *
      * @param title The new title to be set for the toolbar.
+     * @param subtitle The new subtitle to be set for the toolbar. If `null`, the subtitle is removed.
      */
-    open fun setToolbarTitle(title: String) {
+    open fun setToolbarText(
+        title: String,
+        subtitle: String? = null,
+    ) {
         supportActionBar?.title = title
+        supportActionBar?.subtitle = subtitle
     }
 
     /**
-     * Sets the title of the toolbar (support action bar) for the activity.
+     * Sets the title (and possibly subtitle) of the toolbar (support action bar) for the activity.
      *
-     * @param title The new title to be set for the toolbar.
+     * @param titleRes The new title to be set for the toolbar.
+     * @param subtitleRes The new subtitle to be set for the toolbar. If `null`, the subtitle is removed.
      */
-    open fun setToolbarTitle(
+    open fun setToolbarText(
         @StringRes titleRes: Int,
-    ) = setToolbarTitle(getString(titleRes))
+        @StringRes subtitleRes: Int? = null,
+    ) = setToolbarText(getString(titleRes), subtitleRes?.let { getString(it) })
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         if (item.itemId == android.R.id.home) {
@@ -836,7 +843,7 @@ open class AnkiActivity(
 
     companion object {
         /** Extra key to set the finish animation of an activity  */
-        const val FINISH_ANIMATION_EXTRA = "finishAnimation"
+        const val EXTRA_FINISH_ANIMATION = "finishAnimation"
 
         private const val SIMPLE_NOTIFICATION_ID = 0
         private const val KEY_EXPORT_FILE_NAME = "key_export_file_name"

@@ -43,9 +43,9 @@ import com.ichi2.anki.databinding.FragmentReminderTroubleshootingBinding
 import com.ichi2.anki.databinding.ItemTroubleshootingCheckBinding
 import com.ichi2.anki.requireAnkiActivity
 import com.ichi2.anki.settings.Prefs
-import com.ichi2.anki.utils.ext.getParcelableCompat
 import com.ichi2.anki.utils.ext.launchCollectionInLifecycleScope
 import com.ichi2.anki.utils.ext.onWindowFocusChanged
+import com.ichi2.anki.utils.ext.requireParcelable
 import com.ichi2.anki.utils.ext.setBackgroundTint
 import com.ichi2.utils.Permissions.requestPermissionThroughDialogOrSettings
 import com.ichi2.utils.dp
@@ -84,11 +84,7 @@ class ReminderTroubleshootingFragment : Fragment(R.layout.fragment_reminder_trou
      * @see ScheduleRemindersFragment.FragmentHost
      */
     private val host: ScheduleRemindersFragment.FragmentHost by lazy {
-        requireNotNull(
-            requireArguments().getParcelableCompat<ScheduleRemindersFragment.FragmentHost>(ARGS_HOST),
-        ) {
-            "Host cannot be null"
-        }
+        requireArguments().requireParcelable(ARG_HOST)
     }
 
     internal val notificationPermissionLauncher: ActivityResultLauncher<String> =
@@ -190,13 +186,13 @@ class ReminderTroubleshootingFragment : Fragment(R.layout.fragment_reminder_trou
         /**
          * Arguments key for specifying the host of this fragment.
          */
-        private const val ARGS_HOST = "host"
+        private const val ARG_HOST = "arg_host"
 
         fun newInstance(host: ScheduleRemindersFragment.FragmentHost): ReminderTroubleshootingFragment =
             ReminderTroubleshootingFragment().apply {
                 arguments =
                     Bundle().apply {
-                        putParcelable(ARGS_HOST, host)
+                        putParcelable(ARG_HOST, host)
                     }
                 Timber.i(
                     "Creating ReminderTroubleshootingFragment with host=%s",

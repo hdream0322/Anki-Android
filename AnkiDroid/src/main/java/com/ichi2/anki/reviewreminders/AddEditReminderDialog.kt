@@ -47,6 +47,7 @@ import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.snackbar.showSnackbar
 import com.ichi2.anki.ui.internationalization.sentenceCase
 import com.ichi2.anki.utils.ext.getParcelableCompat
+import com.ichi2.anki.utils.ext.requireParcelable
 import com.ichi2.anki.utils.ext.showDialogFragment
 import com.ichi2.anki.utils.showDialogFragment
 import com.ichi2.utils.DisplayUtils.resizeWhenSoftInputShown
@@ -92,11 +93,7 @@ class AddEditReminderDialog : DialogFragment() {
      * @see DialogMode
      */
     private val dialogMode: DialogMode by lazy {
-        requireNotNull(
-            requireArguments().getParcelableCompat<DialogMode>(ARGS_DIALOG_MODE),
-        ) {
-            "Dialog mode cannot be null"
-        }
+        requireArguments().requireParcelable(ARG_DIALOG_MODE)
     }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
@@ -378,7 +375,7 @@ class AddEditReminderDialog : DialogFragment() {
          *
          * @see DialogMode
          */
-        const val ARGS_DIALOG_MODE = "args_dialog_mode"
+        const val ARG_DIALOG_MODE = "arg_dialog_mode"
 
         /**
          * Fragment result key for receiving the result of a recently closed [AddEditReminderDialog].
@@ -427,7 +424,7 @@ class AddEditReminderDialog : DialogFragment() {
             AddEditReminderDialog().apply {
                 arguments =
                     Bundle().apply {
-                        putParcelable(ARGS_DIALOG_MODE, dialogMode)
+                        putParcelable(ARG_DIALOG_MODE, dialogMode)
                     }
             }
     }

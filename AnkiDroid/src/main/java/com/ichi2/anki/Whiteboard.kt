@@ -88,6 +88,14 @@ class Whiteboard(
     private val inverseContentMatrix = Matrix()
 
     /**
+     * The scale component of [contentMatrix]. Tracked separately so stroke widths can be
+     * compensated for it in [onDraw] - see [strokeWidthCompensatedPaint].
+     */
+    @get:VisibleForTesting
+    var contentScale: Float = 1f
+        private set
+
+    /**
      * Whether the drawing should scale and pan together with the card's own zoom/scroll.
      * When enabled, [setContentTransform] drives what's drawn, and new strokes are recorded
      * in the card's content space (via [inverseContentMatrix]) instead of raw screen pixels.
@@ -97,8 +105,7 @@ class Whiteboard(
             if (field == value) return
             field = value
             if (!value) {
-                contentMatrix.reset()
-                inverseContentMatrix.reset()
+                resetContentTransform()
             }
             invalidate()
         }
@@ -114,11 +121,28 @@ class Whiteboard(
         scrollY: Float,
     ) {
         if (!isContentSyncEnabled) return
+        contentScale = scale
         contentMatrix.setScale(scale, scale)
         contentMatrix.postTranslate(-scrollX, -scrollY)
         if (!contentMatrix.invert(inverseContentMatrix)) {
             inverseContentMatrix.reset()
         }
+        invalidate()
+    }
+
+    /**
+     * Resets the card-zoom sync state to identity.
+     *
+     * Called when a new card is displayed so that the previous card's zoom/scroll position
+     * doesn't leak into strokes drawn on the new one - [contentMatrix] is otherwise only
+     * updated by [setContentTransform], which [Reviewer] calls solely in response to the
+     * WebView's own scale/scroll change callbacks, and those don't necessarily fire again
+     * for a newly-loaded card whose initial scale/scroll happens to match the previous one.
+     */
+    fun resetContentTransform() {
+        contentScale = 1f
+        contentMatrix.reset()
+        inverseContentMatrix.reset()
         invalidate()
     }
 
@@ -135,16 +159,30 @@ class Whiteboard(
         canvas.save()
         canvas.concat(contentMatrix)
         canvas.drawColor(0)
+        // canvas.concat(contentMatrix) also scales stroke width, since Paint.strokeWidth is
+        // defined in the canvas's pre-transform coordinate space. Counter-scale it here so the
+        // pen keeps a constant on-screen thickness regardless of the card's current zoom level.
+        val strokeWidthScale = if (isContentSyncEnabled && contentScale > 0f) 1f / contentScale else 1f
         if (isContentSyncEnabled) {
             // The card's zoom/scroll can move content outside the bitmap's fixed bounds,
             // so paths are drawn straight from the undo history instead of the raster buffer.
-            undo.drawTo(canvas)
+            undo.drawTo(canvas, strokeWidthScale)
         } else {
             canvas.drawBitmap(bitmap, 0f, 0f, bitmapPaint)
         }
-        canvas.drawPath(path, paint)
+        canvas.drawPath(path, strokeWidthCompensatedPaint(paint, strokeWidthScale))
         canvas.restore()
     }
+
+    private fun strokeWidthCompensatedPaint(
+        source: Paint,
+        strokeWidthScale: Float,
+    ): Paint =
+        if (strokeWidthScale == 1f) {
+            source
+        } else {
+            Paint(source).apply { strokeWidth = source.strokeWidth * strokeWidthScale }
+        }
 
     /** Handle motion events to draw using the touch screen or to interact with the flashcard behind
      * the whiteboard by using a second finger.
@@ -511,9 +549,12 @@ class Whiteboard(
         }
 
         /** Draws every recorded action directly onto [canvas], in order. */
-        fun drawTo(canvas: Canvas) {
+        fun drawTo(
+            canvas: Canvas,
+            strokeWidthScale: Float = 1f,
+        ) {
             for (action in list) {
-                action.apply(canvas)
+                action.apply(canvas, strokeWidthScale)
             }
         }
 
@@ -570,7 +611,10 @@ class Whiteboard(
     }
 
     private interface WhiteboardAction {
-        fun apply(canvas: Canvas)
+        fun apply(
+            canvas: Canvas,
+            strokeWidthScale: Float = 1f,
+        )
 
         val path: Path?
         val point: Point?
@@ -581,8 +625,15 @@ class Whiteboard(
         private val y: Float,
         private val paint: Paint,
     ) : WhiteboardAction {
-        override fun apply(canvas: Canvas) {
-            canvas.drawPoint(x, y, paint)
+        override fun apply(
+            canvas: Canvas,
+            strokeWidthScale: Float,
+        ) {
+            if (strokeWidthScale == 1f) {
+                canvas.drawPoint(x, y, paint)
+            } else {
+                canvas.drawPoint(x, y, Paint(paint).apply { strokeWidth = paint.strokeWidth * strokeWidthScale })
+            }
         }
 
         override val path: Path?
@@ -596,8 +647,15 @@ class Whiteboard(
         override val path: Path,
         private val paint: Paint,
     ) : WhiteboardAction {
-        override fun apply(canvas: Canvas) {
-            canvas.drawPath(path, paint)
+        override fun apply(
+            canvas: Canvas,
+            strokeWidthScale: Float,
+        ) {
+            if (strokeWidthScale == 1f) {
+                canvas.drawPath(path, paint)
+            } else {
+                canvas.drawPath(path, Paint(paint).apply { strokeWidth = paint.strokeWidth * strokeWidthScale })
+            }
         }
 
         override val point: Point?

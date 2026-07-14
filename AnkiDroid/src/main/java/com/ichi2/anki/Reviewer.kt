@@ -742,6 +742,10 @@ open class Reviewer :
         super.updateForNewCard()
         if (prefWhiteboard && whiteboard != null) {
             whiteboard!!.clear()
+            // Don't let the previous card's zoom/scroll leak into the new one - see
+            // resetContentTransform's kdoc.
+            whiteboard!!.resetContentTransform()
+            cardZoomScale = 1f
         }
         audioRecordingController?.updateUIForNewCard()
     }
@@ -1853,6 +1857,10 @@ open class Reviewer :
         return ByteArray(0)
     }
 
+    @Suppress("deprecation") // WebView.getScale() has no non-deprecated replacement
+    private val WebView.currentScale: Float
+        get() = scale
+
     private fun createWhiteboard() {
         val whiteboard =
             createInstance(this, true, this).also { whiteboard ->
@@ -1860,6 +1868,18 @@ open class Reviewer :
             }
 
         whiteboard.isContentSyncEnabled = sharedPrefs().getBoolean(getString(R.string.whiteboard_card_zoom_sync_key), false)
+        if (whiteboard.isContentSyncEnabled) {
+            // Sync immediately with the card's current zoom/scroll instead of waiting for the
+            // next onCardScaleChanged/onCardScrolled callback: the card may already be
+            // scrolled or at a non-default zoom (e.g. the WebView's own initial overview-mode
+            // scale) by the time the whiteboard is created, and without this, strokes drawn
+            // before the next callback are recorded against a stale identity transform and
+            // jump out of view once that callback finally fires.
+            webView?.let { wv ->
+                cardZoomScale = wv.currentScale
+                whiteboard.setContentTransform(cardZoomScale, wv.scrollX.toFloat(), wv.scrollY.toFloat())
+            }
+        }
 
         // We use the pen color of the selected deck at the time the whiteboard is enabled.
         // This is how all other whiteboard settings are

@@ -10,6 +10,7 @@ import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PathMeasure
@@ -83,6 +84,44 @@ class Whiteboard(
     var isCurrentlyDrawing = false
         private set
 
+    private val contentMatrix = Matrix()
+    private val inverseContentMatrix = Matrix()
+
+    /**
+     * Whether the drawing should scale and pan together with the card's own zoom/scroll.
+     * When enabled, [setContentTransform] drives what's drawn, and new strokes are recorded
+     * in the card's content space (via [inverseContentMatrix]) instead of raw screen pixels.
+     */
+    var isContentSyncEnabled: Boolean = false
+        set(value) {
+            if (field == value) return
+            field = value
+            if (!value) {
+                contentMatrix.reset()
+                inverseContentMatrix.reset()
+            }
+            invalidate()
+        }
+
+    /**
+     * Mirrors the card's current zoom [scale] and scroll offset ([scrollX], [scrollY]) onto the
+     * whiteboard so ink stays visually attached to the card content. No-op unless
+     * [isContentSyncEnabled] is set.
+     */
+    fun setContentTransform(
+        scale: Float,
+        scrollX: Float,
+        scrollY: Float,
+    ) {
+        if (!isContentSyncEnabled) return
+        contentMatrix.setScale(scale, scale)
+        contentMatrix.postTranslate(-scrollX, -scrollY)
+        if (!contentMatrix.invert(inverseContentMatrix)) {
+            inverseContentMatrix.reset()
+        }
+        invalidate()
+    }
+
     @get:CheckResult
     @get:VisibleForTesting
     var foregroundColor = 0
@@ -93,11 +132,18 @@ class Whiteboard(
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        canvas.apply {
-            drawColor(0)
-            drawBitmap(bitmap, 0f, 0f, bitmapPaint)
-            drawPath(path, paint)
+        canvas.save()
+        canvas.concat(contentMatrix)
+        canvas.drawColor(0)
+        if (isContentSyncEnabled) {
+            // The card's zoom/scroll can move content outside the bitmap's fixed bounds,
+            // so paths are drawn straight from the undo history instead of the raster buffer.
+            undo.drawTo(canvas)
+        } else {
+            canvas.drawBitmap(bitmap, 0f, 0f, bitmapPaint)
         }
+        canvas.drawPath(path, paint)
+        canvas.restore()
     }
 
     /** Handle motion events to draw using the touch screen or to interact with the flashcard behind
@@ -117,61 +163,74 @@ class Whiteboard(
      * detection of a multitouch event.
      */
     private fun handleDrawEvent(event: MotionEvent): Boolean {
-        val x = event.x
-        val y = event.y
-        if (event.getToolType(event.actionIndex) == MotionEvent.TOOL_TYPE_ERASER || reviewerEraserModeIsToggledOn) {
-            eraseTouchedStroke(event)
-            return true
-        }
-        if (event.getToolType(event.actionIndex) != MotionEvent.TOOL_TYPE_STYLUS && toggleStylus) {
-            return false
-        }
-        return when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                if (event.buttonState == MotionEvent.BUTTON_STYLUS_PRIMARY) {
-                    eraseTouchedStroke(event)
-                } else {
-                    drawStart(x, y)
-                    invalidate()
-                }
-                true
+        // Map screen coordinates into the card's content space so strokes stay put when
+        // isContentSyncEnabled later re-projects them via a different contentMatrix.
+        // A no-op copy when content sync is disabled, since inverseContentMatrix is then identity.
+        val contentEvent =
+            if (isContentSyncEnabled) {
+                MotionEvent.obtain(event).apply { transform(inverseContentMatrix) }
+            } else {
+                event
             }
-            MotionEvent.ACTION_MOVE -> {
-                if (event.buttonState == MotionEvent.BUTTON_STYLUS_PRIMARY) {
-                    eraseTouchedStroke(event)
-                    return true
-                }
-                if (isCurrentlyDrawing) {
-                    for (i in 0 until event.historySize) {
-                        drawAlong(event.getHistoricalX(i), event.getHistoricalY(i))
+        try {
+            val x = contentEvent.x
+            val y = contentEvent.y
+            if (event.getToolType(event.actionIndex) == MotionEvent.TOOL_TYPE_ERASER || reviewerEraserModeIsToggledOn) {
+                eraseTouchedStroke(contentEvent)
+                return true
+            }
+            if (event.getToolType(event.actionIndex) != MotionEvent.TOOL_TYPE_STYLUS && toggleStylus) {
+                return false
+            }
+            return when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    if (event.buttonState == MotionEvent.BUTTON_STYLUS_PRIMARY) {
+                        eraseTouchedStroke(contentEvent)
+                    } else {
+                        drawStart(x, y)
+                        invalidate()
                     }
-                    drawAlong(x, y)
-                    invalidate()
-                    return true
+                    true
                 }
-                false
-            }
-            MotionEvent.ACTION_UP -> {
-                if (isCurrentlyDrawing) {
-                    drawFinish()
-                    invalidate()
-                    return true
+                MotionEvent.ACTION_MOVE -> {
+                    if (event.buttonState == MotionEvent.BUTTON_STYLUS_PRIMARY) {
+                        eraseTouchedStroke(contentEvent)
+                        return true
+                    }
+                    if (isCurrentlyDrawing) {
+                        for (i in 0 until contentEvent.historySize) {
+                            drawAlong(contentEvent.getHistoricalX(i), contentEvent.getHistoricalY(i))
+                        }
+                        drawAlong(x, y)
+                        invalidate()
+                        return true
+                    }
+                    false
                 }
-                false
-            }
-            MotionEvent.ACTION_POINTER_DOWN -> {
-                if (isCurrentlyDrawing) {
-                    drawAbort()
+                MotionEvent.ACTION_UP -> {
+                    if (isCurrentlyDrawing) {
+                        drawFinish()
+                        invalidate()
+                        return true
+                    }
+                    false
                 }
-                false
-            }
-            211, 213 -> {
-                if (event.buttonState == MotionEvent.BUTTON_STYLUS_PRIMARY) {
-                    eraseTouchedStroke(event)
+                MotionEvent.ACTION_POINTER_DOWN -> {
+                    if (isCurrentlyDrawing) {
+                        drawAbort()
+                    }
+                    false
                 }
-                true
+                211, 213 -> {
+                    if (event.buttonState == MotionEvent.BUTTON_STYLUS_PRIMARY) {
+                        eraseTouchedStroke(contentEvent)
+                    }
+                    true
+                }
+                else -> false
             }
-            else -> false
+        } finally {
+            if (contentEvent !== event) contentEvent.recycle()
         }
     }
 
@@ -447,10 +506,15 @@ class Whiteboard(
 
         fun apply() {
             bitmap.eraseColor(0)
+            drawTo(canvas)
+            invalidate()
+        }
+
+        /** Draws every recorded action directly onto [canvas], in order. */
+        fun drawTo(canvas: Canvas) {
             for (action in list) {
                 action.apply(canvas)
             }
-            invalidate()
         }
 
         fun erase(

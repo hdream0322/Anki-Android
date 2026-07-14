@@ -1819,6 +1819,19 @@ abstract class AbstractFlashcardViewer :
         // intentionally blank
     }
 
+    /** Invoked whenever the card WebView's zoom scale changes (e.g. pinch-to-zoom). */
+    protected open fun onCardScaleChanged(newScale: Float) {
+        // intentionally blank
+    }
+
+    /** Invoked whenever the card WebView is scrolled. */
+    protected open fun onCardScrolled(
+        scrollX: Int,
+        scrollY: Int,
+    ) {
+        // intentionally blank
+    }
+
     override val baseSnackbarBuilder: SnackbarBuilder = {
         // Configure the snackbar to avoid the bottom answer buttons.
         // The answer buttons are animated to GONE in fullscreen mode (see Reviewer.hideViewWithAnimation),
@@ -2010,6 +2023,7 @@ abstract class AbstractFlashcardViewer :
             oldVert: Int,
         ) {
             super.onScrollChanged(horiz, vert, oldHoriz, oldVert)
+            onCardScrolled(horiz, vert)
             if (abs(horiz - oldHoriz) > abs(vert - oldVert)) {
                 isXScrolling = true
                 scrollHandler.removeCallbacks(scrollXRunnable)
@@ -2628,6 +2642,15 @@ abstract class AbstractFlashcardViewer :
             if (autoFocus) {
                 view.requestFocus()
             }
+        }
+
+        override fun onScaleChanged(
+            view: WebView?,
+            oldScale: Float,
+            newScale: Float,
+        ) {
+            super.onScaleChanged(view, oldScale, newScale)
+            onCardScaleChanged(newScale)
         }
 
         @RequiresApi(Build.VERSION_CODES.O)

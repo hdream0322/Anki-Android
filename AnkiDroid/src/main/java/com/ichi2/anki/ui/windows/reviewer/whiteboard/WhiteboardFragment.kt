@@ -134,7 +134,6 @@ class WhiteboardFragment :
             requireActivity().menuInflater.inflate(R.menu.whiteboard, popupMenu.menu)
             with(popupMenu.menu) {
                 findItem(R.id.action_toggle_stylus).isChecked = viewModel.isStylusOnlyMode.value
-                findItem(R.id.action_toggle_card_zoom_sync).isChecked = viewModel.isCardZoomSyncEnabled.value
                 (this as? MenuBuilder)?.setOptionalIconsVisible(true)
                 context?.increaseHorizontalPaddingOfMenuIcons(this)
 
@@ -460,10 +459,6 @@ class WhiteboardFragment :
             R.id.action_toggle_stylus -> {
                 item.isChecked = !item.isChecked
                 viewModel.toggleStylusOnlyMode()
-            }
-            R.id.action_toggle_card_zoom_sync -> {
-                item.isChecked = !item.isChecked
-                viewModel.toggleCardZoomSync()
             }
             R.id.action_hide_toolbar -> viewModel.setIsToolbarShown(false)
             R.id.action_align_left -> viewModel.setToolbarAlignment(ToolbarAlignment.LEFT)

@@ -93,18 +93,6 @@
     </PreferenceCategory>
 
     <PreferenceCategory
-        android:title="@string/pref_cat_whiteboard">
-
-        <SwitchPreferenceCompat
-            android:defaultValue="false"
-            android:key="@string/whiteboard_card_zoom_sync_key"
-            android:title="@string/whiteboard_card_zoom_sync"
-            android:summary="@string/whiteboard_card_zoom_sync_summ"
-            />
-
-    </PreferenceCategory>
-
-    <PreferenceCategory
         android:title="@string/answer_buttons">
 
         <SwitchPreferenceCompat

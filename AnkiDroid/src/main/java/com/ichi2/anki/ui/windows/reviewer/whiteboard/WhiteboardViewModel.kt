@@ -497,16 +497,6 @@ class WhiteboardViewModel(
     }
 
     /**
-     * Toggles whether the whiteboard drawing scales and pans together with the card's
-     * own zoom/scroll.
-     */
-    fun toggleCardZoomSync() {
-        val newValue = !isCardZoomSyncEnabled.value
-        isCardZoomSyncEnabled.value = newValue
-        repository.isCardZoomSyncEnabled = newValue
-    }
-
-    /**
      * Clear the canvas and the undo/redo states
      */
     fun reset() {

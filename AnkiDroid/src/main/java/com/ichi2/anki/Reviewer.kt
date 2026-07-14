@@ -234,6 +234,9 @@ open class Reviewer :
     var whiteboard: Whiteboard? = null
         protected set
 
+    /** The card WebView's last known zoom scale, used to keep [whiteboard] in sync with it. */
+    private var cardZoomScale = 1f
+
     // Record Audio
     private var isMicToolBarVisible = false
 
@@ -691,6 +694,19 @@ open class Reviewer :
             colorPalette.visibility = View.GONE
         }
         updateWhiteboardEditorPosition()
+    }
+
+    override fun onCardScaleChanged(newScale: Float) {
+        cardZoomScale = newScale
+        val webView = webView ?: return
+        whiteboard?.setContentTransform(cardZoomScale, webView.scrollX.toFloat(), webView.scrollY.toFloat())
+    }
+
+    override fun onCardScrolled(
+        scrollX: Int,
+        scrollY: Int,
+    ) {
+        whiteboard?.setContentTransform(cardZoomScale, scrollX.toFloat(), scrollY.toFloat())
     }
 
     override fun replayVoice() {
@@ -1842,6 +1858,8 @@ open class Reviewer :
             createInstance(this, true, this).also { whiteboard ->
                 this.whiteboard = whiteboard
             }
+
+        whiteboard.isContentSyncEnabled = sharedPrefs().getBoolean(getString(R.string.whiteboard_card_zoom_sync_key), false)
 
         // We use the pen color of the selected deck at the time the whiteboard is enabled.
         // This is how all other whiteboard settings are

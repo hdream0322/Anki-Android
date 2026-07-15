@@ -112,4 +112,49 @@ class WhiteboardContentSyncTest : RobolectricTest() {
             equalTo(1f),
         )
     }
+
+    /** Exposes the otherwise-protected [Reviewer.updateForNewCard] for the test below. */
+    private class ReviewerExposingUpdateForNewCard : Reviewer() {
+        fun triggerUpdateForNewCard() = updateForNewCard()
+    }
+
+    /** A fake WebView reporting a fixed scale, standing in for a card whose content already
+     * sits at a non-default zoom (e.g. the WebView's own initial overview-mode scale for wide
+     * content) by the time the new card is displayed. */
+    private class FixedScaleWebView(
+        context: android.content.Context,
+        private val fixedScale: Float,
+    ) : android.webkit.WebView(context) {
+        @Suppress("deprecation", "OVERRIDE_DEPRECATION")
+        override fun getScale(): Float = fixedScale
+    }
+
+    @Test
+    fun `updateForNewCard syncs with the new card's actual WebView transform instead of assuming identity`() {
+        val activity = startActivityNormallyOpenCollectionWithIntent(ReviewerExposingUpdateForNewCard::class.java, Intent())
+        activity.sharedPrefs().edit { putBoolean(activity.getString(R.string.whiteboard_card_zoom_sync_key), true) }
+        activity.toggleWhiteboard()
+        advanceRobolectricLooper()
+
+        // Simulate the new card's WebView having already settled at a non-default scale/scroll
+        // (e.g. loadWithOverviewMode fit-to-width) by the time updateForNewCard() runs, before
+        // any onCardScaleChanged/onCardScrolled callback has fired for it. `webView` only has a
+        // private setter in production code, so reflection is used to swap it in for this test.
+        val fixedScaleWebView = FixedScaleWebView(activity, fixedScale = 1.6f)
+        fixedScaleWebView.scrollTo(40, 30)
+        val webViewField = AbstractFlashcardViewer::class.java.getDeclaredField("webView")
+        webViewField.isAccessible = true
+        webViewField.set(activity, fixedScaleWebView)
+
+        activity.triggerUpdateForNewCard()
+
+        assertThat(
+            "the whiteboard must sync with the new card's real WebView scale instead of " +
+                "assuming an unscaled identity transform, otherwise strokes drawn before the " +
+                "next zoom callback are recorded against a stale transform and jump out of " +
+                "view once that callback fires",
+            activity.whiteboard!!.contentScale,
+            equalTo(1.6f),
+        )
+    }
 }

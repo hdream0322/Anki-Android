@@ -746,6 +746,10 @@ open class Reviewer :
             // resetContentTransform's kdoc.
             whiteboard!!.resetContentTransform()
             cardZoomScale = 1f
+            // The new card's WebView may already be at a non-default zoom/scroll (e.g. its own
+            // initial overview-mode scale for wide content) before any onCardScaleChanged/
+            // onCardScrolled callback fires for it - see syncWhiteboardContentTransform's kdoc.
+            syncWhiteboardContentTransform()
         }
         audioRecordingController?.updateUIForNewCard()
     }
@@ -1861,6 +1865,22 @@ open class Reviewer :
     private val WebView.currentScale: Float
         get() = scale
 
+    /**
+     * Syncs the whiteboard's content transform with the WebView's *current* scale/scroll,
+     * instead of waiting for the next onCardScaleChanged/onCardScrolled callback: the card may
+     * already be scrolled or at a non-default zoom (e.g. the WebView's own initial
+     * overview-mode scale) by the time this runs, and without this, strokes drawn before the
+     * next callback are recorded against a stale identity transform and jump out of view once
+     * that callback finally fires. No-op unless the whiteboard's card-zoom sync is enabled.
+     */
+    private fun syncWhiteboardContentTransform() {
+        val whiteboard = whiteboard ?: return
+        if (!whiteboard.isContentSyncEnabled) return
+        val wv = webView ?: return
+        cardZoomScale = wv.currentScale
+        whiteboard.setContentTransform(cardZoomScale, wv.scrollX.toFloat(), wv.scrollY.toFloat())
+    }
+
     private fun createWhiteboard() {
         val whiteboard =
             createInstance(this, true, this).also { whiteboard ->
@@ -1868,18 +1888,7 @@ open class Reviewer :
             }
 
         whiteboard.isContentSyncEnabled = sharedPrefs().getBoolean(getString(R.string.whiteboard_card_zoom_sync_key), false)
-        if (whiteboard.isContentSyncEnabled) {
-            // Sync immediately with the card's current zoom/scroll instead of waiting for the
-            // next onCardScaleChanged/onCardScrolled callback: the card may already be
-            // scrolled or at a non-default zoom (e.g. the WebView's own initial overview-mode
-            // scale) by the time the whiteboard is created, and without this, strokes drawn
-            // before the next callback are recorded against a stale identity transform and
-            // jump out of view once that callback finally fires.
-            webView?.let { wv ->
-                cardZoomScale = wv.currentScale
-                whiteboard.setContentTransform(cardZoomScale, wv.scrollX.toFloat(), wv.scrollY.toFloat())
-            }
-        }
+        syncWhiteboardContentTransform()
 
         // We use the pen color of the selected deck at the time the whiteboard is enabled.
         // This is how all other whiteboard settings are

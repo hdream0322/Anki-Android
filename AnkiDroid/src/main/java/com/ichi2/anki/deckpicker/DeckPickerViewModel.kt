@@ -126,7 +126,7 @@ class DeckPickerViewModel :
 
             val data =
                 tree
-                    .filterAndFlattenDisplay(filter, currentDeckId, lastStudiedByDeck)
+                    .filterAndFlattenDisplay(filter, currentDeckId, lastStudiedByDeck, sortOrder, dayStartMillis)
                     .sortedByStudyOrder(sortOrder, dayStartMillis)
 
             FlattenedDeckList(

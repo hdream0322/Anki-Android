@@ -23,12 +23,13 @@ import org.junit.Test
 
 class DeckListSorterTest {
     // A fixed "now" for tests: epoch ms at which the current Anki day begins.
-    // 30 days = stale threshold.
+    // 30 days = MOST_RECENT stale threshold; 100 days = LEAST_RECENT ignore threshold.
     private val dayStartMillis = 1_000_000_000_000L
 
     private val freshRecent = dayStartMillis - 1 * 86_400_000L // 1 day ago
     private val freshOld = dayStartMillis - 10 * 86_400_000L // 10 days ago
-    private val stale = dayStartMillis - 40 * 86_400_000L // 40 days ago (>30)
+    private val stale = dayStartMillis - 40 * 86_400_000L // 40 days ago (>30, <100)
+    private val veryStale = dayStartMillis - 150 * 86_400_000L // 150 days ago (>100)
     private val never: Long? = null
 
     private var nextId = 1L
@@ -54,7 +55,10 @@ class DeckListSorterTest {
         return DeckNode(treeNode, name) to lastStudied
     }
 
-    private fun flatList(vararg pairs: Pair<DeckNode, Long?>): List<DisplayDeckNode> {
+    private fun flatList(
+        vararg pairs: Pair<DeckNode, Long?>,
+        order: DeckSortOrder,
+    ): List<DisplayDeckNode> {
         val lastStudiedByDeck = pairs.mapNotNull { (node, ms) -> ms?.let { node.did to ms } }.toMap()
         val rootNode =
             deckTreeNode {
@@ -64,7 +68,7 @@ class DeckListSorterTest {
                 pairs.forEach { this.children.add(it.first.node) }
             }
         val root = DeckNode(rootNode, "")
-        return root.filterAndFlattenDisplay(DeckFilters.create(""), selectedDeckId = -1, lastStudiedByDeck)
+        return root.filterAndFlattenDisplay(DeckFilters.create(""), selectedDeckId = -1, lastStudiedByDeck, order, dayStartMillis)
     }
 
     @Test
@@ -72,7 +76,7 @@ class DeckListSorterTest {
         val (a) = makeNode("A", freshOld)
         val (b) = makeNode("B", freshRecent)
         val (c) = makeNode("C", stale)
-        val list = flatList(a to freshOld, b to freshRecent, c to stale)
+        val list = flatList(a to freshOld, b to freshRecent, c to stale, order = DeckSortOrder.NAME)
         val sorted = list.sortedByStudyOrder(DeckSortOrder.NAME, dayStartMillis)
         assertEquals(listOf("A", "B", "C"), sorted.map { it.lastDeckNameComponent })
     }
@@ -81,7 +85,7 @@ class DeckListSorterTest {
     fun `LEAST_RECENT puts oldest-studied first`() {
         val (recent) = makeNode("Recent", freshRecent)
         val (old) = makeNode("Old", freshOld)
-        val list = flatList(recent to freshRecent, old to freshOld)
+        val list = flatList(recent to freshRecent, old to freshOld, order = DeckSortOrder.LEAST_RECENT)
         val sorted = list.sortedByStudyOrder(DeckSortOrder.LEAST_RECENT, dayStartMillis)
         assertEquals(listOf("Old", "Recent"), sorted.map { it.lastDeckNameComponent })
     }
@@ -90,37 +94,64 @@ class DeckListSorterTest {
     fun `MOST_RECENT puts newest-studied first`() {
         val (old) = makeNode("Old", freshOld)
         val (recent) = makeNode("Recent", freshRecent)
-        val list = flatList(old to freshOld, recent to freshRecent)
+        val list = flatList(old to freshOld, recent to freshRecent, order = DeckSortOrder.MOST_RECENT)
         val sorted = list.sortedByStudyOrder(DeckSortOrder.MOST_RECENT, dayStartMillis)
         assertEquals(listOf("Recent", "Old"), sorted.map { it.lastDeckNameComponent })
     }
 
     @Test
-    fun `stale decks are pinned to bottom`() {
+    fun `MOST_RECENT pins decks idle 30+ days to bottom`() {
         val (old) = makeNode("Old", freshOld)
         val (staleNode) = makeNode("Stale", stale)
         val (recent) = makeNode("Recent", freshRecent)
-        val list = flatList(staleNode to stale, old to freshOld, recent to freshRecent)
-        val sorted = list.sortedByStudyOrder(DeckSortOrder.LEAST_RECENT, dayStartMillis)
-        // fresh decks first (old before recent in LEAST_RECENT), stale at bottom
-        assertEquals(listOf("Old", "Recent", "Stale"), sorted.map { it.lastDeckNameComponent })
+        val list = flatList(staleNode to stale, old to freshOld, recent to freshRecent, order = DeckSortOrder.MOST_RECENT)
+        val sorted = list.sortedByStudyOrder(DeckSortOrder.MOST_RECENT, dayStartMillis)
+        assertEquals(listOf("Recent", "Old", "Stale"), sorted.map { it.lastDeckNameComponent })
     }
 
     @Test
-    fun `never-studied decks treated as stale`() {
+    fun `LEAST_RECENT does not pin a 40-day-old deck to bottom`() {
+        // 40 days is >30 (the old MOST_RECENT threshold) but <100 (the LEAST_RECENT ignore
+        // threshold), so it should still sort normally as the oldest-studied deck.
+        val (recent) = makeNode("Recent", freshRecent)
+        val (staleNode) = makeNode("Stale", stale)
+        val list = flatList(recent to freshRecent, staleNode to stale, order = DeckSortOrder.LEAST_RECENT)
+        val sorted = list.sortedByStudyOrder(DeckSortOrder.LEAST_RECENT, dayStartMillis)
+        assertEquals(listOf("Stale", "Recent"), sorted.map { it.lastDeckNameComponent })
+    }
+
+    @Test
+    fun `LEAST_RECENT pins decks idle 100+ days to bottom as not-yet-started`() {
+        val (old) = makeNode("Old", freshOld)
+        val (veryStaleNode) = makeNode("VeryStale", veryStale)
+        val (recent) = makeNode("Recent", freshRecent)
+        val list =
+            flatList(veryStaleNode to veryStale, old to freshOld, recent to freshRecent, order = DeckSortOrder.LEAST_RECENT)
+        val sorted = list.sortedByStudyOrder(DeckSortOrder.LEAST_RECENT, dayStartMillis)
+        assertEquals(listOf("Old", "Recent", "VeryStale"), sorted.map { it.lastDeckNameComponent })
+    }
+
+    @Test
+    fun `never-studied decks treated as stale in both orders`() {
         val (a) = makeNode("A", freshOld)
         val (neverNode) = makeNode("Never", never)
-        val list = flatList(neverNode to never, a to freshOld)
-        val sorted = list.sortedByStudyOrder(DeckSortOrder.LEAST_RECENT, dayStartMillis)
-        assertEquals(listOf("A", "Never"), sorted.map { it.lastDeckNameComponent })
+        val leastRecentList = flatList(neverNode to never, a to freshOld, order = DeckSortOrder.LEAST_RECENT)
+        assertEquals(
+            listOf("A", "Never"),
+            leastRecentList.sortedByStudyOrder(DeckSortOrder.LEAST_RECENT, dayStartMillis).map { it.lastDeckNameComponent },
+        )
+        val mostRecentList = flatList(neverNode to never, a to freshOld, order = DeckSortOrder.MOST_RECENT)
+        assertEquals(
+            listOf("A", "Never"),
+            mostRecentList.sortedByStudyOrder(DeckSortOrder.MOST_RECENT, dayStartMillis).map { it.lastDeckNameComponent },
+        )
     }
 
     @Test
-    fun `flat sort ignores parent-child nesting`() {
+    fun `MOST_RECENT parent shows most-recently-studied subdeck`() {
         // Lang (parent, never studied directly) has child English (1d ago).
-        // Lang's lastStudiedMillis = 1d ago (inherited from child).
         // Math was studied 10d ago.
-        // LEAST_RECENT: Math(10d) first, then Lang and English (both 1d ago).
+        // MOST_RECENT: Lang/English (1d) before Math (10d).
         val (child) = makeNode("English", freshRecent)
         val (lang) = makeNode("Lang", null, listOf(child to freshRecent))
         val (math) = makeNode("Math", freshOld)
@@ -135,7 +166,107 @@ class DeckListSorterTest {
                 this.children.add(math.node)
             }
         val root = DeckNode(rootNode, "")
-        val list = root.filterAndFlattenDisplay(DeckFilters.create(""), selectedDeckId = -1, lastStudiedByDeck)
+        val list =
+            root.filterAndFlattenDisplay(
+                DeckFilters.create(""),
+                selectedDeckId = -1,
+                lastStudiedByDeck,
+                DeckSortOrder.MOST_RECENT,
+                dayStartMillis,
+            )
+        val sorted = list.sortedByStudyOrder(DeckSortOrder.MOST_RECENT, dayStartMillis)
+        assertEquals(listOf("Lang", "English", "Math"), sorted.map { it.lastDeckNameComponent })
+    }
+
+    @Test
+    fun `LEAST_RECENT parent shows oldest-studied subdeck, ignoring subdecks over 100 days idle`() {
+        // Lang has two children: English (1d ago, fresh) and French (150d ago, ignored as
+        // not-yet-started). Lang's LEAST_RECENT date should be English's (1d), not French's.
+        val (english) = makeNode("English", freshRecent)
+        val (french) = makeNode("French", veryStale)
+        val (lang) = makeNode("Lang", null, listOf(english to freshRecent, french to veryStale))
+        val (math) = makeNode("Math", freshOld)
+
+        val lastStudiedByDeck = mapOf(english.did to freshRecent, french.did to veryStale, math.did to freshOld)
+        val rootNode =
+            deckTreeNode {
+                this.name = ""
+                this.deckId = 0
+                this.level = 0
+                this.children.add(lang.node)
+                this.children.add(math.node)
+            }
+        val root = DeckNode(rootNode, "")
+        val list =
+            root.filterAndFlattenDisplay(
+                DeckFilters.create(""),
+                selectedDeckId = -1,
+                lastStudiedByDeck,
+                DeckSortOrder.LEAST_RECENT,
+                dayStartMillis,
+            )
+        val sorted = list.sortedByStudyOrder(DeckSortOrder.LEAST_RECENT, dayStartMillis)
+        // Lang picks up English's 1d (not French's 150d), so it sorts alongside its freshest child,
+        // ahead of Math (10d ago) which is older than either.
+        assertEquals(listOf("Math", "Lang", "English", "French"), sorted.map { it.lastDeckNameComponent })
+    }
+
+    @Test
+    fun `LEAST_RECENT parent with all subdecks over 100 days idle is pinned to bottom`() {
+        // Both of Lang's children are past the ignore threshold, so Lang has no eligible date
+        // and is pinned to the bottom, same as a never-studied deck.
+        val (english) = makeNode("English", veryStale)
+        val (french) = makeNode("French", veryStale)
+        val (lang) = makeNode("Lang", null, listOf(english to veryStale, french to veryStale))
+        val (math) = makeNode("Math", freshOld)
+
+        val lastStudiedByDeck = mapOf(english.did to veryStale, french.did to veryStale, math.did to freshOld)
+        val rootNode =
+            deckTreeNode {
+                this.name = ""
+                this.deckId = 0
+                this.level = 0
+                this.children.add(lang.node)
+                this.children.add(math.node)
+            }
+        val root = DeckNode(rootNode, "")
+        val list =
+            root.filterAndFlattenDisplay(
+                DeckFilters.create(""),
+                selectedDeckId = -1,
+                lastStudiedByDeck,
+                DeckSortOrder.LEAST_RECENT,
+                dayStartMillis,
+            )
+        val sorted = list.sortedByStudyOrder(DeckSortOrder.LEAST_RECENT, dayStartMillis)
+        assertEquals("Math", sorted.first().lastDeckNameComponent)
+        assertEquals(setOf("Lang", "English", "French"), sorted.drop(1).map { it.lastDeckNameComponent }.toSet())
+    }
+
+    @Test
+    fun `flat sort ignores parent-child nesting`() {
+        val (child) = makeNode("English", freshRecent)
+        val (lang) = makeNode("Lang", null, listOf(child to freshRecent))
+        val (math) = makeNode("Math", freshOld)
+
+        val lastStudiedByDeck = mapOf(child.did to freshRecent, math.did to freshOld)
+        val rootNode =
+            deckTreeNode {
+                this.name = ""
+                this.deckId = 0
+                this.level = 0
+                this.children.add(lang.node)
+                this.children.add(math.node)
+            }
+        val root = DeckNode(rootNode, "")
+        val list =
+            root.filterAndFlattenDisplay(
+                DeckFilters.create(""),
+                selectedDeckId = -1,
+                lastStudiedByDeck,
+                DeckSortOrder.LEAST_RECENT,
+                dayStartMillis,
+            )
         val sorted = list.sortedByStudyOrder(DeckSortOrder.LEAST_RECENT, dayStartMillis)
         // All decks sorted together: Math(10d) before Lang(1d) and English(1d)
         assertEquals(listOf("Math", "Lang", "English"), sorted.map { it.lastDeckNameComponent })

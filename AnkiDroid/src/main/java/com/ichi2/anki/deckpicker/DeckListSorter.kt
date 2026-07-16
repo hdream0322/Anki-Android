@@ -24,10 +24,12 @@ private const val MILLIS_PER_DAY = 86_400_000L
  * independently regardless of parent/child nesting.
  *
  * - [DeckSortOrder.NAME]: returns the list unchanged.
- * - [DeckSortOrder.LEAST_RECENT]: least-recently-studied first; decks idle for
- *   ≥30 days (or never studied) are pinned to the bottom.
- * - [DeckSortOrder.MOST_RECENT]: most-recently-studied first; same stale-pinning
- *   behaviour.
+ * - [DeckSortOrder.LEAST_RECENT]: least-recently-studied first. Each deck's
+ *   [DisplayDeckNode.lastStudiedMillis] was already computed excluding subdecks idle 100+ days
+ *   (see [aggregatedLastStudiedMillis]), so only a `null` value (nothing eligible) is pinned to
+ *   the bottom.
+ * - [DeckSortOrder.MOST_RECENT]: most-recently-studied first; decks idle for ≥30 days (or never
+ *   studied) are pinned to the bottom.
  */
 fun List<DisplayDeckNode>.sortedByStudyOrder(
     order: DeckSortOrder,
@@ -38,8 +40,8 @@ fun List<DisplayDeckNode>.sortedByStudyOrder(
     return sortedWith { a, b ->
         val aMs = a.lastStudiedMillis
         val bMs = b.lastStudiedMillis
-        val aStale = aMs == null || (dayStartMillis - aMs) >= staleThresholdMs
-        val bStale = bMs == null || (dayStartMillis - bMs) >= staleThresholdMs
+        val aStale = aMs == null || (order == DeckSortOrder.MOST_RECENT && (dayStartMillis - aMs) >= staleThresholdMs)
+        val bStale = bMs == null || (order == DeckSortOrder.MOST_RECENT && (dayStartMillis - bMs) >= staleThresholdMs)
         when {
             aStale && bStale -> 0
             aStale -> 1

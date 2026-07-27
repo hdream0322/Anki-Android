@@ -80,6 +80,12 @@ data class DisplayDeckNode private constructor(
     // DeckNode is mutable, so use a lateinit var so '==' doesn't include it in the comparison
     lateinit var deckNode: DeckNode
 
+    /**
+     * Whether this deck has anything left to study today. The counts already include subdecks and
+     * respect the deck's daily limits, so this is false once the limit has been used up.
+     */
+    val hasCardsReadyToStudy: Boolean get() = newCount > 0 || lrnCount > 0 || revCount > 0
+
     fun withUpdatedDeckId(deckId: DeckId): DisplayDeckNode =
         this.copy(isSelected = this.did == deckId).also { updated ->
             updated.deckNode = this.deckNode

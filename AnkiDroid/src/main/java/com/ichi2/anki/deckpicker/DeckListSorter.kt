@@ -19,15 +19,46 @@ package com.ichi2.anki.deckpicker
 private const val STALE_THRESHOLD_DAYS = 30L
 private const val MILLIS_PER_DAY = 86_400_000L
 
+/** Sorts normally by date. */
+private const val GROUP_ACTIVE = 0
+
+/**
+ * [DeckSortOrder.LEAST_RECENT] only: studied recently enough to sort by date, but with nothing
+ * left to study today, so it sits below the decks that actually need work.
+ */
+private const val GROUP_NOTHING_DUE = 1
+
+/** Pinned to the bottom, keeping the list's existing order. */
+private const val GROUP_PINNED = 2
+
+/**
+ * Which block of the sorted list [this] deck belongs to; blocks are laid out in ascending order.
+ */
+private fun DisplayDeckNode.sortGroup(
+    order: DeckSortOrder,
+    dayStartMillis: Long,
+    staleThresholdMs: Long,
+): Int {
+    val ms = lastStudiedMillis ?: return GROUP_PINNED
+    return when {
+        order == DeckSortOrder.MOST_RECENT ->
+            if ((dayStartMillis - ms) >= staleThresholdMs) GROUP_PINNED else GROUP_ACTIVE
+        !hasCardsReadyToStudy -> GROUP_NOTHING_DUE
+        else -> GROUP_ACTIVE
+    }
+}
+
 /**
  * Re-orders [this] flat deck list according to [order], treating every deck
  * independently regardless of parent/child nesting.
  *
  * - [DeckSortOrder.NAME]: returns the list unchanged.
- * - [DeckSortOrder.LEAST_RECENT]: least-recently-studied first. Each deck's
- *   [DisplayDeckNode.lastStudiedMillis] was already computed excluding subdecks idle 100+ days
- *   (see [aggregatedLastStudiedMillis]), so only a `null` value (nothing eligible) is pinned to
- *   the bottom.
+ * - [DeckSortOrder.LEAST_RECENT]: least-recently-studied first, but only among decks that still
+ *   have cards waiting today — this order exists to reach the decks whose backlog has piled up, and
+ *   a deck with nothing due needs no work no matter how long it has been idle, so it drops below
+ *   them (still oldest-first among its peers). Each deck's [DisplayDeckNode.lastStudiedMillis] was
+ *   already computed excluding subdecks idle 100+ days (see [aggregatedLastStudiedMillis]), so only
+ *   a `null` value (nothing eligible) is pinned to the bottom.
  * - [DeckSortOrder.MOST_RECENT]: most-recently-studied first; decks idle for ≥30 days (or never
  *   studied) are pinned to the bottom.
  */
@@ -38,16 +69,13 @@ fun List<DisplayDeckNode>.sortedByStudyOrder(
     if (order == DeckSortOrder.NAME) return this
     val staleThresholdMs = STALE_THRESHOLD_DAYS * MILLIS_PER_DAY
     return sortedWith { a, b ->
-        val aMs = a.lastStudiedMillis
-        val bMs = b.lastStudiedMillis
-        val aStale = aMs == null || (order == DeckSortOrder.MOST_RECENT && (dayStartMillis - aMs) >= staleThresholdMs)
-        val bStale = bMs == null || (order == DeckSortOrder.MOST_RECENT && (dayStartMillis - bMs) >= staleThresholdMs)
+        val aGroup = a.sortGroup(order, dayStartMillis, staleThresholdMs)
+        val bGroup = b.sortGroup(order, dayStartMillis, staleThresholdMs)
         when {
-            aStale && bStale -> 0
-            aStale -> 1
-            bStale -> -1
-            order == DeckSortOrder.LEAST_RECENT -> compareValues(aMs, bMs)
-            else -> compareValues(bMs, aMs)
+            aGroup != bGroup -> aGroup - bGroup
+            aGroup == GROUP_PINNED -> 0
+            order == DeckSortOrder.LEAST_RECENT -> compareValues(a.lastStudiedMillis, b.lastStudiedMillis)
+            else -> compareValues(b.lastStudiedMillis, a.lastStudiedMillis)
         }
     }
 }

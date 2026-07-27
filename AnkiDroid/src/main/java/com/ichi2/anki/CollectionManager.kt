@@ -18,10 +18,11 @@ import com.ichi2.anki.CollectionManager.withCol
 import com.ichi2.anki.CollectionManager.withOpenColOrNull
 import com.ichi2.anki.CollectionManager.withQueue
 import com.ichi2.anki.backend.createDatabaseUsingRustBackend
-import com.ichi2.anki.common.android.appContext
 import com.ichi2.anki.common.utils.android.Threads
 import com.ichi2.anki.common.utils.android.isRobolectric
+import com.ichi2.anki.common.utils.isRunningAsUnitTest
 import com.ichi2.anki.exception.StorageNotConfiguredException
+import com.ichi2.anki.exception.SystemStorageException
 import com.ichi2.anki.libanki.Collection
 import com.ichi2.anki.libanki.CollectionFiles
 import com.ichi2.anki.libanki.LibAnki
@@ -130,6 +131,8 @@ object CollectionManager {
      *
      * @throws StorageNotConfiguredException If [CollectionHelper.storageDecision] is undecided
      * (user has not selected a storage location).
+     * @throws SystemStorageException if startup failed to choose a default collection path
+     * ([CollectionHelper.systemStorageFailure])
      */
     suspend fun <T> withCol(
         @WorkerThread block: Collection.() -> T,
@@ -254,6 +257,8 @@ object CollectionManager {
      *
      * @throws StorageNotConfiguredException If [CollectionHelper.storageDecision] is undecided
      * (user has not selected a storage location).
+     * @throws SystemStorageException if startup failed to choose a default collection path
+     * ([CollectionHelper.systemStorageFailure])
      */
     suspend fun ensureOpen() {
         withQueue {
@@ -266,9 +271,27 @@ object CollectionManager {
      *
      * @throws StorageNotConfiguredException If [CollectionHelper.storageDecision] is not
      * [StorageDecision.Decided] (user has not selected a storage location).
+     * @throws SystemStorageException if startup failed to choose a default collection path
+     * ([CollectionHelper.systemStorageFailure])
+     * @throws IllegalStateException if executed before `AnkiDroidApp.onCreate`
      */
     private fun ensureOpenInner() {
-        if (CollectionHelper.storageDecision() != StorageDecision.Decided) throw StorageNotConfiguredException()
+        // the decision is gated on the same preferences getCollectionDirectory() reads from
+        val decision =
+            CollectionHelper.storageDecisionTestOverride
+                ?: AnkiDroidApp.sharedPrefsOrNull()?.let { CollectionHelper.storageDecision(it) }
+                // test-only: in-memory test collections have no preferences and read no path
+                ?: if (isRunningAsUnitTest) {
+                    StorageDecision.Decided
+                } else {
+                    // the app instance is unset: treat this as a bug.
+                    throw IllegalStateException("Collection accessed before AnkiDroidApp was initialized")
+                }
+        if (decision != StorageDecision.Decided) {
+            // rethrow a recorded startup storage failure: an OS bug/SD card issue must not be
+            // reported as the expected 'storage not configured' state
+            throw CollectionHelper.systemStorageFailure ?: StorageNotConfiguredException()
+        }
         ensureBackendInner()
         emulatedOpenFailure?.triggerFailure()
         if (collection == null || collection!!.dbClosed) {
@@ -290,8 +313,8 @@ object CollectionManager {
     }
 
     fun getCollectionDirectory() =
-        // Allow execution if appContext is not initialized
-        CollectionHelper.getCurrentAnkiDroidDirectoryOptionalContext(AnkiDroidApp.sharedPrefs()) { appContext }
+        // does not require appContext to be initialized
+        CollectionHelper.getCurrentAnkiDroidDirectory(AnkiDroidApp.sharedPrefs())
 
     /** Ensures the AnkiDroid directory is created, then returns the path to the
      * folder and the name of the collection file inside it. */
@@ -330,6 +353,8 @@ object CollectionManager {
      *
      * @throws StorageNotConfiguredException If [CollectionHelper.storageDecision] is undecided
      * (user has not selected a storage location).
+     * @throws SystemStorageException if startup failed to choose a default collection path
+     * ([CollectionHelper.systemStorageFailure])
      */
     fun getColUnsafe(): Collection =
         logUIHangs {

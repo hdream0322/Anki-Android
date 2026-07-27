@@ -36,8 +36,8 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.fragment.app.FragmentActivity
 import com.ichi2.anki.BuildConfig
-import com.ichi2.anki.Channel
 import com.ichi2.anki.NOTIFICATION_MIN_DELAY_MS
+import com.ichi2.anki.NotificationChannel
 import com.ichi2.anki.R
 import com.ichi2.anki.common.preferences.sharedPrefs
 import com.ichi2.anki.common.time.TimeManager
@@ -145,7 +145,7 @@ object UpdateManager {
 
         val ongoing =
             NotificationCompat
-                .Builder(appCtx, Channel.APP_UPDATE.id)
+                .Builder(appCtx, NotificationChannel.APP_UPDATE.id)
                 .setSmallIcon(R.drawable.ic_star_notify)
                 .setContentTitle(appCtx.getString(R.string.update_downloading))
                 .setContentText(release.tag)
@@ -239,7 +239,7 @@ object UpdateManager {
             )
         val done =
             NotificationCompat
-                .Builder(ctx, Channel.APP_UPDATE.id)
+                .Builder(ctx, NotificationChannel.APP_UPDATE.id)
                 .setSmallIcon(R.drawable.ic_star_notify)
                 .setContentTitle(release.tag)
                 .setContentText(ctx.getString(R.string.update_ready_to_install))

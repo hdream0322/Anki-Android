@@ -57,6 +57,7 @@ import com.ichi2.anki.services.AlarmManagerService
 import com.ichi2.anki.services.NotificationService
 import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.settings.PrefsRepository
+import com.ichi2.anki.startup.ensureCollectionPathSet
 import com.ichi2.anki.startup.getDefaultAnkiDroidDirectory
 import com.ichi2.anki.ui.dialogs.ActivityAgnosticDialogs
 import com.ichi2.utils.ExceptionUtil
@@ -259,6 +260,7 @@ open class AnkiDroidApp :
             //  is not considered to be a fatal error, unless the directory itself is not writable.
             val ankiDroidDir =
                 try {
+                    ensureCollectionPathSet(this)
                     CollectionHelper.getCurrentAnkiDroidDirectory(this)
                 } catch (e: SystemStorageException) {
                     fatalInitializationError = FatalInitializationError.StorageError(e)
@@ -531,6 +533,13 @@ open class AnkiDroidApp :
          * This was added to avoid code churn
          */
         fun sharedPrefs() = sharedPreferencesTestingOverride ?: instance.sharedPrefs()
+
+        /**
+         * [sharedPrefs], or `null` if unavailable: [instance] is not initialized when running
+         * under a test-only [Application] (e.g. `EmptyApplication`) or in pure JVM tests
+         */
+        fun sharedPrefsOrNull(): SharedPreferences? =
+            sharedPreferencesTestingOverride ?: if (isInitialized) instance.sharedPrefs() else null
 
         /** HACK: Whether an exception report has been thrown - TODO: Rewrite an ACRA Listener to do this  */
         @VisibleForTesting

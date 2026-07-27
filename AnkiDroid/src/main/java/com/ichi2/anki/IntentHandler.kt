@@ -18,6 +18,7 @@ import com.ichi2.anki.common.annotations.NeedsTest
 import com.ichi2.anki.common.coroutines.applicationScope
 import com.ichi2.anki.common.permissions.hasLegacyStorageAccessPermission
 import com.ichi2.anki.common.permissions.isExternalStorageManagerCompat
+import com.ichi2.anki.common.preferences.sharedPrefs
 import com.ichi2.anki.common.utils.android.showThemedToast
 import com.ichi2.anki.common.utils.trimToLength
 import com.ichi2.anki.dialogs.DialogHandler.Companion.storeMessage
@@ -134,7 +135,7 @@ class IntentHandler : AbstractIntentHandler() {
         action: String?,
         block: () -> Unit,
     ) {
-        if (CollectionHelper.storageDecision() != StorageDecision.Decided) {
+        if (CollectionHelper.storageDecision(sharedPrefs()) != StorageDecision.Decided) {
             // checked before permissions: the permissions required depend on the chosen folder
             Timber.i("Storage is not configured, cancelling intent '%s'", action)
             launchDeckPickerIfNoOtherTasks(reloadIntent)
@@ -476,12 +477,12 @@ class IntentHandler : AbstractIntentHandler() {
                                 remaining,
                                 remaining,
                             )
-                        deckPicker.showSimpleNotification(err, message, Channel.SYNC)
+                        deckPicker.showSimpleNotification(err, message, NotificationChannel.SYNC)
                     } else {
                         deckPicker.showSimpleNotification(
                             err,
                             res.getString(R.string.youre_offline),
-                            Channel.SYNC,
+                            NotificationChannel.SYNC,
                         )
                     }
                 }

@@ -47,6 +47,7 @@ import com.ichi2.anki.launchCatchingTask
 import com.ichi2.utils.customView
 import com.ichi2.utils.message
 import com.ichi2.utils.negativeButton
+import com.ichi2.utils.neutralButton
 import com.ichi2.utils.positiveButton
 import com.ichi2.utils.show
 import com.ichi2.utils.title
@@ -101,8 +102,27 @@ object UpdateManager {
                 if (manual) showThemedToast(activity, R.string.update_already_latest, true)
                 return@launchCatchingTask
             }
+            // Manual checks always prompt, even for a version the user previously skipped —
+            // pressing "지금 업데이트 확인" is an explicit request to reconsider.
+            if (!manual && UpdateChecker.isSkipped(release.tag, skippedVersion(activity))) {
+                Timber.d("Update check skipped: %s was previously skipped by user", release.tag)
+                return@launchCatchingTask
+            }
             promptUpdate(activity, release)
         }
+    }
+
+    private fun skippedVersion(activity: FragmentActivity): String? {
+        val key = activity.getString(R.string.pref_skipped_version_key)
+        return activity.sharedPrefs().getString(key, null)
+    }
+
+    private fun skipVersion(
+        activity: FragmentActivity,
+        tag: String,
+    ) {
+        val key = activity.getString(R.string.pref_skipped_version_key)
+        activity.sharedPrefs().edit { putString(key, tag) }
     }
 
     private fun stampCheck(activity: FragmentActivity) {
@@ -122,6 +142,7 @@ object UpdateManager {
             title(R.string.update_available_title)
             message(text = message)
             positiveButton(R.string.update_install_now) { startDownload(activity, release) }
+            neutralButton(R.string.update_skip_version) { skipVersion(activity, release.tag) }
             negativeButton(R.string.update_later)
         }
     }

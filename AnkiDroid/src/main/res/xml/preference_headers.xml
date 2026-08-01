@@ -54,6 +54,15 @@
         app:summaryEntries="@array/reviewing_summary_entries">
     </com.ichi2.preferences.HeaderPreference>
 
+    <!-- Deurim fork settings — all fork-only preferences in one place -->
+    <com.ichi2.preferences.HeaderPreference
+        android:fragment="com.ichi2.anki.preferences.DeurimSettingsFragment"
+        android:key="@string/pref_deurim_screen_key"
+        android:title="@string/pref_cat_deurim"
+        android:icon="@drawable/ic_star"
+        app:summaryEntries="@array/deurim_summary_entries">
+    </com.ichi2.preferences.HeaderPreference>
+
     <!-- Sync Preferences -->
     <com.ichi2.preferences.HeaderPreference
         android:fragment="com.ichi2.anki.preferences.SyncSettingsFragment"

@@ -12,6 +12,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -284,7 +285,10 @@ open class Reviewer :
         textBarNew = findViewById(R.id.new_number)
         textBarLearn = findViewById(R.id.learn_number)
         textBarReview = findViewById(R.id.review_number)
-        reviewProgressBar = findViewById(R.id.review_progress_bar)
+        reviewProgressBar =
+            findViewById<ProgressBar>(R.id.review_progress_bar).apply {
+                progressTintList = ColorStateList.valueOf(Prefs.reviewProgressBarColor)
+            }
         toolbar = findViewById(R.id.toolbar)
         micToolBarLayer = findViewById(R.id.mic_tool_bar_layer)
         processor = BindingMap(sharedPrefs(), ViewerCommand.entries, this)

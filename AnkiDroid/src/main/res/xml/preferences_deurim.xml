@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright (c) 2026 Deurim Fork
+  ~
+  ~ This program is free software; you can redistribute it and/or modify it under
+  ~ the terms of the GNU General Public License as published by the Free Software
+  ~ Foundation; either version 3 of the License, or (at your option) any later
+  ~ version.
+  ~
+  ~ This program is distributed in the hope that it will be useful, but WITHOUT ANY
+  ~ WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+  ~ PARTICULAR PURPOSE. See the GNU General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU General Public License along with
+  ~ this program.  If not, see <http://www.gnu.org/licenses/>.
+  -->
+
+<!-- Deurim fork settings — aggregates every fork-only preference in one place -->
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:title="@string/pref_cat_deurim"
+    android:key="@string/pref_deurim_screen_key"
+    tools:context=".preferences.DeurimSettingsFragment">
+    <PreferenceCategory android:title="@string/pref_cat_deurim_update">
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="@string/pref_auto_update_check_key"
+            android:title="앱 업데이트 자동 확인"
+            android:summary="GitHub 릴리스에서 새 버전을 자동으로 확인합니다"/>
+        <Preference
+            android:key="@string/pref_check_update_now_key"
+            android:title="지금 업데이트 확인"
+            android:summary="GitHub에서 최신 릴리스가 있는지 즉시 확인합니다"/>
+    </PreferenceCategory>
+    <PreferenceCategory android:title="@string/pref_cat_deurim_reviewer">
+        <Preference
+            android:key="@string/pref_review_progress_bar_color_key"
+            android:title="@string/pref_review_progress_bar_color"
+            android:summary="@string/pref_review_progress_bar_color_summ"/>
+    </PreferenceCategory>
+    <PreferenceCategory android:title="@string/pref_cat_whiteboard">
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="@string/shared_whiteboard_settings_key"
+            android:summary="@string/pref_shared_whiteboard_settings_summ"
+            android:title="@string/pref_shared_whiteboard_settings" />
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="@string/whiteboard_card_zoom_sync_key"
+            android:title="@string/whiteboard_card_zoom_sync"
+            android:summary="@string/whiteboard_card_zoom_sync_summ" />
+    </PreferenceCategory>
+    <PreferenceCategory android:title="@string/pref_cat_sound_effects">
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="@string/sound_effects_enabled_key"
+            android:summary="@string/pref_sound_effects_summ"
+            android:title="@string/pref_sound_effects" />
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:dependency="@string/sound_effects_enabled_key"
+            android:key="@string/sound_effect_correct_key"
+            android:summary="@string/pref_sound_effect_correct_summ"
+            android:title="@string/pref_sound_effect_correct" />
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:dependency="@string/sound_effects_enabled_key"
+            android:key="@string/sound_effect_error_key"
+            android:summary="@string/pref_sound_effect_error_summ"
+            android:title="@string/pref_sound_effect_error" />
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:dependency="@string/sound_effects_enabled_key"
+            android:key="@string/sound_effect_applause_key"
+            android:summary="@string/pref_sound_effect_applause_summ"
+            android:title="@string/pref_sound_effect_applause" />
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:dependency="@string/sound_effects_enabled_key"
+            android:key="@string/sound_effect_aww_man_key"
+            android:summary="@string/pref_sound_effect_aww_man_summ"
+            android:title="@string/pref_sound_effect_aww_man" />
+    </PreferenceCategory>
+</PreferenceScreen>

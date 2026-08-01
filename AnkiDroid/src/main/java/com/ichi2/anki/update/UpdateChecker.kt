@@ -94,6 +94,12 @@ object UpdateChecker {
      */
     fun isNewerThanCurrent(latestTag: String): Boolean = isNewer(latestTag, BuildConfig.FORK_VERSION)
 
+    /** Returns true if the user chose to skip [latestTag] via the update dialog's "skip" action. */
+    fun isSkipped(
+        latestTag: String,
+        skippedTag: String?,
+    ): Boolean = skippedTag != null && latestTag == skippedTag
+
     @VisibleForTesting
     fun isNewer(
         latestTag: String,

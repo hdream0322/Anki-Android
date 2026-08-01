@@ -97,6 +97,7 @@ class HeaderFragment : SettingsFragment() {
 
                 index(R.xml.preferences_general)
                 index(R.xml.preferences_reviewing)
+                index(R.xml.preferences_deurim)
                 index(R.xml.preferences_sync)
                 index(R.xml.preferences_custom_sync_server)
                     .addBreadcrumb(R.string.pref_cat_sync)
@@ -238,6 +239,7 @@ class HeaderFragment : SettingsFragment() {
             when (fragment) {
                 is GeneralSettingsFragment -> R.string.pref_general_screen_key
                 is ReviewingSettingsFragment -> R.string.pref_reviewing_screen_key
+                is DeurimSettingsFragment -> R.string.pref_deurim_screen_key
                 is SyncSettingsFragment, is CustomSyncServerSettingsFragment -> R.string.pref_sync_screen_key
                 is NotificationsSettingsFragment -> R.string.pref_notifications_screen_key
                 is ScheduleRemindersFragment -> R.string.pref_review_reminders_screen_key

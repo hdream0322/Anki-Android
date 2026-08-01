@@ -6,7 +6,6 @@ package com.ichi2.anki.preferences
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.preference.ListPreference
-import androidx.preference.Preference
 import androidx.preference.SwitchPreferenceCompat
 import anki.config.ConfigKey
 import com.ichi2.anki.CollectionManager
@@ -17,7 +16,6 @@ import com.ichi2.anki.common.crashreporting.CrashReportService
 import com.ichi2.anki.contextmenu.AnkiCardContextMenu
 import com.ichi2.anki.contextmenu.CardBrowserContextMenu
 import com.ichi2.anki.launchCatchingTask
-import com.ichi2.anki.update.UpdateManager
 import com.ichi2.utils.LanguageUtil
 import com.ichi2.utils.LanguageUtil.getStringByLocale
 import com.ichi2.utils.LanguageUtil.getSystemLocale
@@ -79,11 +77,6 @@ class GeneralSettingsFragment : SettingsFragment() {
             setOnPreferenceChangeListener { newValue ->
                 CardBrowserContextMenu.ensureConsistentStateWithPreferenceStatus(requireContext(), newValue)
             }
-        }
-        // Deurim: manual "지금 업데이트 확인"
-        requirePreference<Preference>(R.string.pref_check_update_now_key).setOnPreferenceClickListener {
-            UpdateManager.checkNow(requireActivity())
-            true
         }
     }
 

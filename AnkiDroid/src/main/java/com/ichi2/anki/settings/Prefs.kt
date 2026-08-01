@@ -43,6 +43,9 @@ import kotlin.reflect.KProperty
 //  after the UI classes of that package are moved to `com.ichi2.anki.ui.preferences`
 object Prefs : PrefsRepository(AnkiDroidApp.sharedPrefs(), AnkiDroidApp.appResources)
 
+/** Deurim fork's brand orange — matches the default `android:progressTint` in the reviewer layouts. */
+const val DEFAULT_REVIEW_PROGRESS_BAR_COLOR = 0xFFEC6337.toInt()
+
 open class PrefsRepository(
     val sharedPrefs: SharedPreferences,
     private val resources: Resources,
@@ -351,6 +354,12 @@ open class PrefsRepository(
 
     val doubleTapInterval by intPref(R.string.double_tap_timeout_pref_key, defaultValue = 200)
     val newStudyScreenAnswerButtonSize by intPref(R.string.answer_button_size_pref_key, defaultValue = 100)
+
+    /** Fill color of the legacy reviewer's session progress bar. */
+    var reviewProgressBarColor: Int by intPref(
+        R.string.pref_review_progress_bar_color_key,
+        defaultValue = DEFAULT_REVIEW_PROGRESS_BAR_COLOR,
+    )
 
     val swipeSensitivity: Float
         get() = getInt(R.string.pref_swipe_sensitivity_key, 100) / 100F

@@ -20,11 +20,29 @@
     <string name="pref_auto_update_check_key">deurim_auto_update_check</string>
     <string name="pref_last_update_check_key">deurim_last_update_check_ms</string>
     <string name="pref_check_update_now_key">deurim_check_update_now</string>
+    <string name="pref_skipped_version_key">deurim_skipped_version</string>
     <string name="deurim_install_upstream">원본 AnkiDroid 설치</string>
     <string name="deurim_check_update_now">지금 업데이트 확인</string>
     <string name="deurim_update_channel_name">앱 업데이트</string>
     <string name="update_install_action">설치</string>
     <string name="update_ready_to_install">다운로드 완료 — 탭하여 설치</string>
+    <string name="update_skip_version">이 버전 건너뛰기</string>
+
+    <!-- Deurim settings category (aggregates all fork-only settings) -->
+    <string name="pref_deurim_screen_key">deurimScreen</string>
+    <string name="pref_cat_deurim">유용한 기능</string>
+    <string name="pref_cat_deurim_update">업데이트</string>
+    <string-array name="deurim_summary_entries">
+        <item>@string/pref_cat_deurim_update</item>
+        <item>@string/pref_cat_deurim_reviewer</item>
+        <item>@string/pref_cat_sound_effects</item>
+    </string-array>
+
+    <!-- Review progress bar color -->
+    <string name="pref_review_progress_bar_color_key">deurim_review_progress_bar_color</string>
+    <string name="pref_cat_deurim_reviewer">리뷰어</string>
+    <string name="pref_review_progress_bar_color">진행률 바 색상</string>
+    <string name="pref_review_progress_bar_color_summ">세션 진행률 바의 색상을 바꿉니다 (레거시 리뷰어)</string>
 
     <!-- Heatmap widget -->
     <string name="heatmap_widget_label">리뷰 히트맵</string>

@@ -219,7 +219,7 @@ object UpdateManager {
                     AlertDialog.Builder(activity).show {
                         title(R.string.update_available_title)
                         message(R.string.update_need_install_permission)
-                        positiveButton(R.string.update_open_settings) {
+                        positiveButton(R.string.open_settings) {
                             UpdateInstaller.openUnknownAppSourcesSettings(activity)
                         }
                         negativeButton(R.string.update_later)
@@ -233,7 +233,7 @@ object UpdateManager {
                 Timber.w(e, "Update download failed")
                 progressDialog.dismiss()
                 nm.cancel(NOTIFICATION_ID)
-                showThemedToast(activity, R.string.update_download_failed, true)
+                showThemedToast(activity, R.string.download_failed, true)
             } finally {
                 isDownloading = false
             }
@@ -325,7 +325,7 @@ object UpdateManager {
         AlertDialog.Builder(activity).show {
             title(text = activity.getString(R.string.whats_new_title, tag))
             message(text = formatReleaseNotes(body))
-            positiveButton(R.string.whats_new_dismiss)
+            positiveButton(R.string.dialog_ok)
         }
     }
 

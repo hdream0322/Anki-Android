@@ -11,4 +11,40 @@
     <string name="deck_sort_order_name">이름 순</string>
     <string name="deck_sort_order_least_recent">오래된 순</string>
     <string name="deck_sort_order_most_recent">최근 순</string>
+
+    <!-- In-app updater -->
+    <string name="pref_auto_update_check_title">앱 업데이트 자동 확인</string>
+    <string name="pref_auto_update_check_summ">GitHub 릴리스에서 새 버전을 자동으로 확인합니다</string>
+    <string name="pref_check_update_now_summ">GitHub에서 최신 릴리스가 있는지 즉시 확인합니다</string>
+    <string name="deurim_install_upstream">원본 AnkiDroid 설치</string>
+    <string name="deurim_check_update_now">지금 업데이트 확인</string>
+    <string name="deurim_update_channel_name">앱 업데이트</string>
+    <string name="update_install_action">설치</string>
+    <string name="update_ready_to_install">다운로드 완료 — 탭하여 설치</string>
+    <string name="update_skip_version">이 버전 건너뛰기</string>
+
+    <!-- Deurim settings category (aggregates all fork-only settings) -->
+    <string name="pref_cat_deurim">유용한 기능</string>
+    <string name="pref_cat_deurim_update">업데이트</string>
+
+    <!-- Review progress bar color -->
+    <string name="pref_cat_deurim_reviewer">리뷰어</string>
+    <string name="pref_review_progress_bar_color">진행률 바 색상</string>
+    <string name="pref_review_progress_bar_color_summ">세션 진행률 바의 색상을 바꿉니다 (레거시 리뷰어)</string>
+
+    <!-- Heatmap widget -->
+    <string name="heatmap_widget_label">리뷰 히트맵</string>
+    <string name="heatmap_widget_description">선택한 덱의 복습 히트맵을 홈 화면에 표시합니다</string>
+
+    <!-- Release notes (Whats new) -->
+    <string name="whats_new_title">새 버전 안내 (%s)</string>
+    <string name="update_available_title">새 버전 사용 가능</string>
+    <!-- %1$s = current version, %2$s = latest version -->
+    <string name="update_available_message">현재 %1$s\n새 버전 %2$s\n\n%3$s</string>
+    <string name="update_install_now">지금 설치</string>
+    <string name="update_later">나중에</string>
+    <string name="update_check_failed">업데이트 확인에 실패했어요</string>
+    <string name="update_already_latest">이미 최신 버전입니다</string>
+    <string name="update_downloading">새 버전 다운로드 중…</string>
+    <string name="update_need_install_permission">알 수 없는 앱 설치 권한이 필요합니다. 설정에서 허용해 주세요.</string>
 </resources>

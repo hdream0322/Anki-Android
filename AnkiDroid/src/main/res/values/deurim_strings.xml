@@ -21,17 +21,20 @@
     <string name="pref_last_update_check_key">deurim_last_update_check_ms</string>
     <string name="pref_check_update_now_key">deurim_check_update_now</string>
     <string name="pref_skipped_version_key">deurim_skipped_version</string>
-    <string name="deurim_install_upstream">원본 AnkiDroid 설치</string>
-    <string name="deurim_check_update_now">지금 업데이트 확인</string>
-    <string name="deurim_update_channel_name">앱 업데이트</string>
-    <string name="update_install_action">설치</string>
-    <string name="update_ready_to_install">다운로드 완료 — 탭하여 설치</string>
-    <string name="update_skip_version">이 버전 건너뛰기</string>
+    <string name="pref_auto_update_check_title" maxLength="41">Automatically check for updates</string>
+    <string name="pref_auto_update_check_summ">Automatically checks GitHub releases for new versions</string>
+    <string name="pref_check_update_now_summ">Immediately checks GitHub for the latest release</string>
+    <string name="deurim_install_upstream">Install upstream AnkiDroid</string>
+    <string name="deurim_check_update_now" maxLength="41">Check for update now</string>
+    <string name="deurim_update_channel_name">App updates</string>
+    <string name="update_install_action" comment="Install action button on the update-downloaded notification; intentionally short like tts_voices_chip_filter_to_installable_audio but a distinct context">Install</string>
+    <string name="update_ready_to_install">Download complete — tap to install</string>
+    <string name="update_skip_version">Skip this version</string>
 
     <!-- Deurim settings category (aggregates all fork-only settings) -->
     <string name="pref_deurim_screen_key">deurimScreen</string>
-    <string name="pref_cat_deurim">유용한 기능</string>
-    <string name="pref_cat_deurim_update">업데이트</string>
+    <string name="pref_cat_deurim" maxLength="41">Useful features</string>
+    <string name="pref_cat_deurim_update" maxLength="41">Update</string>
     <string-array name="deurim_summary_entries">
         <item>@string/pref_cat_deurim_update</item>
         <item>@string/pref_cat_deurim_reviewer</item>
@@ -40,31 +43,28 @@
 
     <!-- Review progress bar color -->
     <string name="pref_review_progress_bar_color_key">deurim_review_progress_bar_color</string>
-    <string name="pref_cat_deurim_reviewer">리뷰어</string>
-    <string name="pref_review_progress_bar_color">진행률 바 색상</string>
-    <string name="pref_review_progress_bar_color_summ">세션 진행률 바의 색상을 바꿉니다 (레거시 리뷰어)</string>
+    <string name="pref_cat_deurim_reviewer" maxLength="41">Reviewer</string>
+    <string name="pref_review_progress_bar_color" maxLength="41">Progress bar color</string>
+    <string name="pref_review_progress_bar_color_summ">Changes the color of the session progress bar (legacy reviewer)</string>
 
     <!-- Heatmap widget -->
-    <string name="heatmap_widget_label">리뷰 히트맵</string>
-    <string name="heatmap_widget_description">선택한 덱의 복습 히트맵을 홈 화면에 표시합니다</string>
-    <string name="heatmap_widget_image_desc">복습 히트맵</string>
+    <string name="heatmap_widget_label">Review heatmap</string>
+    <string name="heatmap_widget_description">Shows a review heatmap for the selected deck on your home screen</string>
+    <string name="heatmap_widget_image_desc">@string/heatmap_widget_label</string>
 
     <!-- Release notes (Whats new) -->
     <string name="pref_last_seen_version_key">deurim_last_seen_version</string>
     <string name="pref_pending_release_notes_tag_key">deurim_pending_release_notes_tag</string>
     <string name="pref_pending_release_notes_body_key">deurim_pending_release_notes_body</string>
-    <string name="whats_new_title">새 버전 안내 (%s)</string>
-    <string name="whats_new_dismiss">확인</string>
-    <string name="update_available_title">새 버전 사용 가능</string>
+    <string name="whats_new_title">What\'s new (%s)</string>
+    <string name="update_available_title">New version available</string>
     <!-- %1$s = current version, %2$s = latest version -->
-    <string name="update_available_message">현재 %1$s\n새 버전 %2$s\n\n%3$s</string>
-    <string name="update_install_now">지금 설치</string>
-    <string name="update_later">나중에</string>
-    <string name="update_check_failed">업데이트 확인에 실패했어요</string>
-    <string name="update_already_latest">이미 최신 버전입니다</string>
-    <string name="update_downloading">새 버전 다운로드 중…</string>
+    <string name="update_available_message">Current %1$s\nNew version %2$s\n\n%3$s</string>
+    <string name="update_install_now">Install now</string>
+    <string name="update_later" comment="Dismiss button on the update-available dialog; intentionally short like button_backup_later but a distinct context">Later</string>
+    <string name="update_check_failed">Failed to check for updates</string>
+    <string name="update_already_latest">Already up to date</string>
+    <string name="update_downloading">Downloading new version…</string>
     <string name="update_download_progress">%1$d%%</string>
-    <string name="update_download_failed">다운로드에 실패했어요</string>
-    <string name="update_need_install_permission">알 수 없는 앱 설치 권한이 필요합니다. 설정에서 허용해 주세요.</string>
-    <string name="update_open_settings">설정 열기</string>
+    <string name="update_need_install_permission">Permission to install unknown apps is required. Please allow it in Settings.</string>
 </resources>

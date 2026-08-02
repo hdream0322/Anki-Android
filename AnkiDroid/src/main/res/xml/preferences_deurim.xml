@@ -32,6 +32,11 @@
             android:key="@string/pref_check_update_now_key"
             android:title="@string/deurim_check_update_now"
             android:summary="@string/pref_check_update_now_summ"/>
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="@string/pref_wifi_only_update_key"
+            android:title="@string/pref_wifi_only_update_title"
+            android:summary="@string/pref_wifi_only_update_summ"/>
     </PreferenceCategory>
     <PreferenceCategory android:title="@string/pref_cat_deurim_reviewer">
         <Preference

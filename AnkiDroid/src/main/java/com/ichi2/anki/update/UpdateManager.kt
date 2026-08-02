@@ -22,6 +22,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Typeface
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Build
 import android.text.SpannableStringBuilder
@@ -29,6 +31,7 @@ import android.text.Spanned
 import android.text.style.RelativeSizeSpan
 import android.text.style.StyleSpan
 import android.view.LayoutInflater
+import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AlertDialog
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -151,6 +154,14 @@ object UpdateManager {
         activity: FragmentActivity,
         release: GitHubRelease,
     ) {
+        val wifiOnlyKey = activity.getString(R.string.pref_wifi_only_update_key)
+        val wifiOnly = activity.sharedPrefs().getBoolean(wifiOnlyKey, false)
+        if (shouldBlockForWifiOnly(wifiOnly, isWifiConnected(activity))) {
+            Timber.d("Update download blocked: Wi-Fi-only is enabled and no Wi-Fi is connected")
+            showThemedToast(activity, R.string.update_wifi_required, true)
+            return
+        }
+
         // 진행 중인 다운로드가 있으면 무시 — 사용자가 "지금 설치"를 반복해도 한 번만 받는다.
         if (isDownloading) {
             Timber.d("Update download already in progress; ignoring duplicate request")
@@ -438,6 +449,19 @@ object UpdateManager {
     }
 
     private fun FragmentActivity.isAdded() = !isFinishing && !isDestroyed
+
+    private fun isWifiConnected(context: Context): Boolean {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return false
+        val network = cm.activeNetwork ?: return false
+        val capabilities = cm.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+    }
+
+    @VisibleForTesting
+    internal fun shouldBlockForWifiOnly(
+        wifiOnlyEnabled: Boolean,
+        wifiConnected: Boolean,
+    ): Boolean = wifiOnlyEnabled && !wifiConnected
 
     private fun safeNotify(
         nm: NotificationManagerCompat,

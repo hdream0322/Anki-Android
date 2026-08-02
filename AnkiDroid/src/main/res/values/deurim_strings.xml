@@ -30,6 +30,10 @@
     <string name="update_install_action" comment="Install action button on the update-downloaded notification; intentionally short like tts_voices_chip_filter_to_installable_audio but a distinct context">Install</string>
     <string name="update_ready_to_install">Download complete — tap to install</string>
     <string name="update_skip_version">Skip this version</string>
+    <string name="pref_wifi_only_update_key">deurim_wifi_only_update</string>
+    <string name="pref_wifi_only_update_title" maxLength="41">Download over Wi-Fi only</string>
+    <string name="pref_wifi_only_update_summ">Updates won\'t download over mobile data</string>
+    <string name="update_wifi_required">Connect to Wi-Fi and try again</string>
 
     <!-- Deurim settings category (aggregates all fork-only settings) -->
     <string name="pref_deurim_screen_key">deurimScreen</string>

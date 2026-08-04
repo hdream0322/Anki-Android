@@ -94,6 +94,14 @@ object UpdateManager {
         activity: FragmentActivity,
         manual: Boolean,
     ) {
+        val wifiOnlyKey = activity.getString(R.string.pref_wifi_only_update_key)
+        val wifiOnly = activity.sharedPrefs().getBoolean(wifiOnlyKey, false)
+        if (shouldBlockForWifiOnly(wifiOnly, isWifiConnected(activity))) {
+            // 스탬프를 찍지 않아 Wi-Fi 연결 후 다음 앱 실행 때 바로 재시도된다 (24h 쿨다운 미적용).
+            Timber.d("Update check skipped: Wi-Fi-only is enabled and no Wi-Fi is connected")
+            if (manual) showThemedToast(activity, R.string.update_wifi_required, true)
+            return
+        }
         activity.launchCatchingTask {
             val release = UpdateChecker.fetchLatestRelease()
             stampCheck(activity)

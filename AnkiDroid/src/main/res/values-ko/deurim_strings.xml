@@ -22,8 +22,8 @@
     <string name="update_install_action">설치</string>
     <string name="update_ready_to_install">다운로드 완료 — 탭하여 설치</string>
     <string name="update_skip_version">이 버전 건너뛰기</string>
-    <string name="pref_wifi_only_update_title">Wi-Fi에서만 다운로드</string>
-    <string name="pref_wifi_only_update_summ">모바일 데이터에서는 업데이트를 다운로드하지 않습니다</string>
+    <string name="pref_wifi_only_update_title">Wi-Fi에서만 업데이트 확인</string>
+    <string name="pref_wifi_only_update_summ">모바일 데이터에서는 업데이트를 확인하거나 다운로드하지 않습니다</string>
     <string name="update_wifi_required">Wi-Fi에 연결한 후 다시 시도해 주세요</string>
 
     <!-- Deurim settings category (aggregates all fork-only settings) -->

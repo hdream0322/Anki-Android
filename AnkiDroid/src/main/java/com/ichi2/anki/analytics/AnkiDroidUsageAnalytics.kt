@@ -6,10 +6,13 @@ package com.ichi2.anki.analytics
 import android.app.Application
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.annotation.VisibleForTesting
 import androidx.core.content.edit
 import com.criticalay.GoogleAnalytics
 import com.ichi2.anki.BuildConfig
 import com.ichi2.anki.R
+import com.ichi2.anki.common.analytics.Analytics
+import com.ichi2.anki.common.analytics.UsageAnalytics
 import com.ichi2.anki.common.android.appContext
 import com.ichi2.anki.common.annotations.NeedsTest
 import com.ichi2.anki.common.preferences.sharedPrefs
@@ -21,9 +24,17 @@ import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.util.UUID
 
+/**
+ * Facade over the GA4 analytics library for AnkiDroid's opt-in usage analytics.
+ * Screen views, events and exceptions are routed through here, and every send
+ * function is a no-op unless the user has opted in.
+ *
+ * See `docs/analytics/README.md` for what is sent over the wire, the consent
+ * model, and answers to common reviewer questions.
+ */
 @NeedsTest("Add coverage for opt-in handling, client id persistence and event/exception sending")
-object AnkiDroidUsageAnalytics {
-    private const val ANALYTICS_OPTIN_KEY = "analytics_opt_in"
+internal object AnkiDroidUsageAnalytics : UsageAnalytics {
+    const val ANALYTICS_OPTIN_KEY = UsageAnalytics.ANALYTICS_OPTIN_KEY
     private const val ANALYTICS_CLIENT_ID = "googleAnalyticsClientId"
 
     /**
@@ -62,8 +73,18 @@ object AnkiDroidUsageAnalytics {
     private val sharedPrefsListener =
         SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
             if (key == ANALYTICS_OPTIN_KEY) {
-                optIn = prefs.getBoolean(key, false)
-                Timber.i("Setting analytics opt-in to: %b", optIn)
+                val newOptIn = prefs.getBoolean(key, false)
+                // [isEnabled] updates `optIn` before it writes, so an unchanged value
+                // means it's already handling this toggle: don't rebuild twice
+                if (newOptIn != optIn) {
+                    optIn = newOptIn
+                    Timber.i("Setting analytics opt-in to: %b", optIn)
+                    // the client's `enabled` flag is fixed when it's built, so writes
+                    // from elsewhere (the Settings switch) need a rebuild to take effect
+                    if (::analyticsContext.isInitialized) {
+                        reinitialize(analyticsContext)
+                    }
+                }
             }
         }
 
@@ -88,9 +109,18 @@ object AnkiDroidUsageAnalytics {
         private set
 
     fun initialize(context: Context) {
-        analyticsContext = context.applicationContext as Application
-
         Timber.i("AnkiDroidUsageAnalytics:: initialize()")
+        configure(context)
+        AnalyticsExceptionHandler.install(this::sendAnalyticsException)
+    }
+
+    /**
+     * Reads the opt-in and builds the client. Split out of [initialize] so [reinitialize]
+     * can rebuild without touching the exception handler: re-installing would chain it on
+     * top of `ThrowableFilterService`, putting analytics ahead of the PII filter.
+     */
+    private fun configure(context: Context) {
+        analyticsContext = context.applicationContext as Application
 
         // Read opt-in before building the client so `enabled` reflects the
         // user's choice rather than the default.
@@ -105,13 +135,13 @@ object AnkiDroidUsageAnalytics {
                     appVersion = BuildConfig.VERSION_NAME
                     enabled = optIn
                     samplePercentage = getAnalyticsSamplePercentage(analyticsContext)
-                    debug = false
+                    // debug builds hit GA's validation endpoint, which checks the payload
+                    // but records nothing, keeping development traffic out of the property
+                    debug = BuildConfig.DEBUG
                 }
         }
 
         initializePrefKeys(analyticsContext)
-
-        AnalyticsExceptionHandler.install(this::sendAnalyticsException)
     }
 
     private fun handlePreferences(context: Context) {
@@ -122,15 +152,22 @@ object AnkiDroidUsageAnalytics {
 
     fun reinitialize(context: Context) {
         Timber.i("reInitialize()")
-        AnalyticsExceptionHandler.uninstall()
+        serviceScope.launch { rebuild(context) }
+    }
 
-        serviceScope.launch {
-            runCatching { analytics?.flush() }.onFailure { e ->
-                Timber.w(e, "Failed to flush analytics")
-            }
-            analytics = null
-            initialize(context)
+    /**
+     * Flushes and rebuilds the client. Deliberately does not go through [initialize]:
+     * the exception handler reports through this singleton rather than the client, so
+     * it stays valid across a rebuild, and re-installing it would chain it above
+     * `ThrowableFilterService` and put analytics ahead of the PII filter.
+     */
+    @VisibleForTesting
+    internal suspend fun rebuild(context: Context) {
+        runCatching { analytics?.flush() }.onFailure { e ->
+            Timber.w(e, "Failed to flush analytics")
         }
+        analytics = null
+        configure(context)
     }
 
     /**
@@ -140,19 +177,19 @@ object AnkiDroidUsageAnalytics {
      * name (e.g. `DeckPicker`, not `com.ichi2.anki.DeckPicker`). Pass an
      * activity/fragment/`this` from the screen you want to record.
      */
-    fun sendAnalyticsScreenView(screen: Any) = sendAnalyticsScreenView(screen.javaClass.simpleName)
+    override fun sendAnalyticsScreenView(screen: Any) = sendAnalyticsScreenView(screen.javaClass.simpleName)
 
-    fun sendAnalyticsScreenView(screenName: String) {
+    override fun sendAnalyticsScreenView(screenName: String) {
         Timber.d("AnkiDroidUsageAnalytics: screenView($screenName)")
         if (!optIn) return
         analytics?.screenView(clientId)?.screenName(screenName)?.sendAsync()
     }
 
-    fun sendAnalyticsEvent(
+    override fun sendAnalyticsEvent(
         category: String,
         action: String,
-        value: Int? = null,
-        label: String? = null,
+        value: Int?,
+        label: String?,
     ) {
         Timber.d("AnkiDroidUsageAnalytics: event(category=$category action=$action)")
         if (!optIn) return
@@ -167,7 +204,7 @@ object AnkiDroidUsageAnalytics {
         event.sendAsync()
     }
 
-    fun sendAnalyticsException(
+    override fun sendAnalyticsException(
         t: Throwable,
         fatal: Boolean,
     ) {
@@ -246,4 +283,13 @@ object AnkiDroidUsageAnalytics {
         samplePercentage = AnalyticsSamplePercentage.Full
         reinitialize(context)
     }
+}
+
+/**
+ * Initializes GA4 analytics and wires it up as the global [Analytics] implementation.
+ */
+context(application: Application)
+fun initializeAnalytics() {
+    AnkiDroidUsageAnalytics.initialize(application)
+    Analytics.setAnalytics(AnkiDroidUsageAnalytics)
 }

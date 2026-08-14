@@ -15,7 +15,6 @@
 package com.ichi2.widget
 
 import android.content.Context
-import com.ichi2.anki.AnkiDroidApp
 import com.ichi2.anki.CollectionManager.withCol
 import com.ichi2.anki.R
 import com.ichi2.anki.common.preferences.sharedPrefs
@@ -27,15 +26,6 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import timber.log.Timber
-
-/**
- * @param dueCardsCount The number of due cards (new + lrn + rev)
- * @param eta The estimated time to review
- */
-data class SmallWidgetStatus(
-    val dueCardsCount: Int,
-    val eta: Int,
-)
 
 /**
  * The status of the widget.
@@ -99,7 +89,7 @@ object WidgetStatus {
             AnkiDroidWidgetSmall.UpdateService().doUpdate(context)
         }
         if (!Prefs.newReviewRemindersEnabled) {
-            (context.applicationContext as AnkiDroidApp).scheduleNotification()
+            widgetNotificationScheduler.scheduleNotification()
         }
     }
 

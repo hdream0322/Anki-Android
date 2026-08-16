@@ -1,18 +1,5 @@
-/*
- *  Copyright (c) 2024 Anoop <xenonnn4w@gmail.com>
- *
- *  This program is free software; you can redistribute it and/or modify it under
- *  the terms of the GNU General Public License as published by the Free Software
- *  Foundation; either version 3 of the License, or (at your option) any later
- *  version.
- *
- *  This program is distributed in the hope that it will be useful, but WITHOUT ANY
- *  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- *  PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along with
- *  this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2024 Anoop <xenonnn4w@gmail.com>
 
 package com.ichi2.widget
 
@@ -21,9 +8,10 @@ import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
 import androidx.annotation.CallSuper
-import com.ichi2.anki.IntentHandler.Companion.grantedStoragePermissions
+import com.ichi2.anki.analytics.AnalyticsConstants
 import com.ichi2.anki.common.analytics.Analytics
 import com.ichi2.anki.common.analytics.UsageAnalytics
+import com.ichi2.anki.common.storage.grantedStoragePermissions
 import timber.log.Timber
 
 /**
@@ -50,7 +38,11 @@ abstract class AnalyticsWidgetProvider : AppWidgetProvider() {
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
         Timber.d("${this.javaClass.name}: Widget enabled")
-        Analytics.sendAnalyticsEvent(this.javaClass.simpleName, "enabled")
+        Analytics.sendAnalyticsEvent(
+            category = AnalyticsConstants.Category.WIDGET,
+            action = AnalyticsConstants.Actions.WIDGET_ENABLED,
+            label = this.javaClass.simpleName,
+        )
     }
 
     /**
@@ -62,7 +54,11 @@ abstract class AnalyticsWidgetProvider : AppWidgetProvider() {
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
         Timber.d("${this.javaClass.name}: Widget disabled")
-        Analytics.sendAnalyticsEvent(this.javaClass.simpleName, "disabled")
+        Analytics.sendAnalyticsEvent(
+            category = AnalyticsConstants.Category.WIDGET,
+            action = AnalyticsConstants.Actions.WIDGET_DISABLED,
+            label = this.javaClass.simpleName,
+        )
     }
 
     @CallSuper
@@ -87,7 +83,7 @@ abstract class AnalyticsWidgetProvider : AppWidgetProvider() {
         appWidgetIds: IntArray,
     ) {
         super.onUpdate(context, appWidgetManager, appWidgetIds)
-        if (runCatching { grantedStoragePermissions(context, showToast = false) }.getOrNull() != true) {
+        if (runCatching { grantedStoragePermissions(context) }.getOrNull() != true) {
             Timber.w("Opening widget ${this.javaClass.name} without storage access")
             return
         }

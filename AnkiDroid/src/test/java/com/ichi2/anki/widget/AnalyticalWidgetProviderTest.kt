@@ -1,23 +1,10 @@
-/*
- *  Copyright (c) 2024 David Allison <davidallisongithub@gmail.com>
- *  Copyright (c) 2024 Anoop <xenonnn4w@gmail.com>
- *
- *  This program is free software; you can redistribute it and/or modify it under
- *  the terms of the GNU General Public License as published by the Free Software
- *  Foundation; either version 3 of the License, or (at your option) any later
- *  version.
- *
- *  This program is distributed in the hope that it will be useful, but WITHOUT ANY
- *  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- *  PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along with
- *  this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2024 Anoop <xenonnn4w@gmail.com>
 
 import android.appwidget.AppWidgetManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ichi2.anki.RobolectricTest
+import com.ichi2.anki.analytics.AnalyticsConstants
 import com.ichi2.anki.common.analytics.Analytics
 import com.ichi2.anki.common.analytics.UsageAnalytics
 import com.ichi2.widget.AnalyticsWidgetProvider
@@ -37,7 +24,7 @@ class AnalyticalWidgetProviderTest : RobolectricTest() {
     override fun setUp() {
         super.setUp()
         mockkObject(Analytics)
-        every { Analytics.sendAnalyticsEvent(any(), any()) } answers { }
+        every { Analytics.sendAnalyticsEvent(any(), any(), any(), any()) } answers { }
     }
 
     @After
@@ -52,7 +39,13 @@ class AnalyticalWidgetProviderTest : RobolectricTest() {
 
         widgetProvider.onEnabled(targetContext)
 
-        verify { Analytics.sendAnalyticsEvent("TestWidgetProvider", "enabled") }
+        verify {
+            Analytics.sendAnalyticsEvent(
+                category = AnalyticsConstants.Category.WIDGET,
+                action = AnalyticsConstants.Actions.WIDGET_ENABLED,
+                label = "TestWidgetProvider",
+            )
+        }
     }
 
     private class TestWidgetProvider : AnalyticsWidgetProvider() {

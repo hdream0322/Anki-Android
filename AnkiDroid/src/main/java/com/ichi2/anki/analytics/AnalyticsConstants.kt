@@ -25,9 +25,10 @@ import com.ichi2.anki.R
  */
 object AnalyticsConstants {
     object Category {
-        const val SYNC = "Sync"
         const val LINK_CLICKED = "LinkClicked"
         const val SETTING = "Setting"
+        const val ACRA_CRASH_HANDLER = "ACRA Crash Handler"
+        const val WIDGET = "Widget"
     }
 
     /**
@@ -129,6 +130,16 @@ object AnalyticsConstants {
 
         @AnalyticsConstant
         val CHANGED_SETTING = "Changed setting"
+
+        @AnalyticsConstant
+        val CRASH_REPORTED = "Crash reported"
+
+        // Analytics actions used by home screen widgets
+        @AnalyticsConstant
+        val WIDGET_ENABLED = "enabled"
+
+        @AnalyticsConstant
+        val WIDGET_DISABLED = "disabled"
     }
 
     @VisibleForTesting

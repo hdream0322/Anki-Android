@@ -1,18 +1,6 @@
-/*
- *  Copyright (c) 2023 Brayan Oliveira <brayandso.dev@gmail.com>
- *
- *  This program is free software; you can redistribute it and/or modify it under
- *  the terms of the GNU General Public License as published by the Free Software
- *  Foundation; either version 3 of the License, or (at your option) any later
- *  version.
- *
- *  This program is distributed in the hope that it will be useful, but WITHOUT ANY
- *  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- *  PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along with
- *  this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2023 Brayan Oliveira <brayandso.dev@gmail.com>
+
 package com.ichi2.anki
 
 import android.content.Context
@@ -24,6 +12,8 @@ import androidx.fragment.app.FragmentContainerView
 import androidx.fragment.app.commit
 import com.ichi2.anki.android.input.ShortcutGroup
 import com.ichi2.anki.android.input.ShortcutGroupProvider
+import com.ichi2.anki.common.destinations.StudyOptionsDestination
+import com.ichi2.anki.common.destinations.navigate
 import com.ichi2.anki.dialogs.customstudy.CustomStudyDialog.CustomStudyAction
 import com.ichi2.anki.snackbar.BaseSnackbarBuilderProvider
 import com.ichi2.anki.snackbar.SnackbarBuilder
@@ -54,6 +44,10 @@ open class SingleFragmentActivity :
     // delegate to the fragment in all cases
     override val baseSnackbarBuilder: SnackbarBuilder
         get() = (fragment as? BaseSnackbarBuilderProvider)?.baseSnackbarBuilder ?: { }
+
+    // the same host class serves every screen it shows, so report what it's showing
+    override val analyticsScreenName: String
+        get() = intent.getStringExtra(EXTRA_FRAGMENT_NAME)?.substringAfterLast('.') ?: super.analyticsScreenName
 
     override fun onCreate(savedInstanceState: Bundle?) {
         if (showedActivityFailedScreen(savedInstanceState)) {
@@ -97,8 +91,10 @@ open class SingleFragmentActivity :
             when (CustomStudyAction.fromBundle(bundle)) {
                 CustomStudyAction.CUSTOM_STUDY_SESSION,
                 CustomStudyAction.EXTEND_STUDY_LIMITS,
-                ->
-                    openStudyOptionsAndFinish()
+                -> {
+                    navigate(StudyOptionsDestination)
+                    finish()
+                }
             }
         }
     }
@@ -136,19 +132,6 @@ open class SingleFragmentActivity :
                 action = intentAction
             }
     }
-
-    // Begin - implementation of CustomStudyListener methods here for crash fix
-    // TODO - refactor https://github.com/ankidroid/Anki-Android/pull/17508#pullrequestreview-2465561993
-    private fun openStudyOptionsAndFinish() {
-        val intent =
-            Intent(this, StudyOptionsActivity::class.java).apply {
-                putExtra("withDeckOptions", false)
-            }
-        startActivity(intent, null)
-        this.finish()
-    }
-
-    // END CustomStudyListener temporary implementation - should refactor out
 }
 
 interface DispatchKeyEventListener {

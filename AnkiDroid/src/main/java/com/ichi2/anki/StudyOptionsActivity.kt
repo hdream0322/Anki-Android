@@ -1,25 +1,15 @@
-/*
- * Copyright (c) 2012 Norbert Nagold <norbert.nagold@gmail.com>
- *
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 3 of the License, or (at your option) any later
- * version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- * PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2012 Norbert Nagold <norbert.nagold@gmail.com>
+
 package com.ichi2.anki
 
 import android.content.Intent
 import android.os.Bundle
 import android.view.Menu
+import android.view.MenuInflater
 import android.view.MenuItem
 import androidx.core.view.MenuItemCompat
+import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.commit
 import androidx.lifecycle.lifecycleScope
@@ -27,6 +17,9 @@ import anki.collection.OpChanges
 import com.ichi2.anki.CollectionManager.withCol
 import com.ichi2.anki.StudyOptionsFragment.Companion.registerStudyOptionsAddEditReminderHandler
 import com.ichi2.anki.StudyOptionsFragment.Companion.registerStudyOptionsStudyHandler
+import com.ichi2.anki.common.destinations.DeferredNavigation
+import com.ichi2.anki.common.destinations.ReviewDeckDestination
+import com.ichi2.anki.common.destinations.toIntent
 import com.ichi2.anki.dialogs.customstudy.CustomStudyDialog.CustomStudyAction
 import com.ichi2.anki.dialogs.customstudy.CustomStudyDialog.CustomStudyAction.Companion.REQUEST_KEY
 import com.ichi2.anki.libanki.DeckId
@@ -49,6 +42,10 @@ class StudyOptionsActivity :
     ChangeManager.Subscriber {
     private var undoState = UndoState()
 
+    init {
+        ChangeManager.subscribe(this)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         if (showedActivityFailedScreen(savedInstanceState)) {
             return
@@ -62,6 +59,7 @@ class StudyOptionsActivity :
             loadStudyOptionsFragment()
         }
         setResult(RESULT_OK)
+        addMenuProvider(menuProvider)
 
         setFragmentResultListener(REQUEST_KEY) { _, bundle ->
             when (CustomStudyAction.fromBundle(bundle)) {
@@ -73,7 +71,7 @@ class StudyOptionsActivity :
         }
         registerStudyOptionsStudyHandler {
             Timber.i("Opening study screen from study options screen")
-            val reviewer = Reviewer.getIntent(this)
+            val reviewer = with(DeferredNavigation) { ReviewDeckDestination.CurrentDeck.toIntent() }
             // go back to DeckPicker after studying when not in tablet mode
             reviewer.flags = Intent.FLAG_ACTIVITY_FORWARD_RESULT
             startActivity(reviewer)
@@ -91,9 +89,42 @@ class StudyOptionsActivity :
                 )
                 addToBackStack(null)
             }
-            invalidateOptionsMenu()
+            invalidateMenu()
         }
     }
+
+    private val menuProvider: MenuProvider =
+        object : MenuProvider {
+            override fun onCreateMenu(
+                menu: Menu,
+                menuInflater: MenuInflater,
+            ) {
+                menuInflater.inflate(R.menu.activity_study_options, menu)
+                val undoMenuItem = menu.findItem(R.id.action_undo)
+                val undoActionProvider = MenuItemCompat.getActionProvider(undoMenuItem) as? RtlCompliantActionProvider
+                undoActionProvider?.clickHandler = { _, menuItem -> onMenuItemSelected(menuItem) }
+            }
+
+            override fun onPrepareMenu(menu: Menu) {
+                val undoMenuItem = menu.findItem(R.id.action_undo)
+                // TODO: Ideally, the undo button should be owned by StudyOptionsFragment or be provided by a unified UndoMenuProvider
+                // Checking the current fragment from the activity to decide whether the button should be visible is hacky; see #21339
+                undoMenuItem.isVisible = undoState.hasAction && (currentFragment is StudyOptionsFragment)
+                undoMenuItem.title = undoState.label
+            }
+
+            override fun onMenuItemSelected(item: MenuItem): Boolean =
+                when (item.itemId) {
+                    R.id.action_undo -> {
+                        Timber.i("Undoing last action from study options screen")
+                        launchCatchingTask {
+                            undoAndShowSnackbar()
+                        }
+                        true
+                    }
+                    else -> false
+                }
+        }
 
     private fun loadStudyOptionsFragment() {
         val currentFragment = StudyOptionsFragment()
@@ -105,39 +136,6 @@ class StudyOptionsActivity :
     private val currentFragment: Fragment?
         get() = supportFragmentManager.findFragmentById(R.id.studyoptions_frame)
 
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menuInflater.inflate(R.menu.activity_study_options, menu)
-        val undoMenuItem = menu.findItem(R.id.action_undo)
-        val undoActionProvider = MenuItemCompat.getActionProvider(undoMenuItem) as? RtlCompliantActionProvider
-        // Set the proper click target for the undo button's ActionProvider
-        undoActionProvider?.clickHandler = { _, menuItem -> onOptionsItemSelected(menuItem) }
-        undoMenuItem.isVisible = undoState.hasAction && (currentFragment is StudyOptionsFragment)
-        undoMenuItem.title = undoState.label
-        return true
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when (item.itemId) {
-            android.R.id.home -> {
-                onBackPressedDispatcher.onBackPressed()
-                true
-            }
-            R.id.action_undo -> {
-                launchCatchingTask {
-                    undoAndShowSnackbar()
-                    // TODO why are we going to the Reviewer from here? Desktop doesn't do this
-                    Reviewer
-                        .getIntent(this@StudyOptionsActivity)
-                        .apply { flags = Intent.FLAG_ACTIVITY_FORWARD_RESULT }
-                        .also { startActivity(it) }
-                    finish()
-                }
-                true
-            }
-            else -> return super.onOptionsItemSelected(item)
-        }
-    }
-
     override fun onResume() {
         super.onResume()
         refreshUndoState()
@@ -148,7 +146,6 @@ class StudyOptionsActivity :
         handler: Any?,
     ) {
         refreshUndoState()
-        (currentFragment as? StudyOptionsFragment)?.refreshInterface()
     }
 
     private fun refreshUndoState() {
@@ -162,7 +159,7 @@ class StudyOptionsActivity :
                 }
             if (undoState != newUndoState) {
                 undoState = newUndoState
-                invalidateOptionsMenu()
+                invalidateMenu()
             }
         }
     }

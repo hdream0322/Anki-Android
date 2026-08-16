@@ -1,18 +1,4 @@
-/*
- *  Copyright (c) 2024 David Allison <davidallisongithub@gmail.com>
- *
- *  This program is free software; you can redistribute it and/or modify it under
- *  the terms of the GNU General Public License as published by the Free Software
- *  Foundation; either version 3 of the License, or (at your option) any later
- *  version.
- *
- *  This program is distributed in the hope that it will be useful, but WITHOUT ANY
- *  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- *  PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along with
- *  this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
 
 package com.ichi2.anki.scheduling
 
@@ -32,7 +18,6 @@ import androidx.annotation.CheckResult
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.core.widget.doOnTextChanged
-import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
@@ -45,6 +30,7 @@ import com.google.android.material.tabs.TabLayoutMediator
 import com.ichi2.anki.AnkiActivity
 import com.ichi2.anki.CollectionManager.TR
 import com.ichi2.anki.R
+import com.ichi2.anki.analytics.AnalyticsDialogFragment
 import com.ichi2.anki.asyncCatching
 import com.ichi2.anki.browser.IdsFile
 import com.ichi2.anki.browser.removeSafely
@@ -87,7 +73,7 @@ import kotlin.math.min
  *
  * @see SetDueDateViewModel
  */
-class SetDueDateDialog : DialogFragment() {
+class SetDueDateDialog : AnalyticsDialogFragment() {
     // We explicitly do not use calendar controls in this class
     // User feedback:
     // (1) Don't have to think about what today is in order to use it,

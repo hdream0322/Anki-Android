@@ -1,18 +1,5 @@
-/*
- *  Copyright (c) 2025 Eric Li <ericli3690@gmail.com>
- *
- *  This program is free software; you can redistribute it and/or modify it under
- *  the terms of the GNU General Public License as published by the Free Software
- *  Foundation; either version 3 of the License, or (at your option) any later
- *  version.
- *
- *  This program is distributed in the hope that it will be useful, but WITHOUT ANY
- *  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- *  PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along with
- *  this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2025 Eric Li <ericli3690@gmail.com>
 
 package com.ichi2.anki.services
 
@@ -389,6 +376,21 @@ class NotificationServiceTest : RobolectricTest() {
                     slotTwo.captured.actions[1].actionIntent,
                 )
             assertThat(snoozeIntents.size, equalTo(4))
+        }
+
+    @Test
+    fun `triggering a deck-specific reminder should not change the selected deck`() =
+        runTest {
+            val studiedDeck = addDeck("Studied", setAsSelected = true).withNotes(count = 2)
+            val reminderDeck = addDeck("Reminder").withNotes(count = 2)
+            val reviewReminder = createTestReminder(deckId = reminderDeck)
+            ReviewRemindersDatabase.insertReminder(reviewReminder)
+
+            TimeManager.resetWith(today)
+            attemptNotif(reviewReminder)
+
+            verifyNotifSent(reviewReminder)
+            assertThat(col.decks.selected(), equalTo(studiedDeck))
         }
 
     private suspend fun attemptNotif(

@@ -1,18 +1,5 @@
-/*
- *  Copyright (c) 2020 David Allison <davidallisongithub@gmail.com>
- *
- *  This program is free software; you can redistribute it and/or modify it under
- *  the terms of the GNU General Public License as published by the Free Software
- *  Foundation; either version 3 of the License, or (at your option) any later
- *  version.
- *
- *  This program is distributed in the hope that it will be useful, but WITHOUT ANY
- *  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- *  PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along with
- *  this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 package com.ichi2.utils
 
 import android.app.Activity
@@ -92,12 +79,13 @@ object ClipboardUtil {
  * @param text the text that needs to be copied
  * @param successMessageId message that needs to be shown after successfully copying the text
  * @param failureMessageId message that needs to be shown in case failed to copy the text
+ * @return whether the text was copied to the clipboard
  */
 fun Context.copyToClipboard(
     text: String,
     @StringRes successMessageId: Int = R.string.about_ankidroid_successfully_copied_debug_info,
     @StringRes failureMessageId: Int = R.string.failed_to_copy,
-) {
+): Boolean {
     val copied = copyTextToClipboard(text)
     // in Android S_V2 and above, the system is guaranteed to show a message on a successful copy
     // so we don't need to do anything
@@ -105,7 +93,7 @@ fun Context.copyToClipboard(
 
     if (doesNotNeedToShowMessage) {
         Timber.v("successfully copied to clipboard & system informed user of copy")
-        return
+        return true
     }
 
     val confirmationMessage = if (copied) successMessageId else failureMessageId
@@ -115,6 +103,8 @@ fun Context.copyToClipboard(
     } else {
         showThemedToast(this, confirmationMessage, shortLength = true)
     }
+
+    return copied
 }
 
 /**

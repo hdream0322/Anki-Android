@@ -86,7 +86,6 @@ import com.ichi2.anki.InitialActivity.StartupFailure.DiskFull
 import com.ichi2.anki.InitialActivity.StartupFailure.FutureAnkidroidVersion
 import com.ichi2.anki.InitialActivity.StartupFailure.SDCardNotMounted
 import com.ichi2.anki.InitialActivity.StartupFailure.StorageUndecided
-import com.ichi2.anki.IntentHandler.Companion.intentToReviewDeckFromShortcuts
 import com.ichi2.anki.StudyOptionsFragment.Companion.registerStudyOptionsAddEditReminderHandler
 import com.ichi2.anki.StudyOptionsFragment.Companion.registerStudyOptionsStudyHandler
 import com.ichi2.anki.account.AccountActivity
@@ -100,8 +99,12 @@ import com.ichi2.anki.common.android.animationDisabled
 import com.ichi2.anki.common.android.appContext
 import com.ichi2.anki.common.annotations.NeedsTest
 import com.ichi2.anki.common.crashreporting.CrashReportService
+import com.ichi2.anki.common.destinations.DeferredNavigation
 import com.ichi2.anki.common.destinations.PreferencesDestination
+import com.ichi2.anki.common.destinations.ReviewDeckDestination
+import com.ichi2.anki.common.destinations.StudyOptionsDestination
 import com.ichi2.anki.common.destinations.navigate
+import com.ichi2.anki.common.destinations.toIntent
 import com.ichi2.anki.common.preferences.sharedPrefs
 import com.ichi2.anki.common.storage.CollectionHelper
 import com.ichi2.anki.common.time.TimeManager
@@ -486,13 +489,11 @@ open class DeckPicker :
             return
         }
 
-        // match the status bar theme of the rest of the app
+        super.onCreate(savedInstanceState)
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
             navigationBarStyle = BottomFadeFrameLayout.navigationBarStyle(),
         )
-        // Then set theme and content view
-        super.onCreate(savedInstanceState)
 
         binding = ActivityHomescreenBinding.inflate(layoutInflater)
 
@@ -2094,9 +2095,7 @@ open class DeckPicker :
 
         // otherwise, we need to launch the activity
         Timber.i("Opening Study Options")
-        val intent = Intent()
-        intent.setClass(this, StudyOptionsActivity::class.java)
-        reviewLauncher.launch(intent)
+        reviewLauncher.navigate(StudyOptionsDestination)
     }
 
     @NeedsTest("Instrumented tests for review reminders")
@@ -2188,7 +2187,7 @@ open class DeckPicker :
             ShortcutInfoCompat
                 .Builder(this, shortcutData.deckId.toString())
                 .setIntent(
-                    intentToReviewDeckFromShortcuts(this, shortcutData.deckId),
+                    with(DeferredNavigation) { ReviewDeckDestination.ExternalLaunch(shortcutData.deckId).toIntent() },
                 ).setIcon(IconCompat.createWithResource(this, R.mipmap.ic_launcher))
                 .setShortLabel(shortcutData.shortLabel)
                 .setLongLabel(shortcutData.longLabel)
@@ -2314,8 +2313,7 @@ open class DeckPicker :
 
     private fun openReviewer() {
         Timber.i("Opening Reviewer")
-        val intent = Reviewer.getIntent(this)
-        reviewLauncher.launch(intent)
+        reviewLauncher.navigate(ReviewDeckDestination.CurrentDeck)
     }
 
     private fun createSubDeckDialog(did: DeckId) {

@@ -26,6 +26,9 @@
     <string name="pref_wifi_only_update_summ">모바일 데이터에서는 업데이트를 확인하거나 다운로드하지 않습니다</string>
     <string name="update_wifi_required">Wi-Fi에 연결한 후 다시 시도해 주세요</string>
 
+    <!-- Silent-startup gate: shown once, when the user's first media-volume change unmutes SFX -->
+    <string name="silent_startup_gate_released">무음 모드가 해제되었어요</string>
+
     <!-- Deurim settings category (aggregates all fork-only settings) -->
     <string name="pref_cat_deurim">유용한 기능</string>
     <string name="pref_cat_deurim_update">업데이트</string>

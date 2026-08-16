@@ -46,6 +46,8 @@ import timber.log.Timber
  *
  * 재생 여부는 설정의 마스터 스위치([R.string.sound_effects_enabled_key])와
  * 각 효과음별 개별 스위치로 제어된다. 둘 중 하나라도 꺼져 있으면 재생되지 않는다.
+ * 또한 [SilentStartupGate]가 무음 상태인 동안(볼륨을 아직 조절하지 않은 콜드
+ * 스타트 직후)에도 재생되지 않는다.
  */
 class SoundEffectPlayer(
     context: Context,
@@ -200,6 +202,7 @@ class SoundEffectPlayer(
     private fun isEnabled(
         @StringRes keyRes: Int,
     ): Boolean {
+        if (SilentStartupGate.isSilenced) return false
         val prefs = appContext.sharedPrefs()
         val masterKey = appContext.getString(R.string.sound_effects_enabled_key)
         if (!prefs.getBoolean(masterKey, true)) return false

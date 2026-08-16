@@ -47,10 +47,41 @@ class SoundEffectPlayerTest : RobolectricTest() {
     @After
     fun tearDownSoundPool() {
         SoundEffectPlayer.resetSharedSoundPoolForTest()
+        SilentStartupGate.resetForTest()
+    }
+
+    @Test
+    fun `sound is suppressed while the silent-startup gate is active`() {
+        // 게이트가 무음 상태(기본값)일 때는 설정이 켜져 있어도 재생되면 안 된다.
+        val player = SoundEffectPlayer(targetContext)
+        player.playCorrect()
+
+        val pool = SoundEffectPlayer.soundPoolForTest(targetContext)
+        assertThat(
+            "무음 게이트가 열려 있는 동안은 효과음이 재생되면 안 된다",
+            shadowOf(pool).wasResourcePlayed(R.raw.sfx_correct),
+            equalTo(false),
+        )
+    }
+
+    @Test
+    fun `sound plays again once the silent-startup gate is released`() {
+        SilentStartupGate.onVolumeChanged()
+
+        val player = SoundEffectPlayer(targetContext)
+        player.playCorrect()
+
+        val pool = SoundEffectPlayer.soundPoolForTest(targetContext)
+        assertThat(
+            "볼륨 조절로 게이트가 해제된 뒤에는 효과음이 정상 재생돼야 한다",
+            shadowOf(pool).wasResourcePlayed(R.raw.sfx_correct),
+            equalTo(true),
+        )
     }
 
     @Test
     fun `correct sound plays via SoundPool`() {
+        SilentStartupGate.onVolumeChanged()
         val player = SoundEffectPlayer(targetContext)
         player.playCorrect()
 
@@ -64,6 +95,7 @@ class SoundEffectPlayerTest : RobolectricTest() {
 
     @Test
     fun `applause is deferred until the correct sound finishes`() {
+        SilentStartupGate.onVolumeChanged()
         val player = SoundEffectPlayer(targetContext)
         player.playCorrect()
         player.playApplause()
@@ -78,6 +110,7 @@ class SoundEffectPlayerTest : RobolectricTest() {
 
     @Test
     fun `applause plays immediately when no correct sound is playing`() {
+        SilentStartupGate.onVolumeChanged()
         val player = SoundEffectPlayer(targetContext)
         player.playApplause()
 

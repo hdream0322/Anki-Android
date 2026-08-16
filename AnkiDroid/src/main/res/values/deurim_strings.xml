@@ -35,6 +35,9 @@
     <string name="pref_wifi_only_update_summ">Updates won\'t be checked or downloaded over mobile data</string>
     <string name="update_wifi_required">Connect to Wi-Fi and try again</string>
 
+    <!-- Silent-startup gate: shown once, when the user's first media-volume change unmutes SFX -->
+    <string name="silent_startup_gate_released">Silent mode disabled</string>
+
     <!-- Deurim settings category (aggregates all fork-only settings) -->
     <string name="pref_deurim_screen_key">deurimScreen</string>
     <string name="pref_cat_deurim" maxLength="41">Useful features</string>

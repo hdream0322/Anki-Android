@@ -21,12 +21,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.media.AudioManager
-import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import com.ichi2.anki.cardviewer.SilentStartupGate
+import com.ichi2.anki.common.utils.android.showThemedToast
 import com.ichi2.widget.WidgetStatus
 import timber.log.Timber
 
@@ -47,7 +47,7 @@ class AppLifecycleObserver(
                 val streamType = intent.getIntExtra(EXTRA_VOLUME_STREAM_TYPE, -1)
                 if (streamType != AudioManager.STREAM_MUSIC) return
                 if (SilentStartupGate.onVolumeChanged()) {
-                    Toast.makeText(receiverContext, R.string.silent_startup_gate_released, Toast.LENGTH_SHORT).show()
+                    showThemedToast(receiverContext, R.string.silent_startup_gate_released, shortLength = true)
                 }
             }
         }

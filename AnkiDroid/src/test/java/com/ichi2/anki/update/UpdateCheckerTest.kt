@@ -15,11 +15,69 @@
  */
 package com.ichi2.anki.update
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class UpdateCheckerTest {
+    @Test
+    fun `parseRelease extracts the apk sha256 digest from the matching asset`() {
+        val json =
+            """
+            {
+              "tag_name": "v0.0.21",
+              "name": "v0.0.21",
+              "body": "notes",
+              "assets": [
+                {
+                  "name": "AnkiDroid-v0.0.21.apk",
+                  "browser_download_url": "https://example.com/AnkiDroid-v0.0.21.apk",
+                  "digest": "sha256:ABCDEF0123456789"
+                }
+              ]
+            }
+            """.trimIndent()
+        val release = UpdateChecker.parseRelease(json)
+        assertEquals("abcdef0123456789", release?.apkSha256)
+    }
+
+    @Test
+    fun `parseRelease apkSha256 is null when the asset has no digest`() {
+        val json =
+            """
+            {
+              "tag_name": "v0.0.21",
+              "name": "v0.0.21",
+              "body": "notes",
+              "assets": [
+                {
+                  "name": "AnkiDroid-v0.0.21.apk",
+                  "browser_download_url": "https://example.com/AnkiDroid-v0.0.21.apk"
+                }
+              ]
+            }
+            """.trimIndent()
+        val release = UpdateChecker.parseRelease(json)
+        assertNull(release?.apkSha256)
+    }
+
+    @Test
+    fun `extractSha256Digest strips the sha256 prefix and lowercases the hex`() {
+        assertEquals("abcdef0123456789", UpdateChecker.extractSha256Digest("sha256:ABCDEF0123456789"))
+    }
+
+    @Test
+    fun `extractSha256Digest returns null for a non-sha256 digest`() {
+        assertNull(UpdateChecker.extractSha256Digest("sha1:abcdef"))
+    }
+
+    @Test
+    fun `extractSha256Digest returns null for a null digest`() {
+        assertNull(UpdateChecker.extractSha256Digest(null))
+    }
+
     @Test
     fun `isSkipped is true when latest tag matches the skipped tag`() {
         assertTrue(UpdateChecker.isSkipped(latestTag = "v0.0.21", skippedTag = "v0.0.21"))

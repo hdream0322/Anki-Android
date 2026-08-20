@@ -17,6 +17,7 @@ package com.ichi2.anki.update
 
 import android.content.Context
 import android.net.Uri
+import androidx.annotation.VisibleForTesting
 import androidx.core.content.FileProvider
 import com.ichi2.anki.web.HttpFetcher
 import kotlinx.coroutines.Dispatchers
@@ -24,6 +25,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.Request
 import timber.log.Timber
 import java.io.File
+import java.security.MessageDigest
 
 object UpdateDownloader {
     /**
@@ -72,10 +74,40 @@ object UpdateDownloader {
                 }
             }
             Timber.i("Downloaded %s (%d bytes)", targetFile.name, targetFile.length())
+
+            release.apkSha256?.let { expected ->
+                val actual = computeSha256(targetFile)
+                if (!sha256Matches(actual, expected)) {
+                    targetFile.delete()
+                    error("Checksum mismatch for ${targetFile.name}: expected $expected but got $actual")
+                }
+                Timber.i("Verified SHA-256 checksum for %s", targetFile.name)
+            }
+
             FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.apkgfileprovider",
                 targetFile,
             )
         }
+
+    @VisibleForTesting
+    internal fun computeSha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(64 * 1024)
+            while (true) {
+                val read = input.read(buffer)
+                if (read == -1) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    @VisibleForTesting
+    internal fun sha256Matches(
+        actual: String,
+        expected: String,
+    ): Boolean = actual.equals(expected, ignoreCase = true)
 }

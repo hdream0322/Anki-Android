@@ -65,6 +65,7 @@ object UpdateChecker {
         val tag = obj.optString("tag_name").takeIf { it.isNotEmpty() } ?: return null
         var apkUrl = ""
         var apkName = ""
+        var apkSha256: String? = null
         val assets = obj.optJSONArray("assets")
         if (assets != null) {
             for (i in 0 until assets.length()) {
@@ -74,6 +75,7 @@ object UpdateChecker {
                 if (name.endsWith(".apk", ignoreCase = true) && url.isNotEmpty()) {
                     apkUrl = url
                     apkName = name
+                    apkSha256 = extractSha256Digest(asset.optString("digest").takeIf { it.isNotEmpty() })
                     break
                 }
             }
@@ -84,7 +86,19 @@ object UpdateChecker {
             body = obj.optString("body"),
             apkUrl = apkUrl,
             apkName = apkName,
+            apkSha256 = apkSha256,
         )
+    }
+
+    /**
+     * GitHub's release asset `digest` field looks like `sha256:<hex>`. Returns the
+     * lowercase hex portion, or null if [digest] is null or not a `sha256:` digest.
+     */
+    @VisibleForTesting
+    fun extractSha256Digest(digest: String?): String? {
+        val prefix = "sha256:"
+        if (digest == null || !digest.startsWith(prefix, ignoreCase = true)) return null
+        return digest.substring(prefix.length).lowercase().takeIf { it.isNotEmpty() }
     }
 
     /**

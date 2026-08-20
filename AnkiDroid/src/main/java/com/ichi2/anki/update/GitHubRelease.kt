@@ -21,4 +21,6 @@ data class GitHubRelease(
     val body: String,
     val apkUrl: String,
     val apkName: String,
+    /** Lowercase hex SHA-256 of the APK asset, from GitHub's asset `digest` field. Null if absent. */
+    val apkSha256: String? = null,
 )

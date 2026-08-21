@@ -14,14 +14,14 @@ import okhttp3.sse.EventSources
 import java.util.concurrent.TimeUnit
 
 /** Streams tokens from an [AiProvider] over Server-Sent Events using OkHttp's `okhttp-sse`. */
-class AiStreamingClient(
+open class AiStreamingClient(
     private val client: OkHttpClient =
         OkHttpClient
             .Builder()
             .readTimeout(0, TimeUnit.MILLISECONDS)
             .build(),
 ) {
-    fun stream(
+    open fun stream(
         provider: AiProvider,
         apiKey: String,
         model: String,

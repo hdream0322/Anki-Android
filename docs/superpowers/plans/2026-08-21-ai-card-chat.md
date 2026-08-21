@@ -131,7 +131,7 @@ class CardContentExtractorTest {
 
 - [ ] **Step 2: 테스트 실패 확인**
 
-Run: `./gradlew :AnkiDroid:testDebugUnitTest --tests "com.ichi2.anki.ai.CardContentExtractorTest"`
+Run: `./gradlew :AnkiDroid:testFullDebugUnitTest --tests "com.ichi2.anki.ai.CardContentExtractorTest"`
 Expected: FAIL — `CardContentExtractor`가 존재하지 않아 컴파일 에러.
 
 - [ ] **Step 3: 최소 구현 작성**
@@ -166,7 +166,7 @@ object CardContentExtractor {
 
 - [ ] **Step 4: 테스트 통과 확인**
 
-Run: `./gradlew :AnkiDroid:testDebugUnitTest --tests "com.ichi2.anki.ai.CardContentExtractorTest"`
+Run: `./gradlew :AnkiDroid:testFullDebugUnitTest --tests "com.ichi2.anki.ai.CardContentExtractorTest"`
 Expected: PASS (3 tests)
 
 - [ ] **Step 5: Commit**
@@ -343,7 +343,7 @@ class AiStreamingClientTest {
 
 - [ ] **Step 3: 테스트 실패 확인**
 
-Run: `./gradlew :AnkiDroid:testDebugUnitTest --tests "com.ichi2.anki.ai.AiStreamingClientTest"`
+Run: `./gradlew :AnkiDroid:testFullDebugUnitTest --tests "com.ichi2.anki.ai.AiStreamingClientTest"`
 Expected: FAIL — `AiStreamingClient`가 존재하지 않아 컴파일 에러.
 
 - [ ] **Step 4: `AiStreamingClient` 구현**
@@ -421,7 +421,7 @@ class AiStreamingClient(
 
 - [ ] **Step 5: 테스트 통과 확인**
 
-Run: `./gradlew :AnkiDroid:testDebugUnitTest --tests "com.ichi2.anki.ai.AiStreamingClientTest"`
+Run: `./gradlew :AnkiDroid:testFullDebugUnitTest --tests "com.ichi2.anki.ai.AiStreamingClientTest"`
 Expected: PASS
 
 - [ ] **Step 6: Commit**
@@ -520,7 +520,7 @@ class OpenAiProviderTest {
 
 - [ ] **Step 2: 테스트 실패 확인**
 
-Run: `./gradlew :AnkiDroid:testDebugUnitTest --tests "com.ichi2.anki.ai.OpenAiProviderTest"`
+Run: `./gradlew :AnkiDroid:testFullDebugUnitTest --tests "com.ichi2.anki.ai.OpenAiProviderTest"`
 Expected: FAIL — `OpenAiProvider`가 존재하지 않음.
 
 - [ ] **Step 3: 구현 작성**
@@ -590,7 +590,7 @@ class OpenAiProvider : AiProvider {
 
 - [ ] **Step 4: 테스트 통과 확인**
 
-Run: `./gradlew :AnkiDroid:testDebugUnitTest --tests "com.ichi2.anki.ai.OpenAiProviderTest"`
+Run: `./gradlew :AnkiDroid:testFullDebugUnitTest --tests "com.ichi2.anki.ai.OpenAiProviderTest"`
 Expected: PASS (5 tests)
 
 - [ ] **Step 5: Commit**
@@ -700,7 +700,7 @@ class AnthropicProviderTest {
 
 - [ ] **Step 2: 테스트 실패 확인**
 
-Run: `./gradlew :AnkiDroid:testDebugUnitTest --tests "com.ichi2.anki.ai.AnthropicProviderTest"`
+Run: `./gradlew :AnkiDroid:testFullDebugUnitTest --tests "com.ichi2.anki.ai.AnthropicProviderTest"`
 Expected: FAIL — `AnthropicProvider`가 존재하지 않음.
 
 - [ ] **Step 3: 구현 작성**
@@ -773,7 +773,7 @@ class AnthropicProvider : AiProvider {
 
 - [ ] **Step 4: 테스트 통과 확인**
 
-Run: `./gradlew :AnkiDroid:testDebugUnitTest --tests "com.ichi2.anki.ai.AnthropicProviderTest"`
+Run: `./gradlew :AnkiDroid:testFullDebugUnitTest --tests "com.ichi2.anki.ai.AnthropicProviderTest"`
 Expected: PASS (6 tests)
 
 - [ ] **Step 5: Commit**
@@ -877,7 +877,7 @@ class GeminiProviderTest {
 
 - [ ] **Step 2: 테스트 실패 확인**
 
-Run: `./gradlew :AnkiDroid:testDebugUnitTest --tests "com.ichi2.anki.ai.GeminiProviderTest"`
+Run: `./gradlew :AnkiDroid:testFullDebugUnitTest --tests "com.ichi2.anki.ai.GeminiProviderTest"`
 Expected: FAIL — `GeminiProvider`가 존재하지 않음.
 
 - [ ] **Step 3: 구현 작성**
@@ -949,7 +949,7 @@ class GeminiProvider : AiProvider {
 
 - [ ] **Step 4: 테스트 통과 확인**
 
-Run: `./gradlew :AnkiDroid:testDebugUnitTest --tests "com.ichi2.anki.ai.GeminiProviderTest"`
+Run: `./gradlew :AnkiDroid:testFullDebugUnitTest --tests "com.ichi2.anki.ai.GeminiProviderTest"`
 Expected: PASS (4 tests)
 
 - [ ] **Step 5: Commit**
@@ -1010,7 +1010,7 @@ class AiKeyStoreTest : RobolectricTest() {
 
 - [ ] **Step 2: 테스트 실패 확인**
 
-Run: `./gradlew :AnkiDroid:testDebugUnitTest --tests "com.ichi2.anki.ai.AiKeyStoreTest"`
+Run: `./gradlew :AnkiDroid:testFullDebugUnitTest --tests "com.ichi2.anki.ai.AiKeyStoreTest"`
 Expected: FAIL — `AiKeyStore`가 존재하지 않음.
 
 - [ ] **Step 3: 구현 작성**
@@ -1051,7 +1051,7 @@ class AiKeyStore(
 
 - [ ] **Step 4: 테스트 통과 확인**
 
-Run: `./gradlew :AnkiDroid:testDebugUnitTest --tests "com.ichi2.anki.ai.AiKeyStoreTest"`
+Run: `./gradlew :AnkiDroid:testFullDebugUnitTest --tests "com.ichi2.anki.ai.AiKeyStoreTest"`
 Expected: PASS (3 tests)
 
 - [ ] **Step 5: Commit**
@@ -1107,7 +1107,7 @@ class AiProviderKindTest {
 
 - [ ] **Step 2: 테스트 실패 확인**
 
-Run: `./gradlew :AnkiDroid:testDebugUnitTest --tests "com.ichi2.anki.settings.enums.AiProviderKindTest"`
+Run: `./gradlew :AnkiDroid:testFullDebugUnitTest --tests "com.ichi2.anki.settings.enums.AiProviderKindTest"`
 Expected: FAIL — `AiProviderKind`가 존재하지 않음.
 
 - [ ] **Step 3: `deurim_strings.xml`에 문자열/배열 추가**
@@ -1159,7 +1159,7 @@ enum class AiProviderKind(
 
 - [ ] **Step 5: 테스트 통과 확인**
 
-Run: `./gradlew :AnkiDroid:testDebugUnitTest --tests "com.ichi2.anki.settings.enums.AiProviderKindTest"`
+Run: `./gradlew :AnkiDroid:testFullDebugUnitTest --tests "com.ichi2.anki.settings.enums.AiProviderKindTest"`
 Expected: PASS (2 tests)
 
 - [ ] **Step 6: `Prefs.kt`에 델리게이트 추가**
@@ -1255,7 +1255,7 @@ import com.ichi2.anki.ai.AiKeyStore
 
 - [ ] **Step 9: 컴파일 확인**
 
-Run: `./gradlew :AnkiDroid:compileDebugKotlin`
+Run: `./gradlew :AnkiDroid:compileFullDebugKotlin`
 Expected: BUILD SUCCESSFUL
 
 - [ ] **Step 10: Commit**
@@ -1315,7 +1315,7 @@ class MetaDBAiChatTest : RobolectricTest() {
 
 - [ ] **Step 2: 테스트 실패 확인**
 
-Run: `./gradlew :AnkiDroid:testDebugUnitTest --tests "com.ichi2.anki.MetaDBAiChatTest"`
+Run: `./gradlew :AnkiDroid:testFullDebugUnitTest --tests "com.ichi2.anki.MetaDBAiChatTest"`
 Expected: FAIL — `MetaDB.storeAiChatMessage`/`getAiChatMessages`가 존재하지 않음.
 
 - [ ] **Step 3: 테이블 마이그레이션 추가**
@@ -1398,7 +1398,7 @@ import com.ichi2.anki.libanki.NoteId
 
 - [ ] **Step 5: 테스트 통과 확인**
 
-Run: `./gradlew :AnkiDroid:testDebugUnitTest --tests "com.ichi2.anki.MetaDBAiChatTest"`
+Run: `./gradlew :AnkiDroid:testFullDebugUnitTest --tests "com.ichi2.anki.MetaDBAiChatTest"`
 Expected: PASS (2 tests)
 
 - [ ] **Step 6: Commit**
@@ -1442,7 +1442,7 @@ class ViewerActionTest {
 
 - [ ] **Step 2: 테스트 실패 확인**
 
-Run: `./gradlew :AnkiDroid:testDebugUnitTest --tests "com.ichi2.anki.preferences.reviewer.ViewerActionTest"`
+Run: `./gradlew :AnkiDroid:testFullDebugUnitTest --tests "com.ichi2.anki.preferences.reviewer.ViewerActionTest"`
 Expected: FAIL — `ViewerAction.AI_CHAT`이 존재하지 않음.
 
 - [ ] **Step 3: 아이콘 벡터 드로어블 추가**
@@ -1495,7 +1495,7 @@ Expected: FAIL — `ViewerAction.AI_CHAT`이 존재하지 않음.
 
 - [ ] **Step 5: 테스트 통과 확인**
 
-Run: `./gradlew :AnkiDroid:testDebugUnitTest --tests "com.ichi2.anki.preferences.reviewer.ViewerActionTest"`
+Run: `./gradlew :AnkiDroid:testFullDebugUnitTest --tests "com.ichi2.anki.preferences.reviewer.ViewerActionTest"`
 Expected: PASS
 
 - [ ] **Step 6: `ReviewerViewModel`에 열기 이벤트 배선**
@@ -1537,7 +1537,7 @@ data class AiChatLaunchArgs(
 
 - [ ] **Step 7: 컴파일 확인**
 
-Run: `./gradlew :AnkiDroid:compileDebugKotlin`
+Run: `./gradlew :AnkiDroid:compileFullDebugKotlin`
 Expected: BUILD SUCCESSFUL (특히 `executeAction`의 `when`이 `AI_CHAT` 분기 없이는 컴파일되지 않는 것으로 배선이 빠지지 않았음을 확인)
 
 - [ ] **Step 8: Commit**
@@ -1710,7 +1710,7 @@ open class AiStreamingClient(
 
 - [ ] **Step 3: 테스트 실패 확인**
 
-Run: `./gradlew :AnkiDroid:testDebugUnitTest --tests "com.ichi2.anki.ai.chat.AiChatViewModelTest"`
+Run: `./gradlew :AnkiDroid:testFullDebugUnitTest --tests "com.ichi2.anki.ai.chat.AiChatViewModelTest"`
 Expected: FAIL — `AiChatViewModel`이 존재하지 않음.
 
 - [ ] **Step 4: 구현 작성**
@@ -1800,12 +1800,12 @@ class AiChatViewModel(
 
 - [ ] **Step 5: 테스트 통과 확인**
 
-Run: `./gradlew :AnkiDroid:testDebugUnitTest --tests "com.ichi2.anki.ai.chat.AiChatViewModelTest"`
+Run: `./gradlew :AnkiDroid:testFullDebugUnitTest --tests "com.ichi2.anki.ai.chat.AiChatViewModelTest"`
 Expected: PASS
 
 - [ ] **Step 6: 관련 회귀 확인 (Task 3의 `AiStreamingClient` 테스트가 `open` 변경으로 깨지지 않았는지)**
 
-Run: `./gradlew :AnkiDroid:testDebugUnitTest --tests "com.ichi2.anki.ai.AiStreamingClientTest"`
+Run: `./gradlew :AnkiDroid:testFullDebugUnitTest --tests "com.ichi2.anki.ai.AiStreamingClientTest"`
 Expected: PASS
 
 - [ ] **Step 7: Commit**
@@ -2100,17 +2100,17 @@ class AiChatBottomSheetFragment : BottomSheetDialogFragment(R.layout.fragment_ai
 
 - [ ] **Step 6: 전체 컴파일 확인**
 
-Run: `./gradlew :AnkiDroid:compileDebugKotlin`
+Run: `./gradlew :AnkiDroid:compileFullDebugKotlin`
 Expected: BUILD SUCCESSFUL (뷰 바인딩 클래스 `FragmentAiChatBinding`/`ItemAiChatMessageBinding`은 위 레이아웃 XML로부터 자동 생성됨)
 
 - [ ] **Step 7: 전체 유닛 테스트 회귀 확인**
 
-Run: `./gradlew :AnkiDroid:testDebugUnitTest --tests "com.ichi2.anki.ai.*"`
+Run: `./gradlew :AnkiDroid:testFullDebugUnitTest --tests "com.ichi2.anki.ai.*"`
 Expected: PASS (모든 AI 관련 테스트)
 
 - [ ] **Step 8: 수동 검증 (에뮬레이터/실기기)**
 
-1. 앱을 디버그 빌드로 설치한다: `./gradlew :AnkiDroid:installDebug`
+1. 앱을 디버그 빌드로 설치한다: `./gradlew :AnkiDroid:installFullDebug`
 2. 설정 → Useful features → AI에서 프로바이더를 선택하고 실제(또는 테스트용) API 키를 입력한다.
 3. 리뷰 화면에서 카드 하나를 연 뒤, 오버플로 메뉴에서 "Ask AI about this card"를 탭한다.
 4. 바텀시트가 뜨고, 메시지를 입력해 전송하면 스트리밍으로 답변이 타이핑되듯 채워지는지 확인한다.

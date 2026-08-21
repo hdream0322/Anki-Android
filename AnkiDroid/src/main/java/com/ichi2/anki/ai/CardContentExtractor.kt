@@ -10,13 +10,15 @@ import com.ichi2.anki.backend.stripHTMLAndSpecialFields
  * per the design decision to keep v1 text-only.
  */
 object CardContentExtractor {
+    const val INSTRUCTION = "You are helping a student understand this Anki flashcard. Answer questions about it clearly and concisely."
+
     fun extract(
         questionHtml: String,
         answerHtml: String,
     ): String {
         val question = clean(questionHtml)
         val answer = clean(answerHtml)
-        return "Front: $question\nBack: $answer"
+        return "$INSTRUCTION\n\nFront: $question\nBack: $answer"
     }
 
     private fun clean(html: String): String =

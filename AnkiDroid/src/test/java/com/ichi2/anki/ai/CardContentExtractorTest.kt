@@ -14,7 +14,7 @@ class CardContentExtractorTest {
         val result = CardContentExtractor.extract(question, answer)
 
         assertEquals(
-            "Front: What is 2+2?\nBack: What is 2+2?4",
+            "${CardContentExtractor.INSTRUCTION}\n\nFront: What is 2+2?\nBack: What is 2+2?4",
             result,
         )
     }
@@ -26,7 +26,7 @@ class CardContentExtractorTest {
 
         val result = CardContentExtractor.extract(question, answer)
 
-        assertEquals("Front: Listen:\nBack: A picture", result)
+        assertEquals("${CardContentExtractor.INSTRUCTION}\n\nFront: Listen:\nBack: A picture", result)
     }
 
     @Test
@@ -36,6 +36,13 @@ class CardContentExtractorTest {
 
         val result = CardContentExtractor.extract(question, answer)
 
-        assertEquals("Front: Multiple spaces\nBack: Answer", result)
+        assertEquals("${CardContentExtractor.INSTRUCTION}\n\nFront: Multiple spaces\nBack: Answer", result)
+    }
+
+    @Test
+    fun `prepends an instruction sentence framing the assistant's role`() {
+        val result = CardContentExtractor.extract("Q", "A")
+
+        assertEquals(true, result.startsWith(CardContentExtractor.INSTRUCTION))
     }
 }

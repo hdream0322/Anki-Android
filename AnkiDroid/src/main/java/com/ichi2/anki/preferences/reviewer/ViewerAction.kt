@@ -49,6 +49,7 @@ enum class ViewerAction(
     SUSPEND_MENU(R.id.action_suspend, R.drawable.ic_suspend, MENU_ONLY),
     DELETE(R.id.action_delete, R.drawable.ic_delete_white, MENU_ONLY),
     TOGGLE_WHITEBOARD(R.id.action_toggle_whiteboard, R.drawable.ic_enable_whiteboard, MENU_ONLY),
+    AI_CHAT(R.id.action_ai_chat, R.drawable.ic_ai_chat, MENU_ONLY),
 
     // Disabled
     BROWSE(R.id.action_browse, R.drawable.ic_flashcard_black, DISABLED),
@@ -213,6 +214,7 @@ enum class ViewerAction(
             EXIT,
             RESCHEDULE_NOTE,
             TOGGLE_WHITEBOARD,
+            AI_CHAT,
             PAGE_UP,
             PAGE_DOWN,
             USER_ACTION_1,
@@ -259,6 +261,7 @@ enum class ViewerAction(
                 SUSPEND_MENU -> TR.studyingSuspend()
                 DELETE -> TR.sentenceCase.deleteNote
                 TOGGLE_WHITEBOARD -> getString(R.string.gesture_toggle_whiteboard)
+                AI_CHAT -> getString(R.string.ai_chat_title)
                 DECK_OPTIONS -> TR.sentenceCase.deckOptions
                 CARD_INFO -> TR.sentenceCase.cardInfo
                 ADD_NOTE -> getString(R.string.menu_add_note)

@@ -98,4 +98,8 @@
     <string name="pref_ai_api_key_summary_set">A key is set (tap to change)</string>
     <string name="pref_ai_api_key_summary_not_set">Required to use AI chat — stored encrypted on this device only</string>
     <string name="ai_chat_title">Ask AI about this card</string>
+    <string name="ai_chat_input_hint">Ask a question about this card…</string>
+    <string name="ai_chat_send">Send</string>
+    <string name="ai_chat_error">AI request failed — check your connection and API key</string>
+    <string name="ai_chat_missing_api_key">Set an AI API key in Settings → Useful features → AI first</string>
 </resources>

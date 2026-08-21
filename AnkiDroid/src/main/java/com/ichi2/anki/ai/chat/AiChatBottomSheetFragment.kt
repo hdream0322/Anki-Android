@@ -66,16 +66,16 @@ class AiChatBottomSheetFragment : BottomSheetDialogFragment(R.layout.fragment_ai
         binding.messageList.layoutManager = LinearLayoutManager(requireContext())
         binding.messageList.adapter = adapter
 
-        viewModel.messages.collectIn(lifecycleScope) { messages ->
+        viewModel.messages.collectIn(viewLifecycleOwner.lifecycleScope) { messages ->
             adapter.submitList(messages)
             if (messages.isNotEmpty()) binding.messageList.scrollToPosition(messages.size - 1)
         }
 
-        viewModel.errorFlow.collectIn(lifecycleScope) {
+        viewModel.errorFlow.collectIn(viewLifecycleOwner.lifecycleScope) {
             showSnackbar(R.string.ai_chat_error)
         }
 
-        viewModel.isStreaming.collectIn(lifecycleScope) { isStreaming ->
+        viewModel.isStreaming.collectIn(viewLifecycleOwner.lifecycleScope) { isStreaming ->
             binding.sendButton.isEnabled = !isStreaming
             binding.messageInput.isEnabled = !isStreaming
         }

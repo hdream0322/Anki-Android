@@ -29,6 +29,7 @@ class AiChatViewModel(
     private val streamingClient: AiStreamingClient,
     private val storeMessage: (AiChatMessage) -> Unit,
     private val loadHistory: () -> List<AiChatMessage>,
+    private val onClearHistory: () -> Unit = {},
 ) : ViewModel() {
     private val _messages = MutableStateFlow(loadHistory())
     val messages: StateFlow<List<AiChatMessage>> = _messages.asStateFlow()
@@ -75,6 +76,13 @@ class AiChatViewModel(
                 _isStreaming.value = false
             }
         }
+    }
+
+    /** No-op while a stream is in flight, so a clear can't race with an in-progress reply. */
+    fun clearHistory() {
+        if (_isStreaming.value) return
+        _messages.value = emptyList()
+        onClearHistory()
     }
 
     private fun appendAndPersist(message: AiChatMessage) {

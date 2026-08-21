@@ -195,6 +195,70 @@ class AiChatViewModelTest {
     }
 
     @Test
+    fun `clearHistory empties the messages list and invokes the clear callback`() =
+        runTest {
+            val provider = FakeProvider(emptyList())
+            var cleared = false
+            val viewModel =
+                AiChatViewModel(
+                    noteId = 1L,
+                    cardContent = "Front: Q Back: A",
+                    provider = provider,
+                    apiKey = "key",
+                    model = "fake-model",
+                    streamingClient = FakeStreamingClient(provider.asFlow()),
+                    storeMessage = { },
+                    loadHistory = { listOf(AiChatMessage(AiChatRole.USER, "old question")) },
+                    onClearHistory = { cleared = true },
+                )
+
+            assertEquals(listOf(AiChatMessage(AiChatRole.USER, "old question")), viewModel.messages.value)
+
+            viewModel.clearHistory()
+
+            assertEquals(emptyList<AiChatMessage>(), viewModel.messages.value)
+            assertEquals(true, cleared)
+        }
+
+    @Test
+    fun `clearHistory is ignored while a stream is in flight`() =
+        runTest {
+            val provider = FakeProvider(emptyList())
+            val neverCompletingFlow: Flow<AiSseEvent> =
+                callbackFlow {
+                    awaitClose {}
+                }
+            var cleared = false
+            val viewModel =
+                AiChatViewModel(
+                    noteId = 1L,
+                    cardContent = "Front: Q Back: A",
+                    provider = provider,
+                    apiKey = "key",
+                    model = "fake-model",
+                    streamingClient = FakeStreamingClient(neverCompletingFlow),
+                    storeMessage = { },
+                    loadHistory = { emptyList() },
+                    onClearHistory = { cleared = true },
+                )
+
+            viewModel.messages.test {
+                assertEquals(emptyList<AiChatMessage>(), awaitItem())
+
+                viewModel.sendMessage("First")
+                assertEquals(listOf(AiChatMessage(AiChatRole.USER, "First")), awaitItem())
+
+                viewModel.clearHistory()
+                dispatcher.scheduler.advanceUntilIdle()
+
+                assertEquals(listOf(AiChatMessage(AiChatRole.USER, "First")), viewModel.messages.value)
+                assertEquals(false, cleared)
+
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
     fun `sendMessage sends only the most recent messages once history exceeds the cap`() =
         runTest {
             val provider = FakeProvider(listOf(AiSseEvent.Token("ok"), AiSseEvent.Done))

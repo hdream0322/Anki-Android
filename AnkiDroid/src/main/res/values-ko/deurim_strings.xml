@@ -70,4 +70,8 @@
     <string name="ai_chat_send">전송</string>
     <string name="ai_chat_error">AI 요청에 실패했어요 — 인터넷 연결과 API 키를 확인해 주세요</string>
     <string name="ai_chat_missing_api_key">설정 → 유용한 기능 → AI에서 API 키를 먼저 등록해 주세요</string>
+    <string name="ai_chat_generating">답변 생성 중…</string>
+    <string name="ai_chat_clear_history">채팅 기록 삭제</string>
+    <string name="ai_chat_clear_history_confirm">이 카드의 AI 채팅 기록을 모두 삭제할까요? 되돌릴 수 없어요.</string>
+    <string name="ai_chat_history_cleared">채팅 기록을 삭제했어요</string>
 </resources>

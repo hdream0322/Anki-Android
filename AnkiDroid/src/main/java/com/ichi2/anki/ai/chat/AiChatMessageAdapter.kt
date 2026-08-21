@@ -31,7 +31,7 @@ class AiChatMessageAdapter : RecyclerView.Adapter<AiChatMessageAdapter.Holder>()
         position: Int,
     ) {
         val message = items[position]
-        holder.binding.messageText.text = message.content
+        holder.binding.messageText.text = MarkdownText.render(message.content)
         val layoutParams = holder.binding.messageText.layoutParams as android.widget.FrameLayout.LayoutParams
         layoutParams.gravity = if (message.role == AiChatRole.USER) Gravity.END else Gravity.START
         holder.binding.messageText.layoutParams = layoutParams

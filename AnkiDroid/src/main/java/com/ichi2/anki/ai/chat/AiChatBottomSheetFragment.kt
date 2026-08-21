@@ -4,7 +4,9 @@ package com.ichi2.anki.ai.chat
 
 import android.os.Bundle
 import android.view.View
+import androidx.appcompat.app.AlertDialog
 import androidx.core.os.BundleCompat
+import androidx.core.view.isVisible
 import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.ViewModel
@@ -24,7 +26,13 @@ import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.settings.enums.AiProviderKind
 import com.ichi2.anki.snackbar.showSnackbar
 import com.ichi2.anki.ui.windows.reviewer.AiChatLaunchArgs
+import com.ichi2.anki.utils.ext.behavior
 import com.ichi2.anki.utils.ext.collectIn
+import com.ichi2.utils.message
+import com.ichi2.utils.negativeButton
+import com.ichi2.utils.positiveButton
+import com.ichi2.utils.show
+import com.ichi2.utils.title
 import dev.androidbroadcast.vbpd.viewBinding
 
 class AiChatBottomSheetFragment : BottomSheetDialogFragment(R.layout.fragment_ai_chat) {
@@ -54,6 +62,7 @@ class AiChatBottomSheetFragment : BottomSheetDialogFragment(R.layout.fragment_ai
                     streamingClient = AiStreamingClient(),
                     storeMessage = { message -> MetaDB.storeAiChatMessage(requireContext(), args.noteId, message) },
                     loadHistory = { MetaDB.getAiChatMessages(requireContext(), args.noteId) },
+                    onClearHistory = { MetaDB.deleteAiChatMessages(requireContext(), args.noteId) },
                 ) as T
             }
         }
@@ -80,6 +89,12 @@ class AiChatBottomSheetFragment : BottomSheetDialogFragment(R.layout.fragment_ai
         viewModel.isStreaming.collectIn(viewLifecycleOwner.lifecycleScope) { isStreaming ->
             binding.sendButton.isEnabled = !isStreaming
             binding.messageInput.isEnabled = !isStreaming
+            binding.clearHistoryButton.isEnabled = !isStreaming
+            binding.generatingIndicator.isVisible = isStreaming
+            // Prevent an accidental swipe-down/back-press/outside-tap from dropping an in-flight
+            // request during the network delay before the first token arrives.
+            isCancelable = !isStreaming
+            behavior.isDraggable = !isStreaming
         }
 
         binding.sendButton.setOnClickListener {
@@ -96,6 +111,18 @@ class AiChatBottomSheetFragment : BottomSheetDialogFragment(R.layout.fragment_ai
             }
             viewModel.sendMessage(text)
             binding.messageInput.text?.clear()
+        }
+
+        binding.clearHistoryButton.setOnClickListener {
+            AlertDialog.Builder(requireContext()).show {
+                title(R.string.ai_chat_clear_history)
+                message(R.string.ai_chat_clear_history_confirm)
+                positiveButton(R.string.ai_chat_clear_history) {
+                    viewModel.clearHistory()
+                    showSnackbar(R.string.ai_chat_history_cleared)
+                }
+                negativeButton(R.string.dialog_cancel)
+            }
         }
     }
 

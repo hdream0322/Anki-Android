@@ -65,7 +65,9 @@ class DeurimSettingsFragment : SettingsFragment() {
         val keyStore = AiKeyStore(requireContext())
         requirePreference<EditTextPreference>(R.string.pref_ai_api_key_key).apply {
             isPersistent = false
-            text = keyStore.apiKey
+            // Write-only: the field always opens blank, even once a key is set — there is no way
+            // to view or edit the stored key, only to replace it with a brand-new one.
+            text = null
             summaryProvider =
                 Preference.SummaryProvider<EditTextPreference> {
                     if (keyStore.hasApiKey()) {
@@ -75,8 +77,13 @@ class DeurimSettingsFragment : SettingsFragment() {
                     }
                 }
             setOnPreferenceChangeListener { preference, newValue ->
-                keyStore.apiKey = (newValue as String).trim().ifBlank { null }
-                (preference as EditTextPreference).text = keyStore.apiKey
+                val trimmed = (newValue as String).trim()
+                // An empty submission must not clear an existing key — only a non-blank entry
+                // replaces it.
+                if (trimmed.isNotEmpty()) {
+                    keyStore.apiKey = trimmed
+                }
+                (preference as EditTextPreference).text = null
                 true
             }
         }

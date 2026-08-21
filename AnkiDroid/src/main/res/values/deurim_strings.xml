@@ -108,5 +108,9 @@
     <string name="ai_chat_send">Send</string>
     <string name="ai_chat_error">AI request failed — check your connection and API key</string>
     <string name="ai_chat_missing_api_key">Set an AI API key in Settings → Useful features → AI first</string>
+    <string name="ai_chat_generating">Generating…</string>
+    <string name="ai_chat_clear_history">Clear chat history</string>
+    <string name="ai_chat_clear_history_confirm">Delete all AI chat messages for this note? This can\'t be undone.</string>
+    <string name="ai_chat_history_cleared">Chat history cleared</string>
     <string name="custom_button_ai_chat_key">customButtonAiChat</string>
 </resources>

@@ -719,6 +719,19 @@ object MetaDB {
         }
     }
 
+    /** Deletes all AI chat history for a note. */
+    fun deleteAiChatMessages(
+        context: Context,
+        nid: NoteId,
+    ) {
+        openDBIfClosed(context)
+        try {
+            metaDb!!.execSQL("DELETE FROM aiChatMessages WHERE nid = ?;", arrayOf<Any>(nid))
+        } catch (e: Exception) {
+            Timber.e(e, "Error deleting AI chat messages from MetaDB")
+        }
+    }
+
     /** Returns a note's AI chat history in insertion order. */
     fun getAiChatMessages(
         context: Context,

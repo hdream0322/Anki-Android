@@ -19,7 +19,7 @@ class CardContentExtractorTest {
 
     @Test
     fun `strips sound and image special fields`() {
-        val question = "Listen: [sound:audio.mp3]"
+        val question = "Listen: [anki:play:q:0]"
         val answer = "<img src=\"pic.jpg\">A picture"
 
         val result = CardContentExtractor.extract(question, answer)

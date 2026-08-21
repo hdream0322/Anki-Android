@@ -19,8 +19,6 @@ object CardContentExtractor {
 
     private fun clean(html: String): String =
         stripHTMLAndSpecialFields(html)
-            .replace(Regex("\\[sound:[^]]*]"), "")
-            .replace(Regex("\\[anki:tts:[^]]*]"), "")
             .replace(Regex("\\s+"), " ")
             .trim()
 }

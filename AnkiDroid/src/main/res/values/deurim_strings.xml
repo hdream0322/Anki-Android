@@ -102,4 +102,5 @@
     <string name="ai_chat_send">Send</string>
     <string name="ai_chat_error">AI request failed — check your connection and API key</string>
     <string name="ai_chat_missing_api_key">Set an AI API key in Settings → Useful features → AI first</string>
+    <string name="custom_button_ai_chat_key">customButtonAiChat</string>
 </resources>

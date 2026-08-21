@@ -54,6 +54,8 @@ import com.ichi2.anki.CollectionManager.TR
 import com.ichi2.anki.CollectionManager.withCol
 import com.ichi2.anki.Whiteboard.Companion.createInstance
 import com.ichi2.anki.Whiteboard.OnPaintColorChangeListener
+import com.ichi2.anki.ai.CardContentExtractor
+import com.ichi2.anki.ai.chat.AiChatBottomSheetFragment
 import com.ichi2.anki.cardviewer.Gesture
 import com.ichi2.anki.cardviewer.SoundEffectPlayer
 import com.ichi2.anki.cardviewer.ViewerCommand
@@ -113,6 +115,7 @@ import com.ichi2.anki.settings.enums.DayTheme
 import com.ichi2.anki.snackbar.showSnackbar
 import com.ichi2.anki.startup.ensureStorageIsReady
 import com.ichi2.anki.ui.internationalization.sentenceCase
+import com.ichi2.anki.ui.windows.reviewer.AiChatLaunchArgs
 import com.ichi2.anki.ui.windows.reviewer.ReviewerFragment
 import com.ichi2.anki.utils.ext.cardStatsNoCardClean
 import com.ichi2.anki.utils.ext.flag
@@ -595,6 +598,10 @@ open class Reviewer :
                 Timber.i("Card Viewer:: Previous Card Info")
                 openPreviousCardInfo()
             }
+            R.id.action_ai_chat -> {
+                Timber.i("Card Viewer:: AI Chat")
+                openAiChat()
+            }
             R.id.user_action_1 -> userAction(1)
             R.id.user_action_2 -> userAction(2)
             R.id.user_action_3 -> userAction(3)
@@ -903,6 +910,19 @@ open class Reviewer :
         val animation = getAnimationTransitionFromGesture(fromGesture)
         intent.putExtra(EXTRA_FINISH_ANIMATION, animation.invert() as Parcelable)
         startActivityWithAnimation(intent, animation)
+    }
+
+    private fun openAiChat() {
+        val card = currentCard
+        if (card == null) {
+            showSnackbar(getString(R.string.multimedia_editor_something_wrong), Snackbar.LENGTH_SHORT)
+            return
+        }
+        Timber.i("opening AI chat")
+        launchCatchingTask {
+            val content = withCol { CardContentExtractor.extract(card.question(this), card.answer(this)) }
+            AiChatBottomSheetFragment.show(supportFragmentManager, AiChatLaunchArgs(card.nid, content))
+        }
     }
 
     // Related to https://github.com/ankidroid/Anki-Android/pull/11061#issuecomment-1107868455

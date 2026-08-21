@@ -139,6 +139,13 @@ TODO: Add a unit test
             android:key="@string/custom_button_toggle_auto_advance"
             android:title="@string/toggle_auto_advance"
             app:useSimpleSummaryProvider="true"/>
+        <ListPreference
+            android:defaultValue="1"
+            android:entries="@array/custom_button_labels"
+            android:entryValues="@array/custom_button_values"
+            android:key="@string/custom_button_ai_chat_key"
+            android:title="@string/ai_chat_title"
+            app:useSimpleSummaryProvider="true"/>
     </PreferenceCategory>
     <PreferenceCategory android:title="@string/menu_dismiss_note" >
         <ListPreference

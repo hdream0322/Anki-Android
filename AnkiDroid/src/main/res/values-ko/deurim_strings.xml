@@ -53,4 +53,16 @@
     <string name="update_already_latest">이미 최신 버전입니다</string>
     <string name="update_downloading">새 버전 다운로드 중…</string>
     <string name="update_need_install_permission">알 수 없는 앱 설치 권한이 필요합니다. 설정에서 허용해 주세요.</string>
+
+    <!-- AI card chat -->
+    <string name="pref_cat_ai">AI</string>
+    <string name="pref_ai_provider_title">AI 제공자</string>
+    <string name="pref_ai_api_key_title">API 키</string>
+    <string name="pref_ai_api_key_summary_set">키가 설정되어 있어요 (탭하여 변경)</string>
+    <string name="pref_ai_api_key_summary_not_set">AI 채팅을 사용하려면 필요해요 — 이 기기에만 암호화되어 저장됩니다</string>
+    <string name="ai_chat_title">이 카드에 대해 AI에게 질문하기</string>
+    <string name="ai_chat_input_hint">이 카드에 대해 질문해보세요…</string>
+    <string name="ai_chat_send">전송</string>
+    <string name="ai_chat_error">AI 요청에 실패했어요 — 인터넷 연결과 API 키를 확인해 주세요</string>
+    <string name="ai_chat_missing_api_key">설정 → 유용한 기능 → AI에서 API 키를 먼저 등록해 주세요</string>
 </resources>

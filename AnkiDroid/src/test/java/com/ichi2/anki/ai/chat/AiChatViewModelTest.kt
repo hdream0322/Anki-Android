@@ -9,7 +9,9 @@ import com.ichi2.anki.ai.AiSseEvent
 import com.ichi2.anki.ai.AiStreamingClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -101,6 +103,48 @@ class AiChatViewModelTest {
                 ),
                 stored,
             )
+        }
+
+    @Test
+    fun `sendMessage ignores a second call while a stream is already in flight`() =
+        runTest {
+            val provider = FakeProvider(emptyList())
+            var streamInvocations = 0
+            val neverCompletingFlow: Flow<AiSseEvent> =
+                callbackFlow {
+                    streamInvocations++
+                    awaitClose {}
+                }
+            val stored = mutableListOf<AiChatMessage>()
+            val viewModel =
+                AiChatViewModel(
+                    noteId = 1L,
+                    cardContent = "Front: Q Back: A",
+                    provider = provider,
+                    apiKey = "key",
+                    model = "fake-model",
+                    streamingClient = FakeStreamingClient(neverCompletingFlow),
+                    storeMessage = { stored += it },
+                    loadHistory = { emptyList() },
+                )
+
+            viewModel.messages.test {
+                assertEquals(emptyList<AiChatMessage>(), awaitItem())
+
+                viewModel.sendMessage("First")
+                assertEquals(listOf(AiChatMessage(AiChatRole.USER, "First")), awaitItem())
+
+                assertEquals(true, viewModel.isStreaming.value)
+
+                viewModel.sendMessage("Second")
+                dispatcher.scheduler.advanceUntilIdle()
+
+                assertEquals(listOf(AiChatMessage(AiChatRole.USER, "First")), viewModel.messages.value)
+                assertEquals(1, streamInvocations)
+                assertEquals(listOf(AiChatMessage(AiChatRole.USER, "First")), stored)
+
+                cancelAndIgnoreRemainingEvents()
+            }
         }
 }
 

@@ -33,32 +33,42 @@ class AiChatViewModel(
     private val _errorFlow = MutableSharedFlow<AiError>()
     val errorFlow = _errorFlow
 
+    private val _isStreaming = MutableStateFlow(false)
+    val isStreaming: StateFlow<Boolean> = _isStreaming.asStateFlow()
+
     fun sendMessage(text: String) {
+        if (_isStreaming.value) return
+
         val userMessage = AiChatMessage(AiChatRole.USER, text)
         appendAndPersist(userMessage)
 
+        _isStreaming.value = true
         viewModelScope.launch {
-            var assistantText = ""
-            var hasReceivedToken = false
-            streamingClient
-                .stream(provider, apiKey, model, cardContent, _messages.value)
-                .catch { throwable ->
-                    _errorFlow.emit(throwable as? AiError ?: AiError.Network(throwable))
-                }.collect { event ->
-                    when (event) {
-                        is AiSseEvent.Token -> {
-                            assistantText += event.text
-                            hasReceivedToken = true
-                            replaceStreamingAssistantMessage(assistantText)
-                        }
-                        AiSseEvent.Done -> {
-                            if (hasReceivedToken) {
-                                storeMessage(AiChatMessage(AiChatRole.ASSISTANT, assistantText))
+            try {
+                var assistantText = ""
+                var hasReceivedToken = false
+                streamingClient
+                    .stream(provider, apiKey, model, cardContent, _messages.value)
+                    .catch { throwable ->
+                        _errorFlow.emit(throwable as? AiError ?: AiError.Network(throwable))
+                    }.collect { event ->
+                        when (event) {
+                            is AiSseEvent.Token -> {
+                                assistantText += event.text
+                                hasReceivedToken = true
+                                replaceStreamingAssistantMessage(assistantText)
                             }
+                            AiSseEvent.Done -> {
+                                if (hasReceivedToken) {
+                                    storeMessage(AiChatMessage(AiChatRole.ASSISTANT, assistantText))
+                                }
+                            }
+                            AiSseEvent.Ignored -> {}
                         }
-                        AiSseEvent.Ignored -> {}
                     }
-                }
+            } finally {
+                _isStreaming.value = false
+            }
         }
     }
 

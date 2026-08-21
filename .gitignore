@@ -75,3 +75,4 @@ hs_err_pid*
 /.claude/scheduled_tasks.lock
 CLAUDE.md
 .omc/
+/.worktrees/

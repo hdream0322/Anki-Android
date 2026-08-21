@@ -1,4 +1,5 @@
-// AnkiDroid/src/test/java/com/ichi2/anki/ai/AiStreamingClientTest.kt
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 package com.ichi2.anki.ai
 
 import app.cash.turbine.test

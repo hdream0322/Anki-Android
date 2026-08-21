@@ -9,6 +9,7 @@ import androidx.annotation.WorkerThread
 import androidx.core.database.sqlite.transaction
 import com.ichi2.anki.ai.AiChatMessage
 import com.ichi2.anki.ai.AiChatRole
+import com.ichi2.anki.common.time.TimeManager
 import com.ichi2.anki.common.utils.annotation.KotlinCleanup
 import com.ichi2.anki.libanki.DeckId
 import com.ichi2.anki.libanki.NoteId
@@ -108,6 +109,7 @@ object MetaDB {
             createdAt INTEGER NOT NULL
             )""",
         )
+        metaDb.execSQL("CREATE INDEX IF NOT EXISTS idx_aiChatMessages_nid ON aiChatMessages(nid)")
         metaDb.version = databaseVersion
         Timber.i("MetaDB:: Upgrading Internal Database finished. New version: %d", databaseVersion)
         return metaDb
@@ -710,7 +712,7 @@ object MetaDB {
         try {
             metaDb!!.execSQL(
                 "INSERT INTO aiChatMessages (nid, role, content, createdAt) VALUES (?, ?, ?, ?);",
-                arrayOf<Any>(nid, message.role.storageValue, message.content, System.currentTimeMillis()),
+                arrayOf<Any>(nid, message.role.storageValue, message.content, TimeManager.time.intTimeMS()),
             )
         } catch (e: Exception) {
             Timber.e(e, "Error storing AI chat message in MetaDB")

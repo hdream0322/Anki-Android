@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 package com.ichi2.anki.ai
 
 import okhttp3.MediaType.Companion.toMediaType
@@ -35,10 +37,13 @@ class GeminiProvider : AiProvider {
             )
         }
 
-        val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:streamGenerateContent?alt=sse&key=$apiKey"
+        // The key goes in a header rather than the query string so it cannot leak through a URL
+        // embedded in an OkHttp exception message.
+        val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:streamGenerateContent?alt=sse"
         return Request
             .Builder()
             .url(url)
+            .addHeader("x-goog-api-key", apiKey)
             .addHeader("Content-Type", "application/json")
             .post(body.toString().toRequestBody("application/json".toMediaType()))
             .build()

@@ -1,4 +1,5 @@
-// AnkiDroid/src/test/java/com/ichi2/anki/ai/AnthropicProviderTest.kt
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 package com.ichi2.anki.ai
 
 import okhttp3.Request

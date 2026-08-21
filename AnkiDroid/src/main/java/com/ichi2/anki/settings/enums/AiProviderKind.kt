@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 package com.ichi2.anki.settings.enums
 
 import com.ichi2.anki.R

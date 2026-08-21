@@ -79,7 +79,7 @@
     <!-- AI card chat -->
     <string name="pref_cat_ai" maxLength="41">AI</string>
     <string name="pref_ai_provider_key">deurim_ai_provider</string>
-    <string name="pref_ai_provider_title">AI provider</string>
+    <string name="pref_ai_provider_title" maxLength="41">AI provider</string>
     <string name="ai_provider_openai_value">openai</string>
     <string name="ai_provider_anthropic_value">anthropic</string>
     <string name="ai_provider_gemini_value">gemini</string>
@@ -94,7 +94,7 @@
         <item>@string/ai_provider_gemini_value</item>
     </string-array>
     <string name="pref_ai_api_key_key">deurim_ai_api_key</string>
-    <string name="pref_ai_api_key_title">API key</string>
+    <string name="pref_ai_api_key_title" maxLength="41">API key</string>
     <string name="pref_ai_api_key_summary_set">A key is set (tap to change)</string>
     <string name="pref_ai_api_key_summary_not_set">Required to use AI chat — stored encrypted on this device only</string>
     <string name="ai_chat_title">Ask AI about this card</string>

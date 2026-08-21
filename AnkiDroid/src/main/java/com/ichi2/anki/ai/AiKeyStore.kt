@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 @file:Suppress("DEPRECATION")
 
 package com.ichi2.anki.ai
@@ -6,6 +8,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import timber.log.Timber
 
 /** Stores the user's LLM API key encrypted-at-rest, separate from ordinary [com.ichi2.anki.settings.Prefs]. */
 class AiKeyStore(
@@ -23,6 +26,17 @@ class AiKeyStore(
         private const val KEY_API_KEY = "api_key"
 
         private fun buildEncryptedPrefs(context: Context): SharedPreferences =
+            try {
+                createEncryptedPrefs(context)
+            } catch (e: Exception) {
+                // The master key lives in AndroidKeyStore and is device-bound, so a prefs file
+                // arriving from a backup or device transfer can never be decrypted here.
+                Timber.w(e, "Could not open the AI key store; recreating it")
+                context.deleteSharedPreferences(FILE_NAME)
+                createEncryptedPrefs(context)
+            }
+
+        private fun createEncryptedPrefs(context: Context): SharedPreferences =
             EncryptedSharedPreferences.create(
                 context,
                 FILE_NAME,

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 package com.ichi2.anki.ai
 
 import okhttp3.Request
@@ -17,7 +19,7 @@ class GeminiProviderTest {
     }
 
     @Test
-    fun `buildRequest targets streamGenerateContent with key as query param`() {
+    fun `buildRequest targets streamGenerateContent with key in a header`() {
         val request =
             provider.buildRequest(
                 apiKey = "gm-test",
@@ -27,9 +29,10 @@ class GeminiProviderTest {
             )
 
         assertEquals(
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse&key=gm-test",
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse",
             request.url.toString(),
         )
+        assertEquals("gm-test", request.header("x-goog-api-key"))
     }
 
     @Test

@@ -1,4 +1,5 @@
-// AnkiDroid/src/main/java/com/ichi2/anki/ai/AiStreamingClient.kt
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 package com.ichi2.anki.ai
 
 import kotlinx.coroutines.channels.Channel

@@ -454,7 +454,7 @@ import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.Buffer
+import okio.Buffer
 
 class OpenAiProviderTest {
     private val provider = OpenAiProvider()
@@ -623,7 +623,7 @@ import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
-import java.io.Buffer
+import okio.Buffer
 
 class AnthropicProviderTest {
     private val provider = AnthropicProvider()
@@ -806,7 +806,7 @@ import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.Buffer
+import okio.Buffer
 
 class GeminiProviderTest {
     private val provider = GeminiProvider()

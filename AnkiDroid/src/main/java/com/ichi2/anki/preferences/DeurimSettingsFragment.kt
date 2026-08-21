@@ -19,6 +19,7 @@ import androidx.preference.EditTextPreference
 import androidx.preference.Preference
 import com.ichi2.anki.R
 import com.ichi2.anki.ai.AiKeyStore
+import com.ichi2.anki.common.utils.isRunningAsUnitTest
 import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.ui.windows.reviewer.whiteboard.showColorPickerDialog
 import com.ichi2.anki.update.UpdateManager
@@ -51,6 +52,10 @@ class DeurimSettingsFragment : SettingsFragment() {
     }
 
     private fun initAiApiKeyPref() {
+        // AndroidKeyStore (which EncryptedSharedPreferences/AiKeyStore depends on) is unavailable
+        // under Robolectric, so constructing it here would crash any unit test that creates this
+        // fragment. On a real device AndroidKeyStore is always present.
+        if (isRunningAsUnitTest) return
         val keyStore = AiKeyStore(requireContext())
         requirePreference<EditTextPreference>(R.string.pref_ai_api_key_key).apply {
             isPersistent = false

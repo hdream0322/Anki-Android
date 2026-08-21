@@ -1,8 +1,10 @@
 // AnkiDroid/src/main/java/com/ichi2/anki/ai/AiStreamingClient.kt
 package com.ichi2.anki.ai
 
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.callbackFlow
 import okhttp3.OkHttpClient
 import okhttp3.Response
@@ -63,5 +65,5 @@ class AiStreamingClient(
                 }
             val eventSource = factory.newEventSource(request, listener)
             awaitClose { eventSource.cancel() }
-        }
+        }.buffer(Channel.UNLIMITED)
 }

@@ -15,8 +15,10 @@
  */
 package com.ichi2.anki.preferences
 
+import androidx.preference.EditTextPreference
 import androidx.preference.Preference
 import com.ichi2.anki.R
+import com.ichi2.anki.ai.AiKeyStore
 import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.ui.windows.reviewer.whiteboard.showColorPickerDialog
 import com.ichi2.anki.update.UpdateManager
@@ -34,6 +36,7 @@ class DeurimSettingsFragment : SettingsFragment() {
             true
         }
         initReviewProgressBarColorPref()
+        initAiApiKeyPref()
     }
 
     private fun initReviewProgressBarColorPref() {
@@ -42,6 +45,27 @@ class DeurimSettingsFragment : SettingsFragment() {
                 requireContext().showColorPickerDialog(Prefs.reviewProgressBarColor) { color ->
                     Prefs.reviewProgressBarColor = color
                 }
+                true
+            }
+        }
+    }
+
+    private fun initAiApiKeyPref() {
+        val keyStore = AiKeyStore(requireContext())
+        requirePreference<EditTextPreference>(R.string.pref_ai_api_key_key).apply {
+            isPersistent = false
+            text = keyStore.apiKey
+            summaryProvider =
+                Preference.SummaryProvider<EditTextPreference> {
+                    if (keyStore.hasApiKey()) {
+                        getString(R.string.pref_ai_api_key_summary_set)
+                    } else {
+                        getString(R.string.pref_ai_api_key_summary_not_set)
+                    }
+                }
+            setOnPreferenceChangeListener { preference, newValue ->
+                keyStore.apiKey = (newValue as String).trim().ifBlank { null }
+                (preference as EditTextPreference).text = keyStore.apiKey
                 true
             }
         }

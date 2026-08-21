@@ -28,6 +28,7 @@ import com.ichi2.anki.cardviewer.TapGestureMode
 import com.ichi2.anki.common.preferences.AnimationPreferences
 import com.ichi2.anki.common.preferences.sharedPrefs
 import com.ichi2.anki.common.utils.isRunningAsUnitTest
+import com.ichi2.anki.settings.enums.AiProviderKind
 import com.ichi2.anki.settings.enums.AppTheme
 import com.ichi2.anki.settings.enums.DayTheme
 import com.ichi2.anki.settings.enums.FrameStyle
@@ -433,6 +434,10 @@ open class PrefsRepository(
      * Whether the switch profile feature is enabled.
      */
     val switchProfileEnabled by booleanPref(R.string.pref_enable_switch_profile_key, false)
+
+    // ****************************************** AI chat ****************************************** //
+
+    var aiProviderKind: AiProviderKind by enumPref(R.string.pref_ai_provider_key, AiProviderKind.OPENAI)
 
     // **************************************** UI Config *************************************** //
 

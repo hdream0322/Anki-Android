@@ -65,6 +65,6 @@
             android:layout_height="wrap_content"
             android:background="@android:color/transparent"
             android:contentDescription="@string/ai_chat_send"
-            android:src="@drawable/ic_ai_chat"/>
+            android:src="@drawable/ic_send_circle"/>
     </LinearLayout>
 </LinearLayout>

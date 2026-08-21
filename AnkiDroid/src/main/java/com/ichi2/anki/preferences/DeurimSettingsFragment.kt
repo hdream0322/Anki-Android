@@ -16,11 +16,16 @@
 package com.ichi2.anki.preferences
 
 import androidx.preference.EditTextPreference
+import androidx.preference.ListPreference
 import androidx.preference.Preference
 import com.ichi2.anki.R
 import com.ichi2.anki.ai.AiKeyStore
+import com.ichi2.anki.ai.AnthropicProvider
+import com.ichi2.anki.ai.GeminiProvider
+import com.ichi2.anki.ai.OpenAiProvider
 import com.ichi2.anki.common.utils.isRunningAsUnitTest
 import com.ichi2.anki.settings.Prefs
+import com.ichi2.anki.settings.enums.AiProviderKind
 import com.ichi2.anki.ui.windows.reviewer.whiteboard.showColorPickerDialog
 import com.ichi2.anki.update.UpdateManager
 
@@ -38,6 +43,7 @@ class DeurimSettingsFragment : SettingsFragment() {
         }
         initReviewProgressBarColorPref()
         initAiApiKeyPref()
+        initAiModelPref()
     }
 
     private fun initReviewProgressBarColorPref() {
@@ -75,4 +81,40 @@ class DeurimSettingsFragment : SettingsFragment() {
             }
         }
     }
+
+    private fun initAiModelPref() {
+        val modelPref = requirePreference<EditTextPreference>(R.string.pref_ai_model_key)
+        val modelSummaryProvider =
+            Preference.SummaryProvider<EditTextPreference> {
+                val override = Prefs.aiModelOverride
+                if (override.isNullOrBlank()) {
+                    getString(R.string.pref_ai_model_summary_not_set, defaultModelFor(Prefs.aiProviderKind))
+                } else {
+                    getString(R.string.pref_ai_model_summary_set, override)
+                }
+            }
+        modelPref.apply {
+            text = Prefs.aiModelOverride
+            summaryProvider = modelSummaryProvider
+            setOnPreferenceChangeListener { _, newValue ->
+                Prefs.aiModelOverride = (newValue as String).trim().ifBlank { null }
+                true
+            }
+        }
+
+        // The "not set" summary shows the selected provider's default model, so it must refresh
+        // whenever the provider changes. Re-setting the same SummaryProvider is the public-API
+        // way to force Preference to re-evaluate it (notifyChanged() itself is protected).
+        requirePreference<ListPreference>(R.string.pref_ai_provider_key).setOnPreferenceChangeListener { _, _ ->
+            modelPref.summaryProvider = modelSummaryProvider
+            true
+        }
+    }
+
+    private fun defaultModelFor(providerKind: AiProviderKind): String =
+        when (providerKind) {
+            AiProviderKind.OPENAI -> OpenAiProvider().defaultModel
+            AiProviderKind.ANTHROPIC -> AnthropicProvider().defaultModel
+            AiProviderKind.GEMINI -> GeminiProvider().defaultModel
+        }
 }

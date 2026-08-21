@@ -60,6 +60,11 @@
     <string name="pref_ai_api_key_title">API 키</string>
     <string name="pref_ai_api_key_summary_set">키가 설정되어 있어요 (탭하여 변경)</string>
     <string name="pref_ai_api_key_summary_not_set">AI 채팅을 사용하려면 필요해요 — 이 기기에만 암호화되어 저장됩니다</string>
+    <string name="pref_ai_model_title">모델</string>
+    <!-- %s = 제공자의 기본 모델 이름 -->
+    <string name="pref_ai_model_summary_not_set">기본 모델(%s)을 사용 중이에요 — 탭하여 직접 지정</string>
+    <!-- %s = 사용자가 입력한 모델 이름 -->
+    <string name="pref_ai_model_summary_set">직접 지정: %s</string>
     <string name="ai_chat_title">이 카드에 대해 AI에게 질문하기</string>
     <string name="ai_chat_input_hint">이 카드에 대해 질문해보세요…</string>
     <string name="ai_chat_send">전송</string>

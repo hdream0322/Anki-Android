@@ -439,6 +439,9 @@ open class PrefsRepository(
 
     var aiProviderKind: AiProviderKind by enumPref(R.string.pref_ai_provider_key, AiProviderKind.OPENAI)
 
+    /** User-entered override for the selected provider's model id. Blank/unset means "use [AiProvider.defaultModel]". */
+    var aiModelOverride: String? by stringPref(R.string.pref_ai_model_key)
+
     // **************************************** UI Config *************************************** //
 
     /**

@@ -50,7 +50,7 @@ class AiChatBottomSheetFragment : BottomSheetDialogFragment(R.layout.fragment_ai
                     cardContent = args.cardContent,
                     provider = provider,
                     apiKey = keyStore.apiKey.orEmpty(),
-                    model = provider.defaultModel,
+                    model = Prefs.aiModelOverride?.takeIf { it.isNotBlank() } ?: provider.defaultModel,
                     streamingClient = AiStreamingClient(),
                     storeMessage = { message -> MetaDB.storeAiChatMessage(requireContext(), args.noteId, message) },
                     loadHistory = { MetaDB.getAiChatMessages(requireContext(), args.noteId) },

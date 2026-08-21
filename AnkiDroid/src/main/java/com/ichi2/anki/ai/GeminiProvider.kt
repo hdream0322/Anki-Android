@@ -10,7 +10,7 @@ import org.json.JSONException
 import org.json.JSONObject
 
 class GeminiProvider : AiProvider {
-    override val defaultModel = "gemini-2.0-flash"
+    override val defaultModel = "gemini-3.6-flash"
 
     override fun buildRequest(
         apiKey: String,

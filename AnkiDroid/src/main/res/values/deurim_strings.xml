@@ -97,6 +97,12 @@
     <string name="pref_ai_api_key_title" maxLength="41">API key</string>
     <string name="pref_ai_api_key_summary_set">A key is set (tap to change)</string>
     <string name="pref_ai_api_key_summary_not_set">Required to use AI chat — stored encrypted on this device only</string>
+    <string name="pref_ai_model_key">deurim_ai_model</string>
+    <string name="pref_ai_model_title" maxLength="41">Model</string>
+    <!-- %s = the provider's default model id -->
+    <string name="pref_ai_model_summary_not_set">Using the default model (%s) — tap to override</string>
+    <!-- %s = the custom model id the user entered -->
+    <string name="pref_ai_model_summary_set">Custom: %s</string>
     <string name="ai_chat_title">Ask AI about this card</string>
     <string name="ai_chat_input_hint">Ask a question about this card…</string>
     <string name="ai_chat_send">Send</string>

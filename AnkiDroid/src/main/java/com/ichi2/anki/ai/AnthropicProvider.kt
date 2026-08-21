@@ -10,7 +10,7 @@ import org.json.JSONException
 import org.json.JSONObject
 
 class AnthropicProvider : AiProvider {
-    override val defaultModel = "claude-3-5-haiku-latest"
+    override val defaultModel = "claude-haiku-4-5"
 
     override fun buildRequest(
         apiKey: String,

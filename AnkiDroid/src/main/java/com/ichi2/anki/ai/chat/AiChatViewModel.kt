@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 class AiChatViewModel(
     private val noteId: NoteId,
@@ -52,7 +53,9 @@ class AiChatViewModel(
                 streamingClient
                     .stream(provider, apiKey, model, cardContent, buildRequestHistory(_messages.value))
                     .catch { throwable ->
-                        _errorFlow.emit(throwable as? AiError ?: AiError.Network(throwable))
+                        val error = throwable as? AiError ?: AiError.Network(throwable)
+                        Timber.w(error, "AI chat request failed")
+                        _errorFlow.emit(error)
                     }.collect { event ->
                         when (event) {
                             is AiSseEvent.Token -> {

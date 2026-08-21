@@ -10,7 +10,7 @@ import org.json.JSONException
 import org.json.JSONObject
 
 class OpenAiProvider : AiProvider {
-    override val defaultModel = "gpt-4o-mini"
+    override val defaultModel = "gpt-5.6-luna"
 
     override fun buildRequest(
         apiKey: String,

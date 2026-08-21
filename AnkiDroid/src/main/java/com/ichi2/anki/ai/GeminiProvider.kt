@@ -49,13 +49,6 @@ class GeminiProvider : AiProvider {
             val json = JSONObject(data)
             val candidates = json.getJSONArray("candidates")
             val candidate = candidates.getJSONObject(0)
-
-            // Check for finishReason first - indicates end of stream
-            if (candidate.has("finishReason")) {
-                return AiSseEvent.Done
-            }
-
-            // Otherwise extract token text
             val text =
                 candidate
                     .getJSONObject("content")

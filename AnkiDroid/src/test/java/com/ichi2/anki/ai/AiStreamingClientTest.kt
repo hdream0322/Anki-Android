@@ -65,4 +65,25 @@ class AiStreamingClientTest {
                 awaitComplete()
             }
         }
+
+    @Test
+    fun `emits exactly one Done from the connection-close fallback when the provider never emits its own Done`() =
+        runTest {
+            server.enqueue(
+                MockResponse
+                    .Builder()
+                    .addHeader("Content-Type", "text/event-stream")
+                    .body("data: hello\n\ndata: world\n\n")
+                    .build(),
+            )
+            val provider = FakeProvider(server.url("/").toString())
+            val client = AiStreamingClient()
+
+            client.stream(provider, apiKey = "key", model = "fake-model", systemPrompt = null, messages = emptyList()).test {
+                assertEquals(AiSseEvent.Token("hello"), awaitItem())
+                assertEquals(AiSseEvent.Token("world"), awaitItem())
+                assertEquals(AiSseEvent.Done, awaitItem())
+                awaitComplete()
+            }
+        }
 }

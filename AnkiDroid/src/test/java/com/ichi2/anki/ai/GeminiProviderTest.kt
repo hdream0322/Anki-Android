@@ -71,10 +71,4 @@ class GeminiProviderTest {
     fun `parseSseEvent ignores malformed payloads`() {
         assertEquals(AiSseEvent.Ignored, provider.parseSseEvent("not json"))
     }
-
-    @Test
-    fun `parseSseEvent returns Done when finishReason is present`() {
-        val data = """{"candidates":[{"content":{"parts":[{"text":""}]},"finishReason":"STOP"}]}"""
-        assertEquals(AiSseEvent.Done, provider.parseSseEvent(data))
-    }
 }

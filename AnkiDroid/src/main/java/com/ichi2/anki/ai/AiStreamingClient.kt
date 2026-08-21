@@ -29,6 +29,7 @@ class AiStreamingClient(
         messages: List<AiChatMessage>,
     ): Flow<AiSseEvent> =
         callbackFlow {
+            var sawDone = false
             val request = provider.buildRequest(apiKey, model, systemPrompt, messages)
             val factory = EventSources.createFactory(client)
             val listener =
@@ -41,7 +42,10 @@ class AiStreamingClient(
                     ) {
                         when (val event = provider.parseSseEvent(data)) {
                             AiSseEvent.Ignored -> {}
-                            else -> trySend(event)
+                            else -> {
+                                if (event == AiSseEvent.Done) sawDone = true
+                                trySend(event)
+                            }
                         }
                     }
 
@@ -60,6 +64,7 @@ class AiStreamingClient(
                     }
 
                     override fun onClosed(eventSource: EventSource) {
+                        if (!sawDone) trySend(AiSseEvent.Done)
                         close()
                     }
                 }

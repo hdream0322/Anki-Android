@@ -15,6 +15,9 @@
  */
 package com.ichi2.anki.preferences
 
+import android.os.Build
+import android.text.InputType
+import android.view.View
 import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
 import androidx.preference.Preference
@@ -68,6 +71,15 @@ class DeurimSettingsFragment : SettingsFragment() {
             // Write-only: the field always opens blank, even once a key is set — there is no way
             // to view or edit the stored key, only to replace it with a brand-new one.
             text = null
+            setOnBindEditTextListener { editText ->
+                // Mask input like a password field so the key isn't shown on screen while typing,
+                // and opt out of the autofill framework so a password manager doesn't also end up
+                // holding a copy of it outside AiKeyStore's encrypted storage.
+                editText.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    editText.importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+                }
+            }
             summaryProvider =
                 Preference.SummaryProvider<EditTextPreference> {
                     if (keyStore.hasApiKey()) {

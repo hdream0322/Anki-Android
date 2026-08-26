@@ -26,7 +26,6 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import com.ichi2.anki.cardviewer.SilentStartupGate
-import com.ichi2.anki.common.utils.android.showThemedToast
 import com.ichi2.widget.WidgetStatus
 import timber.log.Timber
 
@@ -37,6 +36,10 @@ class AppLifecycleObserver(
      * 사용자가 미디어 볼륨을 조절하면 이를 "소리를 원한다"는 명시적 의도로 보고
      * [SilentStartupGate]를 해제한다. `VOLUME_CHANGED_ACTION`은 시스템만 보낼 수 있는
      * protected broadcast이므로 [ContextCompat.RECEIVER_NOT_EXPORTED]로 등록한다.
+     *
+     * 해제 안내 UI는 여기서 직접 띄우지 않는다. 이 옵저버는 화면(View)이 없는 프로세스
+     * 전역 컴포넌트라, SFX가 실제로 재생되는 Reviewer가 [SilentStartupGate]에 등록해 둔
+     * 리스너를 통해 자신의 UI 컨벤션(Snackbar)으로 안내를 보여준다.
      */
     private val volumeChangeReceiver =
         object : BroadcastReceiver() {
@@ -46,9 +49,7 @@ class AppLifecycleObserver(
             ) {
                 val streamType = intent.getIntExtra(EXTRA_VOLUME_STREAM_TYPE, -1)
                 if (streamType != AudioManager.STREAM_MUSIC) return
-                if (SilentStartupGate.onVolumeChanged()) {
-                    showThemedToast(receiverContext, R.string.silent_startup_gate_released, shortLength = true)
-                }
+                SilentStartupGate.onVolumeChanged()
             }
         }
 

@@ -24,6 +24,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ichi2.anki.cardviewer.SilentStartupGate
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.equalTo
+import org.hamcrest.Matchers.nullValue
 import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -47,7 +48,7 @@ class AppLifecycleObserverTest : RobolectricTest() {
         }
 
     @Test
-    fun `music volume change releases the silent-startup gate and shows a toast`() {
+    fun `music volume change releases the silent-startup gate`() {
         val observer = AppLifecycleObserver(targetContext)
         observer.onStart(FakeLifecycleOwner())
 
@@ -55,11 +56,34 @@ class AppLifecycleObserverTest : RobolectricTest() {
         advanceRobolectricLooper()
 
         assertThat("볼륨 변경으로 무음 게이트가 해제돼야 한다", SilentStartupGate.isSilenced, equalTo(false))
-        assertThat(
-            "게이트 해제 시 안내 토스트가 떠야 한다",
-            ShadowToast.getTextOfLatestToast(),
-            equalTo(getResourceString(R.string.silent_startup_gate_released)),
-        )
+    }
+
+    @Test
+    fun `gate release does not show a system toast directly`() {
+        // AppLifecycleObserver는 화면(View)이 없는 프로세스 전역 컴포넌트이므로 시스템 Toast를
+        // 직접 띄우지 않는다. 해제 안내는 SilentStartupGate에 등록된 리스너(Reviewer의 Snackbar)를
+        // 통해서만 표시된다.
+        val observer = AppLifecycleObserver(targetContext)
+        observer.onStart(FakeLifecycleOwner())
+
+        targetContext.sendBroadcast(volumeChangedIntent(AudioManager.STREAM_MUSIC))
+        advanceRobolectricLooper()
+
+        assertThat("AppLifecycleObserver가 직접 시스템 토스트를 띄우면 안 된다", ShadowToast.getTextOfLatestToast(), nullValue())
+    }
+
+    @Test
+    fun `gate release invokes a registered listener instead of a toast`() {
+        var listenerInvoked = false
+        SilentStartupGate.setReleaseListener { listenerInvoked = true }
+
+        val observer = AppLifecycleObserver(targetContext)
+        observer.onStart(FakeLifecycleOwner())
+
+        targetContext.sendBroadcast(volumeChangedIntent(AudioManager.STREAM_MUSIC))
+        advanceRobolectricLooper()
+
+        assertThat("등록된 리스너를 통해 해제 안내가 전달돼야 한다", listenerInvoked, equalTo(true))
     }
 
     @Test

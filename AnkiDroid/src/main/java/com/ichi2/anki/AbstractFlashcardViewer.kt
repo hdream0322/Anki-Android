@@ -88,6 +88,7 @@ import com.ichi2.anki.cardviewer.MediaErrorHandler
 import com.ichi2.anki.cardviewer.MediaErrorListener
 import com.ichi2.anki.cardviewer.OnRenderProcessGoneDelegate
 import com.ichi2.anki.cardviewer.RenderedCard
+import com.ichi2.anki.cardviewer.SilentStartupGate
 import com.ichi2.anki.cardviewer.SingleCardSide
 import com.ichi2.anki.cardviewer.TTS
 import com.ichi2.anki.cardviewer.TypeAnswer
@@ -600,9 +601,16 @@ abstract class AbstractFlashcardViewer :
         invalidateOptionsMenu()
     }
 
+    /**
+     * [SilentStartupGate]가 해제될 때 표시한 Snackbar. 테스트에서 검증용으로만 참조한다.
+     */
+    @VisibleForTesting
+    internal var silentStartupGateSnackbar: Snackbar? = null
+
     // Saves deck each time Reviewer activity loses focus
     override fun onPause() {
         super.onPause()
+        SilentStartupGate.setReleaseListener(null)
         gestureDetectorImpl.stopShakeDetector()
         if (this::cardMediaPlayer.isInitialized) {
             launchCatchingTask {
@@ -616,6 +624,9 @@ abstract class AbstractFlashcardViewer :
 
     override fun onResume() {
         super.onResume()
+        SilentStartupGate.setReleaseListener {
+            silentStartupGateSnackbar = showSnackbar(getText(R.string.silent_startup_gate_released), Snackbar.LENGTH_SHORT)
+        }
         gestureDetectorImpl.startShakeDetector()
         if (this::cardMediaPlayer.isInitialized) {
             launchCatchingTask {

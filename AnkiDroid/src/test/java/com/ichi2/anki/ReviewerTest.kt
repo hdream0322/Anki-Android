@@ -7,6 +7,7 @@ import android.app.Application
 import android.content.Intent
 import android.view.Menu
 import android.view.View
+import android.widget.TextView
 import androidx.annotation.CheckResult
 import androidx.core.content.edit
 import androidx.core.os.BundleCompat
@@ -20,6 +21,7 @@ import com.ichi2.anki.AnkiDroidJsAPITest.Companion.getDataFromRequest
 import com.ichi2.anki.AnkiDroidJsAPITest.Companion.jsApiContract
 import com.ichi2.anki.CollectionManager.TR
 import com.ichi2.anki.cardviewer.Gesture
+import com.ichi2.anki.cardviewer.SilentStartupGate
 import com.ichi2.anki.cardviewer.ViewerCommand.ANSWER_AGAIN
 import com.ichi2.anki.cardviewer.ViewerCommand.MARK
 import com.ichi2.anki.common.preferences.sharedPrefs
@@ -52,6 +54,7 @@ import org.hamcrest.Matchers.containsString
 import org.hamcrest.Matchers.empty
 import org.hamcrest.Matchers.equalTo
 import org.hamcrest.Matchers.not
+import org.hamcrest.Matchers.notNullValue
 import org.hamcrest.Matchers.nullValue
 import org.json.JSONArray
 import org.junit.Assume.assumeTrue
@@ -172,6 +175,31 @@ class ReviewerTest : RobolectricTest() {
             snackbar?.anchorView,
             equalTo(answerButtons),
         )
+    }
+
+    @Test
+    fun `silent startup gate release shows the app's own snackbar, not a system toast`() {
+        SilentStartupGate.resetForTest()
+        try {
+            addBasicNote()
+            val reviewer = startReviewer()
+
+            SilentStartupGate.onVolumeChanged()
+
+            val shownSnackbar = reviewer.silentStartupGateSnackbar
+            assertThat("무음 해제 시 Reviewer의 앱 Snackbar가 떠야 한다", shownSnackbar, notNullValue())
+            assertThat(
+                "Snackbar 문구는 무음 해제 안내여야 한다",
+                shownSnackbar!!
+                    .view
+                    .findViewById<TextView>(com.google.android.material.R.id.snackbar_text)
+                    .text
+                    .toString(),
+                equalTo(getResourceString(R.string.silent_startup_gate_released)),
+            )
+        } finally {
+            SilentStartupGate.resetForTest()
+        }
     }
 
     @Test

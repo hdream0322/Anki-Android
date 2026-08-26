@@ -36,6 +36,14 @@ object SilentStartupGate {
         private set
 
     /**
+     * 무음이 해제되는 순간 호출되는 콜백. SFX가 실제로 재생되는 화면(Reviewer)이 이 콜백을
+     * 등록해 두면, 해제 안내를 그 화면의 UI 컨벤션(Snackbar)으로 보여줄 수 있다. 등록된
+     * 화면이 없으면(예: 리뷰 화면 밖에서 볼륨을 조절한 경우) 아무 것도 표시하지 않는다.
+     */
+    @Volatile
+    private var releaseListener: (() -> Unit)? = null
+
+    /**
      * 사용자가 미디어 볼륨을 조절했을 때 호출한다.
      * @return 이 호출로 무음이 해제됐으면(전환이 일어났으면) true, 이미 해제된 상태였으면 false.
      */
@@ -43,11 +51,17 @@ object SilentStartupGate {
     fun onVolumeChanged(): Boolean {
         if (!isSilenced) return false
         isSilenced = false
+        releaseListener?.invoke()
         return true
+    }
+
+    fun setReleaseListener(listener: (() -> Unit)?) {
+        releaseListener = listener
     }
 
     @VisibleForTesting
     internal fun resetForTest() {
         isSilenced = true
+        releaseListener = null
     }
 }

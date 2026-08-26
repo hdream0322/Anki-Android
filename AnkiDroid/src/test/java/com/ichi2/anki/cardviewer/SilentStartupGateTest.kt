@@ -46,4 +46,22 @@ class SilentStartupGateTest {
         assertThat("첫 볼륨 변경은 무음 해제 전환이어야 한다", firstCall, equalTo(true))
         assertThat("이미 해제된 상태에서 또 볼륨을 바꿔도 전환은 아니다", secondCall, equalTo(false))
     }
+
+    @Test
+    fun `release listener is invoked only on the transition`() {
+        var invocationCount = 0
+        SilentStartupGate.setReleaseListener { invocationCount++ }
+
+        SilentStartupGate.onVolumeChanged()
+        SilentStartupGate.onVolumeChanged()
+
+        assertThat("리스너는 무음이 실제로 해제되는 전환에서만 호출돼야 한다", invocationCount, equalTo(1))
+    }
+
+    @Test
+    fun `no listener registered does not throw`() {
+        SilentStartupGate.setReleaseListener(null)
+
+        SilentStartupGate.onVolumeChanged()
+    }
 }

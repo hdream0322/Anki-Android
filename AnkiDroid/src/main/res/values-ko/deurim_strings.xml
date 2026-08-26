@@ -69,6 +69,11 @@
     <string name="ai_chat_input_hint">이 카드에 대해 질문해보세요…</string>
     <string name="ai_chat_send">전송</string>
     <string name="ai_chat_error">AI 요청에 실패했어요 — 인터넷 연결과 API 키를 확인해 주세요</string>
+    <string name="ai_chat_error_rate_limited_with_wait">요청 한도를 초과했어요. %1$d초 후 다시 시도해 주세요</string>
+    <string name="ai_chat_error_rate_limited">요청 한도를 초과했어요. 잠시 후 다시 시도해 주세요</string>
+    <string name="ai_chat_error_invalid_key">API 키가 거부됐어요 — 설정 → 유용한 기능 → AI에서 확인해 주세요</string>
+    <string name="ai_chat_error_server">AI 서비스에 일시적인 문제가 있어요. 잠시 후 다시 시도해 주세요</string>
+    <string name="ai_chat_error_network">AI 서비스에 연결할 수 없어요 — 인터넷 연결을 확인해 주세요</string>
     <string name="ai_chat_missing_api_key">설정 → 유용한 기능 → AI에서 API 키를 먼저 등록해 주세요</string>
     <string name="ai_chat_generating">답변 생성 중…</string>
     <string name="ai_chat_clear_history">채팅 기록 삭제</string>

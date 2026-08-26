@@ -107,6 +107,11 @@
     <string name="ai_chat_input_hint">Ask a question about this card…</string>
     <string name="ai_chat_send">Send</string>
     <string name="ai_chat_error">AI request failed — check your connection and API key</string>
+    <string name="ai_chat_error_rate_limited_with_wait">Rate limit reached. Please try again in %1$d seconds</string>
+    <string name="ai_chat_error_rate_limited">Rate limit reached. Please try again shortly</string>
+    <string name="ai_chat_error_invalid_key">Your API key was rejected — check it in Settings → Useful features → AI</string>
+    <string name="ai_chat_error_server">The AI provider is having issues. Please try again shortly</string>
+    <string name="ai_chat_error_network">Couldn\'t reach the AI provider — check your connection</string>
     <string name="ai_chat_missing_api_key">Set an AI API key in Settings → Useful features → AI first</string>
     <string name="ai_chat_generating">Generating…</string>
     <string name="ai_chat_clear_history">Clear chat history</string>

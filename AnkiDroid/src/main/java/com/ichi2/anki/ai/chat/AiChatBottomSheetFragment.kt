@@ -17,6 +17,7 @@ import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.ichi2.anki.MetaDB
 import com.ichi2.anki.R
+import com.ichi2.anki.ai.AiError
 import com.ichi2.anki.ai.AiKeyStore
 import com.ichi2.anki.ai.AiStreamingClient
 import com.ichi2.anki.ai.AnthropicProvider
@@ -88,8 +89,8 @@ class AiChatBottomSheetFragment : BottomSheetDialogFragment(R.layout.fragment_ai
             if (messages.isNotEmpty()) binding.messageList.scrollToPosition(messages.size - 1)
         }
 
-        viewModel.errorFlow.collectIn(viewLifecycleOwner.lifecycleScope) {
-            showSnackbar(R.string.ai_chat_error)
+        viewModel.errorFlow.collectIn(viewLifecycleOwner.lifecycleScope) { error ->
+            showSnackbar(errorMessage(error))
         }
 
         viewModel.isStreaming.collectIn(viewLifecycleOwner.lifecycleScope) { isStreaming ->
@@ -132,9 +133,29 @@ class AiChatBottomSheetFragment : BottomSheetDialogFragment(R.layout.fragment_ai
         }
     }
 
+    private fun errorMessage(error: AiError): CharSequence =
+        when (error) {
+            is AiError.RateLimited ->
+                if (error.retryAfterSeconds != null) {
+                    getString(R.string.ai_chat_error_rate_limited_with_wait, error.retryAfterSeconds)
+                } else {
+                    getString(R.string.ai_chat_error_rate_limited)
+                }
+            is AiError.Http ->
+                when (error.code) {
+                    HTTP_UNAUTHORIZED, HTTP_FORBIDDEN -> getString(R.string.ai_chat_error_invalid_key)
+                    in 500..599 -> getString(R.string.ai_chat_error_server)
+                    else -> getString(R.string.ai_chat_error)
+                }
+            is AiError.Network -> getString(R.string.ai_chat_error_network)
+            AiError.MissingApiKey -> getString(R.string.ai_chat_missing_api_key)
+        }
+
     companion object {
         private const val TAG = "AiChatBottomSheetFragment"
         private const val ARG_LAUNCH_ARGS = "launchArgs"
+        private const val HTTP_UNAUTHORIZED = 401
+        private const val HTTP_FORBIDDEN = 403
 
         fun newInstance(args: AiChatLaunchArgs): AiChatBottomSheetFragment =
             AiChatBottomSheetFragment().apply {

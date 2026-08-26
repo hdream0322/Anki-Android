@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!--
+    The AI API key is encrypted with a device-bound AndroidKeyStore master key which is never
+    backed up, so a restored copy of this file could not be decrypted on the target device.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="ai_key_store.xml"/>
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="ai_key_store.xml"/>
+    </device-transfer>
+</data-extraction-rules>

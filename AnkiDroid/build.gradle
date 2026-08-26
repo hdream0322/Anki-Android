@@ -589,6 +589,8 @@ dependencies {
     implementation libs.commons.collections4 // SetUniqueList
     implementation libs.commons.io // FileUtils.contentEquals
     implementation libs.okhttp
+    implementation libs.okhttp.sse
+    implementation libs.androidx.security.crypto
     implementation libs.slf4j.timber
     implementation libs.jakewharton.timber
     implementation libs.jsoup
@@ -641,6 +643,7 @@ dependencies {
     testImplementation libs.roborazzi.rule
     // for testing flows
     testImplementation libs.cashapp.turbine
+    testImplementation libs.okhttp.mockwebserver
 
     // May need a resolution strategy for support libs to our versions
     androidTestImplementation libs.androidx.espresso.core

@@ -1,0 +1,11 @@
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="?attr/colorControlNormal">
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M12,22C10.62,22 9.32,21.74 8.1,21.21C6.88,20.69 5.82,19.98 4.92,19.08C4.02,18.18 3.31,17.12 2.79,15.9C2.26,14.68 2,13.38 2,12C2,10.62 2.26,9.32 2.79,8.1C3.31,6.88 4.02,5.82 4.92,4.92C5.82,4.02 6.88,3.31 8.1,2.79C9.32,2.26 10.62,2 12,2C13.38,2 14.68,2.26 15.9,2.79C17.12,3.31 18.18,4.02 19.08,4.92C19.98,5.82 20.69,6.88 21.21,8.1C21.74,9.32 22,10.62 22,12C22,13.38 21.74,14.68 21.21,15.9C20.69,17.12 19.98,18.18 19.08,19.08C18.18,19.98 17.12,20.69 15.9,21.21C14.68,21.74 13.38,22 12,22ZM11,16H13V12H16L12,8L8,12H11V16Z"/>
+</vector>

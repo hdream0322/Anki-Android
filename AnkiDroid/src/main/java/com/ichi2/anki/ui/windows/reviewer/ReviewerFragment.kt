@@ -213,6 +213,11 @@ class ReviewerFragment :
             startActivity(destination.toIntent(requireContext()))
         }
 
+        viewModel.openAiChatFlow.collectIn(lifecycleScope) { args ->
+            com.ichi2.anki.ai.chat.AiChatBottomSheetFragment
+                .show(childFragmentManager, args)
+        }
+
         binding.webViewContainer.setFrameStyle()
 
         if (Prefs.showAnswerFeedback) {

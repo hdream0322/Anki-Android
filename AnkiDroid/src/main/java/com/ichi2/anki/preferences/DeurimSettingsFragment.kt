@@ -15,9 +15,20 @@
  */
 package com.ichi2.anki.preferences
 
+import android.os.Build
+import android.text.InputType
+import android.view.View
+import androidx.preference.EditTextPreference
+import androidx.preference.ListPreference
 import androidx.preference.Preference
 import com.ichi2.anki.R
+import com.ichi2.anki.ai.AiKeyStore
+import com.ichi2.anki.ai.AnthropicProvider
+import com.ichi2.anki.ai.GeminiProvider
+import com.ichi2.anki.ai.OpenAiProvider
+import com.ichi2.anki.common.utils.isRunningAsUnitTest
 import com.ichi2.anki.settings.Prefs
+import com.ichi2.anki.settings.enums.AiProviderKind
 import com.ichi2.anki.ui.windows.reviewer.whiteboard.showColorPickerDialog
 import com.ichi2.anki.update.UpdateManager
 
@@ -34,6 +45,8 @@ class DeurimSettingsFragment : SettingsFragment() {
             true
         }
         initReviewProgressBarColorPref()
+        initAiApiKeyPref()
+        initAiModelPref()
     }
 
     private fun initReviewProgressBarColorPref() {
@@ -46,4 +59,81 @@ class DeurimSettingsFragment : SettingsFragment() {
             }
         }
     }
+
+    private fun initAiApiKeyPref() {
+        // AndroidKeyStore (which EncryptedSharedPreferences/AiKeyStore depends on) is unavailable
+        // under Robolectric, so constructing it here would crash any unit test that creates this
+        // fragment. On a real device AndroidKeyStore is always present.
+        if (isRunningAsUnitTest) return
+        val keyStore = AiKeyStore(requireContext())
+        requirePreference<EditTextPreference>(R.string.pref_ai_api_key_key).apply {
+            isPersistent = false
+            // Write-only: the field always opens blank, even once a key is set — there is no way
+            // to view or edit the stored key, only to replace it with a brand-new one.
+            text = null
+            setOnBindEditTextListener { editText ->
+                // Mask input like a password field so the key isn't shown on screen while typing,
+                // and opt out of the autofill framework so a password manager doesn't also end up
+                // holding a copy of it outside AiKeyStore's encrypted storage.
+                editText.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    editText.importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+                }
+            }
+            summaryProvider =
+                Preference.SummaryProvider<EditTextPreference> {
+                    if (keyStore.hasApiKey()) {
+                        getString(R.string.pref_ai_api_key_summary_set)
+                    } else {
+                        getString(R.string.pref_ai_api_key_summary_not_set)
+                    }
+                }
+            setOnPreferenceChangeListener { preference, newValue ->
+                val trimmed = (newValue as String).trim()
+                // An empty submission must not clear an existing key — only a non-blank entry
+                // replaces it.
+                if (trimmed.isNotEmpty()) {
+                    keyStore.apiKey = trimmed
+                }
+                (preference as EditTextPreference).text = null
+                true
+            }
+        }
+    }
+
+    private fun initAiModelPref() {
+        val modelPref = requirePreference<EditTextPreference>(R.string.pref_ai_model_key)
+        val modelSummaryProvider =
+            Preference.SummaryProvider<EditTextPreference> {
+                val override = Prefs.aiModelOverride
+                if (override.isNullOrBlank()) {
+                    getString(R.string.pref_ai_model_summary_not_set, defaultModelFor(Prefs.aiProviderKind))
+                } else {
+                    getString(R.string.pref_ai_model_summary_set, override)
+                }
+            }
+        modelPref.apply {
+            text = Prefs.aiModelOverride
+            summaryProvider = modelSummaryProvider
+            setOnPreferenceChangeListener { _, newValue ->
+                Prefs.aiModelOverride = (newValue as String).trim().ifBlank { null }
+                true
+            }
+        }
+
+        // The "not set" summary shows the selected provider's default model, so it must refresh
+        // whenever the provider changes. Re-setting the same SummaryProvider is the public-API
+        // way to force Preference to re-evaluate it (notifyChanged() itself is protected).
+        requirePreference<ListPreference>(R.string.pref_ai_provider_key).setOnPreferenceChangeListener { _, _ ->
+            modelPref.summaryProvider = modelSummaryProvider
+            true
+        }
+    }
+
+    private fun defaultModelFor(providerKind: AiProviderKind): String =
+        when (providerKind) {
+            AiProviderKind.OPENAI -> OpenAiProvider().defaultModel
+            AiProviderKind.ANTHROPIC -> AnthropicProvider().defaultModel
+            AiProviderKind.GEMINI -> GeminiProvider().defaultModel
+        }
 }

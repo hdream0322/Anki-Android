@@ -7,8 +7,12 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteException
 import androidx.annotation.WorkerThread
 import androidx.core.database.sqlite.transaction
+import com.ichi2.anki.ai.AiChatMessage
+import com.ichi2.anki.ai.AiChatRole
+import com.ichi2.anki.common.time.TimeManager
 import com.ichi2.anki.common.utils.annotation.KotlinCleanup
 import com.ichi2.anki.libanki.DeckId
+import com.ichi2.anki.libanki.NoteId
 import com.ichi2.anki.model.WhiteboardPenColor
 import com.ichi2.anki.model.WhiteboardPenColor.Companion.default
 import com.ichi2.anki.reviewer.CardSide
@@ -33,7 +37,7 @@ object MetaDB {
     private const val DATABASE_NAME = "ankidroid.db"
 
     /** The Database Version, increase if you want updates to happen on next upgrade.  */
-    private const val DATABASE_VERSION = 8
+    private const val DATABASE_VERSION = 9
 
     /** The database object used by the meta-db.  */
     private var metaDb: SQLiteDatabase? = null
@@ -96,6 +100,16 @@ object MetaDB {
 
         updateWidgetStatus(metaDb)
         updateWhiteboardState(metaDb)
+        metaDb.execSQL(
+            """CREATE TABLE IF NOT EXISTS aiChatMessages (
+            _id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nid INTEGER NOT NULL,
+            role TEXT NOT NULL,
+            content TEXT NOT NULL,
+            createdAt INTEGER NOT NULL
+            )""",
+        )
+        metaDb.execSQL("CREATE INDEX IF NOT EXISTS idx_aiChatMessages_nid ON aiChatMessages(nid)")
         metaDb.version = databaseVersion
         Timber.i("MetaDB:: Upgrading Internal Database finished. New version: %d", databaseVersion)
         return metaDb
@@ -686,6 +700,59 @@ object MetaDB {
             closeDB()
             Timber.i("MetaDB:: Trying to reset Widget: %b", resetWidget(context))
         }
+    }
+
+    /** Appends one message to a note's AI chat history. */
+    fun storeAiChatMessage(
+        context: Context,
+        nid: NoteId,
+        message: AiChatMessage,
+    ) {
+        openDBIfClosed(context)
+        try {
+            metaDb!!.execSQL(
+                "INSERT INTO aiChatMessages (nid, role, content, createdAt) VALUES (?, ?, ?, ?);",
+                arrayOf<Any>(nid, message.role.storageValue, message.content, TimeManager.time.intTimeMS()),
+            )
+        } catch (e: Exception) {
+            Timber.e(e, "Error storing AI chat message in MetaDB")
+        }
+    }
+
+    /** Deletes all AI chat history for a note. */
+    fun deleteAiChatMessages(
+        context: Context,
+        nid: NoteId,
+    ) {
+        openDBIfClosed(context)
+        try {
+            metaDb!!.execSQL("DELETE FROM aiChatMessages WHERE nid = ?;", arrayOf<Any>(nid))
+        } catch (e: Exception) {
+            Timber.e(e, "Error deleting AI chat messages from MetaDB")
+        }
+    }
+
+    /** Returns a note's AI chat history in insertion order. */
+    fun getAiChatMessages(
+        context: Context,
+        nid: NoteId,
+    ): List<AiChatMessage> {
+        openDBIfClosed(context)
+        val messages = mutableListOf<AiChatMessage>()
+        try {
+            metaDb!!
+                .rawQuery(
+                    "SELECT role, content FROM aiChatMessages WHERE nid = ? ORDER BY _id ASC",
+                    arrayOf(nid.toString()),
+                ).use { cur ->
+                    while (cur.moveToNext()) {
+                        messages += AiChatMessage(AiChatRole.fromStorageValue(cur.getString(0)), cur.getString(1))
+                    }
+                }
+        } catch (e: Exception) {
+            Timber.e(e, "Error fetching AI chat messages from MetaDB")
+        }
+        return messages
     }
 
     fun close() {

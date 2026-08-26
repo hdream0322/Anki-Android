@@ -114,6 +114,7 @@ mockitoKotlin = "6.3.0"
 mockk = "1.14.11"
 nanohttpd = "2.3.1"
 okhttp = "5.4.0"
+androidxSecurityCrypto = "1.1.0"
 # https://github.com/protocolbuffers/protobuf/releases
 protobufKotlinLite = "4.35.1"
 # ../AnkiDroid/robolectricDownload.gradle may need changes - read instructions in that file
@@ -198,6 +199,9 @@ leakcanary-android = { module = "com.squareup.leakcanary:leakcanary-android", ve
 google-material = { module = "com.google.android.material:material", version.ref = "material" }
 nanohttpd = { module = "org.nanohttpd:nanohttpd", version.ref = "nanohttpd" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
+okhttp-sse = { module = "com.squareup.okhttp3:okhttp-sse", version.ref = "okhttp" }
+okhttp-mockwebserver = { module = "com.squareup.okhttp3:mockwebserver3", version.ref = "okhttp" }
+androidx-security-crypto = { module = "androidx.security:security-crypto", version.ref = "androidxSecurityCrypto" }
 android-lint-api = { module = "com.android.tools.lint:lint-api", version.ref = "lint" }
 android-lint = { module = "com.android.tools.lint:lint", version.ref = "lint" }
 android-lint-tests = { module = "com.android.tools.lint:lint-tests", version.ref = "lint" }

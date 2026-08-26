@@ -87,4 +87,20 @@
             android:summary="@string/pref_sound_effect_aww_man_summ"
             android:title="@string/pref_sound_effect_aww_man" />
     </PreferenceCategory>
+    <PreferenceCategory android:title="@string/pref_cat_ai">
+        <ListPreference
+            android:defaultValue="@string/ai_provider_openai_value"
+            android:entries="@array/ai_provider_labels"
+            android:entryValues="@array/ai_provider_values"
+            android:key="@string/pref_ai_provider_key"
+            android:title="@string/pref_ai_provider_title"
+            app:useSimpleSummaryProvider="true"/>
+        <EditTextPreference
+            android:key="@string/pref_ai_api_key_key"
+            android:title="@string/pref_ai_api_key_title"
+            android:summary="@string/pref_ai_api_key_summary_not_set"/>
+        <EditTextPreference
+            android:key="@string/pref_ai_model_key"
+            android:title="@string/pref_ai_model_title"/>
+    </PreferenceCategory>
 </PreferenceScreen>

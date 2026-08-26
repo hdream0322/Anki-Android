@@ -46,6 +46,7 @@
         <item>@string/pref_cat_deurim_update</item>
         <item>@string/pref_cat_deurim_reviewer</item>
         <item>@string/pref_cat_sound_effects</item>
+        <item>@string/pref_cat_ai</item>
     </string-array>
 
     <!-- Review progress bar color -->
@@ -74,4 +75,47 @@
     <string name="update_downloading">Downloading new version…</string>
     <string name="update_download_progress">%1$d%%</string>
     <string name="update_need_install_permission">Permission to install unknown apps is required. Please allow it in Settings.</string>
+
+    <!-- AI card chat -->
+    <string name="pref_cat_ai" maxLength="41">AI</string>
+    <string name="pref_ai_provider_key">deurim_ai_provider</string>
+    <string name="pref_ai_provider_title" maxLength="41">AI provider</string>
+    <string name="ai_provider_openai_value">openai</string>
+    <string name="ai_provider_anthropic_value">anthropic</string>
+    <string name="ai_provider_gemini_value">gemini</string>
+    <string-array name="ai_provider_labels">
+        <item>ChatGPT (OpenAI)</item>
+        <item>Claude (Anthropic)</item>
+        <item>Gemini (Google)</item>
+    </string-array>
+    <string-array name="ai_provider_values">
+        <item>@string/ai_provider_openai_value</item>
+        <item>@string/ai_provider_anthropic_value</item>
+        <item>@string/ai_provider_gemini_value</item>
+    </string-array>
+    <string name="pref_ai_api_key_key">deurim_ai_api_key</string>
+    <string name="pref_ai_api_key_title" maxLength="41">API key</string>
+    <string name="pref_ai_api_key_summary_set">A key is set (tap to change)</string>
+    <string name="pref_ai_api_key_summary_not_set">Required to use AI chat — stored encrypted on this device only</string>
+    <string name="pref_ai_model_key">deurim_ai_model</string>
+    <string name="pref_ai_model_title" maxLength="41">Model</string>
+    <!-- %s = the provider's default model id -->
+    <string name="pref_ai_model_summary_not_set">Using the default model (%s) — tap to override</string>
+    <!-- %s = the custom model id the user entered -->
+    <string name="pref_ai_model_summary_set">Custom: %s</string>
+    <string name="ai_chat_title">Ask AI about this card</string>
+    <string name="ai_chat_input_hint">Ask a question about this card…</string>
+    <string name="ai_chat_send">Send</string>
+    <string name="ai_chat_error">AI request failed — check your connection and API key</string>
+    <string name="ai_chat_error_rate_limited_with_wait">Rate limit reached. Please try again in %1$d seconds</string>
+    <string name="ai_chat_error_rate_limited">Rate limit reached. Please try again shortly</string>
+    <string name="ai_chat_error_invalid_key">Your API key was rejected — check it in Settings → Useful features → AI</string>
+    <string name="ai_chat_error_server">The AI provider is having issues. Please try again shortly</string>
+    <string name="ai_chat_error_network">Couldn\'t reach the AI provider — check your connection</string>
+    <string name="ai_chat_missing_api_key">Set an AI API key in Settings → Useful features → AI first</string>
+    <string name="ai_chat_generating">Generating…</string>
+    <string name="ai_chat_clear_history">Clear chat history</string>
+    <string name="ai_chat_clear_history_confirm">Delete all AI chat messages for this note? This can\'t be undone.</string>
+    <string name="ai_chat_history_cleared">Chat history cleared</string>
+    <string name="custom_button_ai_chat_key">customButtonAiChat</string>
 </resources>

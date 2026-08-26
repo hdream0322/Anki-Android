@@ -122,6 +122,11 @@
         tools:title="Previous card info"
         ankidroid:showAsAction="never"/>
     <item
+        android:id="@+id/action_ai_chat"
+        android:icon="@drawable/ic_ai_chat"
+        android:title="@string/ai_chat_title"
+        ankidroid:showAsAction="never"/>
+    <item
         android:id="@+id/action_tag"
         android:icon="@drawable/ic_tag"
         android:title="@string/menu_edit_tags"

@@ -14,6 +14,7 @@ import com.ichi2.anki.CollectionManager.TR
 import com.ichi2.anki.CollectionManager.withCol
 import com.ichi2.anki.Flag
 import com.ichi2.anki.Reviewer
+import com.ichi2.anki.ai.CardContentExtractor
 import com.ichi2.anki.asyncIO
 import com.ichi2.anki.cardviewer.SingleCardSide
 import com.ichi2.anki.common.annotations.NeedsTest
@@ -71,6 +72,12 @@ import org.intellij.lang.annotations.Language
 import timber.log.Timber
 import com.ichi2.anki.common.destinations.Destination as NavigateDestination
 
+@kotlinx.parcelize.Parcelize
+data class AiChatLaunchArgs(
+    val noteId: NoteId,
+    val cardContent: String,
+) : android.os.Parcelable
+
 class ReviewerViewModel(
     savedStateHandle: SavedStateHandle,
 ) : CardViewerViewModel(savedStateHandle),
@@ -101,6 +108,7 @@ class ReviewerViewModel(
     val onTypedAnswerResultFlow = MutableSharedFlow<CompletableDeferred<String>>()
     val onCardUpdatedFlow = MutableSharedFlow<Unit>()
     val destinationFlow = MutableSharedFlow<Destination>()
+    val openAiChatFlow = MutableSharedFlow<AiChatLaunchArgs>()
     val navigateFlow = MutableSharedFlow<NavigateDestination>()
     val editNoteTagsFlow = MutableSharedFlow<NoteId>()
     val setDueDateFlow = MutableSharedFlow<CardId>()
@@ -678,6 +686,15 @@ class ReviewerViewModel(
         cardMediaPlayer.replayAll(side)
     }
 
+    private suspend fun openAiChat() {
+        val card = currentCard.await()
+        val content =
+            withCol {
+                CardContentExtractor.extract(card.question(this), card.answer(this))
+            }
+        openAiChatFlow.emit(AiChatLaunchArgs(noteId = card.nid, cardContent = content))
+    }
+
     private fun toggleWhiteboard() {
         val newValue = !whiteboardEnabledFlow.value
         whiteboardEnabledFlow.value = newValue
@@ -735,6 +752,7 @@ class ReviewerViewModel(
                     ViewerAction.SHOW_HINT -> eval.emit("ankidroid.showHint()")
                     ViewerAction.SHOW_ALL_HINTS -> eval.emit("ankidroid.showAllHints()")
                     ViewerAction.TOGGLE_WHITEBOARD -> toggleWhiteboard()
+                    ViewerAction.AI_CHAT -> openAiChat()
                     ViewerAction.RECORD_VOICE -> toggleRecordVoice()
                     ViewerAction.REPLAY_VOICE -> replayVoiceFlow.emit(Unit)
                     ViewerAction.PAGE_UP -> pageUpFlow.emit(Unit)

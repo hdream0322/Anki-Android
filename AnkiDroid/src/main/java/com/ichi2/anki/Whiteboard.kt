@@ -331,6 +331,27 @@ class Whiteboard(
      */
     fun undoEmpty(): Boolean = undo.empty()
 
+    /** @return The strokes currently on the whiteboard, restorable via [restoreSnapshot] */
+    fun takeSnapshot(): Snapshot = Snapshot(undo.snapshot())
+
+    /** Replaces the strokes on the whiteboard with those of [snapshot] */
+    fun restoreSnapshot(snapshot: Snapshot) {
+        undo.restore(snapshot.actions)
+        ankiActivity.invalidateOptionsMenu()
+    }
+
+    /**
+     * The strokes of a whiteboard at a point in time.
+     *
+     * Strokes are stored in the card's content space, so a snapshot may be restored onto a
+     * whiteboard whose zoom/scroll differs from the one it was taken from.
+     */
+    class Snapshot internal constructor(
+        internal val actions: List<WhiteboardAction>,
+    ) {
+        val isEmpty get() = actions.isEmpty()
+    }
+
     private fun createBitmap(
         w: Int,
         h: Int,
@@ -542,6 +563,14 @@ class Whiteboard(
             list.removeAt(list.size - 1)
         }
 
+        fun snapshot(): List<WhiteboardAction> = list.toList()
+
+        fun restore(actions: List<WhiteboardAction>) {
+            list.clear()
+            list.addAll(actions)
+            apply()
+        }
+
         fun apply() {
             bitmap.eraseColor(0)
             drawTo(canvas)
@@ -610,7 +639,7 @@ class Whiteboard(
         fun empty(): Boolean = list.isEmpty()
     }
 
-    private interface WhiteboardAction {
+    internal interface WhiteboardAction {
         fun apply(
             canvas: Canvas,
             strokeWidthScale: Float = 1f,

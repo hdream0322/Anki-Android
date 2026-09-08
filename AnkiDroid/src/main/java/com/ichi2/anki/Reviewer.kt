@@ -137,6 +137,7 @@ import com.ichi2.utils.positiveButton
 import com.ichi2.utils.show
 import com.ichi2.utils.tintOverflowMenuIcons
 import com.ichi2.utils.title
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import timber.log.Timber
@@ -240,6 +241,15 @@ open class Reviewer :
 
     /** The card WebView's last known zoom scale, used to keep [whiteboard] in sync with it. */
     private var cardZoomScale = 1f
+
+    /** Drawings of the cards recently left behind, so that [undo] can bring one back. */
+    private val whiteboardSnapshots = WhiteboardSnapshotStore()
+
+    /** The card whose drawing is currently on [whiteboard]. */
+    private var whiteboardCardId: CardId? = null
+
+    /** Whether the next card shown is one the user is going back to via [undo]. */
+    private var isUndoingToPreviousCard = false
 
     // Record Audio
     private var isMicToolBarVisible = false
@@ -752,7 +762,7 @@ open class Reviewer :
     override fun updateForNewCard() {
         super.updateForNewCard()
         if (prefWhiteboard && whiteboard != null) {
-            whiteboard!!.clear()
+            updateWhiteboardForCurrentCard()
             // Don't let the previous card's zoom/scroll leak into the new one - see
             // resetContentTransform's kdoc.
             whiteboard!!.resetContentTransform()
@@ -763,6 +773,30 @@ open class Reviewer :
             syncWhiteboardContentTransform()
         }
         audioRecordingController?.updateUIForNewCard()
+    }
+
+    /**
+     * Clears the whiteboard for the card being shown, keeping the drawing of the card being left
+     * behind so that undoing an answer restores it.
+     */
+    private fun updateWhiteboardForCurrentCard() {
+        val whiteboard = whiteboard ?: return
+        val cardId = currentCard?.id
+        if (cardId != whiteboardCardId) {
+            whiteboardCardId?.let { whiteboardSnapshots.save(it, whiteboard.takeSnapshot()) }
+        }
+        whiteboard.clear()
+        if (isUndoingToPreviousCard) {
+            isUndoingToPreviousCard = false
+            cardId?.let { whiteboardSnapshots.take(it) }?.let { whiteboard.restoreSnapshot(it) }
+        }
+        whiteboardCardId = cardId
+    }
+
+    override fun undo(): Job {
+        // the card shown after the undo may be one the user drew on before answering it
+        isUndoingToPreviousCard = colIsOpenUnsafe() && getColUnsafe.undoAvailable()
+        return super.undo()
     }
 
     override fun unblockControls() {
@@ -1364,13 +1398,6 @@ open class Reviewer :
         progressBar.setProgress((done * progressBar.max) / sessionMaxCount, true)
     }
 
-    override fun fillFlashcard() {
-        super.fillFlashcard()
-        if (!isDisplayingAnswer && showWhiteboard && whiteboard != null) {
-            whiteboard!!.clear()
-        }
-    }
-
     override fun onPageFinished(view: WebView) {
         super.onPageFinished(view)
         onFlagChanged()
@@ -1910,6 +1937,8 @@ open class Reviewer :
             createInstance(this, true, this).also { whiteboard ->
                 this.whiteboard = whiteboard
             }
+        // the whiteboard belongs to the card on screen when it's enabled, not to the next one
+        whiteboardCardId = currentCard?.id
 
         whiteboard.isContentSyncEnabled = sharedPrefs().getBoolean(getString(R.string.whiteboard_card_zoom_sync_key), false)
         syncWhiteboardContentTransform()

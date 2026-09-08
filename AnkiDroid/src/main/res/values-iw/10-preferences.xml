@@ -28,7 +28,6 @@
     <plurals name="pref_summ_minutes">
         <item quantity="one">דקה אחת</item>
         <item quantity="two">%d דקות</item>
-        <item quantity="many">%d דקות</item>
         <item quantity="other">%d דקות</item>
     </plurals>
     <string name="pref_milliseconds">%s מילישניות</string>
@@ -146,9 +145,9 @@
     <string name="select_locale_title">בחר שפה</string>
     <string name="software_render" maxLength="41">השבת את עיבוד החומרה של הכרטיס</string>
     <string name="software_render_summ">עיבוד החומרה מהיר יותר אך עשוי ליצור בעיות, במיוחד באנדרואיד 8/8.1. אם אינך יכול לראות חלקים מממשק המשתמש של סקירת הכרטיסים, נסה את ההגדרה הזו.</string>
-    <string name="disable_extended_text_ui" maxLength="41">השבת את מצב עריכה של שדה יחיד</string>
+    <string name="disable_extended_text_ui" maxLength="41">Disable single-field edit mode</string>
     <!--See: multimedia_editor_popup_cloze. We can\'t use format strings as this is auto-generated-->
-    <string name="disable_extended_text_ui_summ">מאפשר תפריט ההקשר \'מחיקת Cloze\' במצב לרוחב.</string>
+    <string name="disable_extended_text_ui_summ">Allows \'Cloze deletion\' context menu when in landscape mode.</string>
     <string name="vertical_centering" maxLength="41">מירכוז</string>
     <string name="vertical_centering_summ">מרכז את תוכן הכרטיסים בצורה אנכית</string>
     <string name="pref_double_tap_time_interval" maxLength="41">מרווח זמן של לחיצה כפולה</string>
@@ -174,7 +173,6 @@
     <plurals name="day_offset_summ" comment="%d is going to be replaced with the number of hours past midnight. It can be replaced if something else suits better the translation">
         <item quantity="one" comment="Consider keeping the unbreakable space after the digit">%d שעה אחרי חצות</item>
         <item quantity="two">%d שעות אחרי חצות</item>
-        <item quantity="many">%d שעות אחרי חצות</item>
         <item quantity="other" comment="Consider keeping the unbreakable space after the digit">%d שעות אחרי חצות</item>
     </plurals>
     <string name="pref_keep_screen_on" maxLength="41">להשאיר את המסך דולק</string>
@@ -236,7 +234,7 @@
     <string name="analytics_title" maxLength="41">שיתוף השימוש ביכולת</string>
     <string name="analytics_summ">ביכולתך לתרום ל-AnkiDroid על ידי עזרה לצוות הפיתוח שיראו באילו תכונות אנשים משתמשים</string>
     <string name="note_editor_replace_newlines" maxLength="41">החלפת שורות חדשות ב־HTML</string>
-    <string name="note_editor_replace_newlines_summ">בעורך פתקים, המר את כל המופעים של &lt;br&gt; לשורות חדשות בעת עריכת כרטיס.</string>
+    <string name="note_editor_replace_newlines_summ">In the note editor, convert any instances of &lt;br&gt; to newlines when editing a card.</string>
     <string name="type_in_answer_focus" maxLength="41">התמקד ב\'הקלד תשובה\'</string>
     <string name="type_in_answer_focus_summ">מיקוד אוטומטי של שדה \'הקלד תשובה\' במסך הלימוד</string>
     <!-- About -->
@@ -284,6 +282,8 @@
     <string name="pref_cat_experimental" maxLength="41" tools:ignore="UnusedResources">ניסיוני</string>
     <string name="readtext_deprecation_warn">AnkiDroid הציגה מנגנון TTS טוב יותר התואם עם לקוחות אחרים של Anki וכולל יותר קולות ושיפורים להפעלת שפה!\n\nנא לשדרג בהקדם האפשרי, שכן הגדרה זו תוסר בקרוב</string>
     <string name="readtext_reviewer_warn" tools:ignore="UnusedResources">שדרג לפורמט החדש של טקסט לדיבור</string>
+    <string name="allow_templates_to_record_audio" maxLength="41">Allow templates to record audio</string>
+    <string name="template_is_trying_to_record_audio">This template is trying to record audio</string>
     <string name="pref_fixed_port_title" maxLength="41">מסך אחסון מקומי בלימוד</string>
     <string name="pref_fixed_port_summary">מפעיל אחסון מקומי של JavaScript באמצעות יציאת שרת קבועה במסך הלימוד</string>
     <!-- Developer options -->
@@ -318,7 +318,6 @@
     <plurals name="pref__widget_text__n_files_n_bytes" comment="Text in a small box on the end of a preference,         showing some statistics about a folder on disk if a form of “12 files\n26 MB”.         Must be VERY short. Can be one or two lines.">
         <item quantity="one">קובץ %1$d\n%2$s</item>
         <item quantity="two">%1$d קבצים\n%2$s</item>
-        <item quantity="many">%1$d קבצים\n%2$s</item>
         <item quantity="other">%1$d קבצים\n%2$s</item>
     </plurals>
     <!-- Delete unused media -->

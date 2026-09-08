@@ -143,9 +143,9 @@
     <string name="select_locale_title">Välj språk</string>
     <string name="software_render" maxLength="41">Inaktivera kort hårdvarurendering</string>
     <string name="software_render_summ">Hårdvarurendering är snabbare men kan få problem, särskilt på Android 8/8.1. Om du inte kan se delar av kortgranskningsgränssnittet, prova den här inställningen.</string>
-    <string name="disable_extended_text_ui" maxLength="41">Inaktivera redigeringsläge för enfald</string>
+    <string name="disable_extended_text_ui" maxLength="41">Disable single-field edit mode</string>
     <!--See: multimedia_editor_popup_cloze. We can\'t use format strings as this is auto-generated-->
-    <string name="disable_extended_text_ui_summ">Tillåter snabbmenyn ”Textlucka” i liggande läge.</string>
+    <string name="disable_extended_text_ui_summ">Allows \'Cloze deletion\' context menu when in landscape mode.</string>
     <string name="vertical_centering" maxLength="41">Centrera</string>
     <string name="vertical_centering_summ">Vertikal centrering av kortinnehåll</string>
     <string name="pref_double_tap_time_interval" maxLength="41">Dubbeltryck tidsintervall</string>
@@ -233,7 +233,7 @@
     <string name="analytics_title" maxLength="41">Dela funktionsanvändning</string>
     <string name="analytics_summ">Du kan bidra till AnkiDroid genom att hjälpa utvecklingslaget se vilka funktioner som används</string>
     <string name="note_editor_replace_newlines" maxLength="41">Ersätt radbrytningar med HTML</string>
-    <string name="note_editor_replace_newlines_summ">I Notredigeraren, konvertera alla instanser av &lt;br&gt; till radbrytningar när du redigerar ett kort.</string>
+    <string name="note_editor_replace_newlines_summ">In the note editor, convert any instances of &lt;br&gt; to newlines when editing a card.</string>
     <string name="type_in_answer_focus" maxLength="41">Fokusera på ‘skriv in svar’</string>
     <string name="type_in_answer_focus_summ">Automatically focus the ‘type in answer’ field in the study screen</string>
     <!-- About -->
@@ -281,6 +281,8 @@
     <string name="pref_cat_experimental" maxLength="41" tools:ignore="UnusedResources">Experimentellt</string>
     <string name="readtext_deprecation_warn">AnkiDroid har infört en bättre TTS-funktion som är kompatibel med andra Anki-klienter och innehåller fler röster och förbättringar av språkuppspelning!\n\nVänligen uppgradera så snart som möjligt, eftersom denna inställning snart kommer att tas bort</string>
     <string name="readtext_reviewer_warn" tools:ignore="UnusedResources">Vänligen uppgradera till det nya text-till-tal-formatet</string>
+    <string name="allow_templates_to_record_audio" maxLength="41">Allow templates to record audio</string>
+    <string name="template_is_trying_to_record_audio">This template is trying to record audio</string>
     <string name="pref_fixed_port_title" maxLength="41">localStorage in Study Screen</string>
     <string name="pref_fixed_port_summary">Enables JavaScript localStorage by using a fixed server port in the Study Screen</string>
     <!-- Developer options -->

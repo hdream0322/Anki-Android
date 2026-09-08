@@ -1,18 +1,6 @@
-/*
- * Copyright (c) 2025 Brayan Oliveira <brayandso.dev@gmail.com>
- *
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 3 of the License, or (at your option) any later
- * version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- * PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2025 Brayan Oliveira <brayandso.dev@gmail.com>
+
 package com.ichi2.anki.settings
 
 import android.content.Context
@@ -47,6 +35,7 @@ object Prefs : PrefsRepository(AnkiDroidApp.sharedPrefs(), AnkiDroidApp.appResou
 /** Deurim fork's brand orange — matches the default `android:progressTint` in the reviewer layouts. */
 const val DEFAULT_REVIEW_PROGRESS_BAR_COLOR = 0xFFEC6337.toInt()
 
+// TODO: enforce that `preferences.xml` is used
 open class PrefsRepository(
     val sharedPrefs: SharedPreferences,
     private val resources: Resources,
@@ -311,6 +300,25 @@ open class PrefsRepository(
 
     // *************************************** Permissions ************************************** //
 
+    // TODO: "Has the app done X" flags might not belong in the common SharedPrefs file and should maybe be pulled out.
+    // Storing these flags somewhat diverges from the intention of SharedPrefs, which is intended for user preferences.
+    // Cleaner organization / storage of these flags may be possible.
+
+    /**
+     * Whether the bottom sheet for requesting notification permissions has been shown to the user, but only for
+     * API <33. Why is this required? On API 33+, we continue showing the bottom sheet until the OS tells us we should not show it anymore
+     * (i.e. the user has denied the permission and checked "Don't ask again", or has denied the permission enough times).
+     * However, on API <33, no explicit OS notification permission is available, but the user can still disable notifications for the app in the OS settings.
+     * The bottom sheet should therefore still be shown. Since there is no longer OS feedback on whether the user has denied
+     * the request in the past, we need to keep track of this ourselves to avoid spamming the user with the bottom sheet over and over.
+     *
+     * Technically, we could just reuse [notificationsPermissionRequested] for this purpose. However, that makes
+     * [notificationsPermissionRequested] have two purposes and blurs its clear definition as "has the OS system dialog for requesting
+     * notifications been presented to the user before". On API <33, the OS system dialog for requesting notifications does not exist,
+     * and so technically [notificationsPermissionRequested] should always be false. Therefore, we keep this separate.
+     */
+    var notificationsBottomSheetShownBelowAPI33 by booleanPref(R.string.notifications_bottom_sheet_below_33, defaultValue = false)
+
     // Flags for whether the system UI dialog for requesting certain permissions has been shown before.
     // If the user has viewed the dialog at least once, we should check if they pressed "don't ask again"
     // or pressed "deny" repeatedly (via [androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale]).
@@ -332,8 +340,6 @@ open class PrefsRepository(
      * an issue for the review reminders feature, so to ensure the user is able to receive review reminder notifications after
      * a data restore / migration, a Snackbar noting that notification permissions are missing will be shown
      * on the [com.ichi2.anki.reviewreminders.ScheduleRemindersFragment] fragment if notification permissions are not granted.
-     *
-     * @see com.ichi2.anki.reviewreminders.ScheduleRemindersFragment.checkForNotificationPermissions
      */
     var notificationsPermissionRequested by booleanPref(R.string.notifications_permission_requested_key, false)
 
@@ -398,6 +404,7 @@ open class PrefsRepository(
 
     val isHtmlTypeAnswerEnabled by booleanPref(R.string.use_input_tag_key, defaultValue = false)
     var useFixedPortInReviewer by booleanPref(R.string.use_fixed_port_pref_key, false)
+    var allowTemplatesToRecordAudio by booleanPref(R.string.pref_allow_template_audio_recording, false)
 
     var reviewerPort by intPref(R.string.reviewer_port_pref_key, defaultValue = 0)
 

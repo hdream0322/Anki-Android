@@ -5,8 +5,16 @@ package com.ichi2.anki
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
 import android.view.KeyEvent
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
+import androidx.coordinatorlayout.widget.CoordinatorLayout
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat.Type.displayCutout
+import androidx.core.view.WindowInsetsCompat.Type.systemBars
+import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentContainerView
 import androidx.fragment.app.commit
@@ -18,10 +26,9 @@ import com.ichi2.anki.dialogs.customstudy.CustomStudyDialog.CustomStudyAction
 import com.ichi2.anki.snackbar.BaseSnackbarBuilderProvider
 import com.ichi2.anki.snackbar.SnackbarBuilder
 import com.ichi2.anki.startup.ensureStorageIsReady
-import com.ichi2.anki.ui.windows.managespace.ManageSpaceActivity
 import com.ichi2.anki.utils.ConfigAwareSingleFragmentActivity
 import com.ichi2.anki.utils.ext.setFragmentResultListener
-import com.ichi2.themes.setTransparentStatusBar
+import com.ichi2.themes.Themes
 import com.ichi2.utils.FragmentFactoryUtils
 import timber.log.Timber
 import kotlin.reflect.KClass
@@ -58,33 +65,32 @@ open class SingleFragmentActivity :
         if (!ensureStorageIsReady()) {
             return
         }
-        setTransparentStatusBar()
+        enableEdgeToEdge(statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { Themes.isNightTheme })
+        val root = findViewById<CoordinatorLayout>(R.id.root_layout)
+        ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
+            val constraints = insets.getInsets(systemBars() or displayCutout())
+            // apply the insets only for content/fragments defined by SingleFragmentActivity
+            // directly, subclasses(ex. ManageSpaceActivity, Preferences) should handle their
+            // content independently
+            if (this::class.java == SingleFragmentActivity::class.java) {
+                findViewById<FragmentContainerView>(R.id.fragment_container)?.updatePadding(
+                    left = constraints.left,
+                    right = constraints.right,
+                    top = constraints.top,
+                    bottom = constraints.bottom,
+                )
+            }
+            insets
+        }
 
         // avoid recreating the fragment on configuration changes
         // the fragment should handle state restoration
         if (savedInstanceState != null) {
             return
         }
-        val assignedFragment = intent.getStringExtra(EXTRA_FRAGMENT_NAME)
-        // One of the activities inheriting this activity is ManageSpaceActivity which is started
-        // only by the system. When we encounter this activity we need to assign it here the fragment
-        // it expects, which is ManageSpaceFragment
-        val fragmentClassName =
-            if (assignedFragment == null && this is ManageSpaceActivity) {
-                // the IDE updates this when moving ManageSpaceFragment
-                "com.ichi2.anki.ui.windows.managespace.ManageSpaceFragment"
-            } else {
-                requireNotNull(assignedFragment) { "'$EXTRA_FRAGMENT_NAME' extra should be provided" }
-            }
 
-        Timber.d("Creating fragment %s", fragmentClassName)
-
-        val fragment =
-            FragmentFactoryUtils.instantiate<Fragment>(this, fragmentClassName).apply {
-                arguments = intent.getBundleExtra(EXTRA_FRAGMENT_ARGS)
-            }
         supportFragmentManager.commit {
-            replace(R.id.fragment_container, fragment, FRAGMENT_TAG)
+            replace(R.id.fragment_container, createFragment(), FRAGMENT_TAG)
         }
 
         setFragmentResultListener(CustomStudyAction.REQUEST_KEY) { _, bundle ->
@@ -105,6 +111,15 @@ open class SingleFragmentActivity :
             fragment.dispatchKeyEvent(event) || super.dispatchKeyEvent(event)
         } else {
             super.dispatchKeyEvent(event)
+        }
+    }
+
+    protected open fun createFragment(): Fragment {
+        val fragmentClassName =
+            requireNotNull(intent.getStringExtra(EXTRA_FRAGMENT_NAME)) { "'$EXTRA_FRAGMENT_NAME' extra should be provided" }
+        Timber.d("Creating fragment %s", fragmentClassName)
+        return FragmentFactoryUtils.instantiate<Fragment>(this, fragmentClassName).apply {
+            arguments = intent.getBundleExtra(EXTRA_FRAGMENT_ARGS)
         }
     }
 

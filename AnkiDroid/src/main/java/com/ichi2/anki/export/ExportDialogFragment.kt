@@ -12,6 +12,7 @@ import android.widget.ArrayAdapter
 import android.widget.TextView
 import androidx.annotation.IdRes
 import androidx.annotation.LayoutRes
+import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AlertDialog
 import androidx.core.text.HtmlCompat
 import androidx.core.view.isVisible
@@ -53,7 +54,9 @@ import java.io.File
  * Intended to replicate the desktop UI.
  */
 class ExportDialogFragment : AnalyticsDialogFragment() {
-    private lateinit var binding: DialogExportOptionsBinding
+    @VisibleForTesting
+    internal lateinit var binding: DialogExportOptionsBinding
+        private set
 
     override fun onDismiss(dialog: DialogInterface) {
         super.onDismiss(dialog)
@@ -166,10 +169,10 @@ class ExportDialogFragment : AnalyticsDialogFragment() {
                         requireActivity(),
                         android.R.layout.simple_spinner_item,
                         listOf(
-                            "${exportingAnkiCollectionPackage()} (.colpkg)",
-                            "${exportingAnkiDeckPackage()} (.apkg)",
-                            "${exportingNotesInPlainText()} (.txt)",
-                            "${exportingCardsInPlainText()} (.txt)",
+                            "${sentenceCase.ankiCollectionPackage} (.colpkg)",
+                            "${sentenceCase.ankiDeckPackage} (.apkg)",
+                            "${sentenceCase.notesInPlainText} (.txt)",
+                            "${sentenceCase.cardsInPlainText} (.txt)",
                         ),
                     ).apply { setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
                 adapter = exportTypesAdapter
@@ -256,13 +259,10 @@ class ExportDialogFragment : AnalyticsDialogFragment() {
 
     private fun handleAnkiPackageExport() {
         val limits = buildExportLimit()
-        var packagePrefix = getNonCollectionNamePrefix()
-        // files can't have `/` in their names
-        packagePrefix = packagePrefix.replace("/", "_")
         val exportPath =
             File(
                 getExportRootFile(),
-                "$packagePrefix-${getTimestamp(TimeManager.time)}.apkg",
+                "${getNonCollectionNamePrefix()}-${getTimestamp(TimeManager.time)}.apkg",
             ).path
         requireAnkiActivity().exportApkgPackage(
             exportPath = exportPath,
@@ -278,12 +278,18 @@ class ExportDialogFragment : AnalyticsDialogFragment() {
      * Builds the prefix for the name of the exported file. This will be  either a deck's name or a
      * localized "SelectedNotes" text.
      */
-    private fun getNonCollectionNamePrefix(): String =
-        when (arguments?.getSerializableCompat<ExportType>(ARG_TYPE)) {
-            ExportType.Notes, ExportType.Cards -> CollectionManager.TR.exportingSelectedNotes()
-            // notes/cards weren't selected so export the chosen deck(s)
-            null -> (binding.deckSelector.adapter as DeckDisplayAdapter).getItem(binding.deckSelector.selectedItemPosition).name
-        }
+    // TODO: return [Filename] once the construction of export paths is refactored
+    private fun getNonCollectionNamePrefix(): String {
+        val filename =
+            Filename.sanitize(
+                when (arguments?.getSerializableCompat<ExportType>(ARG_TYPE)) {
+                    ExportType.Notes, ExportType.Cards -> CollectionManager.TR.exportingSelectedNotes()
+                    // notes/cards weren't selected so export the chosen deck(s)
+                    null -> (binding.deckSelector.adapter as DeckDisplayAdapter).getItem(binding.deckSelector.selectedItemPosition).name
+                },
+            )
+        return filename.value
+    }
 
     private fun handleNotesInPlainTextExport() {
         val exportLimit = buildExportLimit()

@@ -1,18 +1,5 @@
-/*
- *  Copyright (c) 2025 Eric Li <ericli3690@gmail.com>
- *
- *  This program is free software; you can redistribute it and/or modify it under
- *  the terms of the GNU General Public License as published by the Free Software
- *  Foundation; either version 3 of the License, or (at your option) any later
- *  version.
- *
- *  This program is distributed in the hope that it will be useful, but WITHOUT ANY
- *  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- *  PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along with
- *  this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2025 Eric Li <ericli3690@gmail.com>
 
 package com.ichi2.anki.reviewreminders
 
@@ -24,12 +11,16 @@ import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
+import android.view.ViewGroup
 import androidx.annotation.IdRes
+import androidx.core.graphics.Insets
 import androidx.core.view.MenuProvider
 import androidx.core.view.ViewCompat
+import androidx.core.view.ViewGroupCompat
 import androidx.core.view.WindowInsetsCompat.Type.displayCutout
-import androidx.core.view.WindowInsetsCompat.Type.statusBars
+import androidx.core.view.WindowInsetsCompat.Type.systemBars
 import androidx.core.view.isVisible
+import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -47,17 +38,22 @@ import com.ichi2.anki.libanki.DeckId
 import com.ichi2.anki.requireAnkiActivity
 import com.ichi2.anki.reviewreminders.AddEditReminderDialog.Companion.registerAddEditReminderHandler
 import com.ichi2.anki.runCatching
-import com.ichi2.anki.services.AlarmManagerService
 import com.ichi2.anki.snackbar.BaseSnackbarBuilderProvider
 import com.ichi2.anki.snackbar.SnackbarBuilder
 import com.ichi2.anki.snackbar.showSnackbar
 import com.ichi2.anki.utils.ConfigAwareSingleFragmentActivity
+import com.ichi2.anki.utils.doOnApplyWindowInsets
 import com.ichi2.anki.utils.ext.getParcelableCompat
 import com.ichi2.anki.utils.ext.launchCollectionInLifecycleScope
 import com.ichi2.anki.utils.showDialogFragment
 import com.ichi2.anki.withProgress
 import com.ichi2.utils.Permissions.openAppNotificationsSettingsScreen
 import dev.androidbroadcast.vbpd.viewBinding
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.parcelize.Parcelize
 import timber.log.Timber
@@ -88,21 +84,17 @@ class ScheduleRemindersFragment :
      * Possible hosts of this fragment. Certain stylistic changes need to be made based on where this
      * fragment is opened from / nested within.
      *
-     * TODO: Implement edge-to-edge for Settings, StudyOptionsActivity, and ConfigAwareSingleFragmentActivity.
-     * Then, remove the supportsEdgeToEdge property below and test this fragment's UI behavior 1) on both small and wide screens,
-     * 2) with all app display themes, and 3) from all possible locations this fragment can be opened from. In particular,
-     * make sure there is no weird clipping of the collapsible toolbar content scrim when this fragment is opened from the Settings screen upon scrolling.
+     * This fragment applies the system bar insets to its own views. Hosts which instead apply the
+     * insets to this fragment's container ([STUDY_OPTIONS_FRAGMENT] and [STUDY_OPTIONS_FRAME])
+     * consume them, so that they are not applied a second time here.
      *
      * @param containerId The XML ID of the container in which this fragment is hosted.
      * @param toolbarType The type of toolbar to display for this fragment.
-     * @param supportsEdgeToEdge Whether the host of this fragment currently supports edge-to-edge rendering.
-     * The legacy fitsSystemWindows property is deprecated and should be migrated away from.
      */
     @Parcelize
     enum class FragmentHost(
         @IdRes val containerId: Int,
         val toolbarType: ToolbarType,
-        val supportsEdgeToEdge: Boolean,
     ) : Parcelable {
         /**
          * App-wide review reminders editing screen accessed via Settings.
@@ -111,7 +103,6 @@ class ScheduleRemindersFragment :
         SETTINGS(
             containerId = R.id.settings_container,
             toolbarType = ToolbarType.INTERNAL_COLLAPSIBLE,
-            supportsEdgeToEdge = false,
         ),
 
         /**
@@ -121,7 +112,6 @@ class ScheduleRemindersFragment :
         STUDY_OPTIONS_FRAGMENT(
             containerId = R.id.studyoptions_fragment,
             toolbarType = ToolbarType.INTERNAL_NON_COLLAPSIBLE,
-            supportsEdgeToEdge = true,
         ),
 
         /**
@@ -132,7 +122,6 @@ class ScheduleRemindersFragment :
         STUDY_OPTIONS_FRAME(
             containerId = R.id.studyoptions_frame,
             toolbarType = ToolbarType.EXTERNAL,
-            supportsEdgeToEdge = false,
         ),
 
         /**
@@ -143,7 +132,6 @@ class ScheduleRemindersFragment :
         STANDALONE_ACTIVITY(
             containerId = R.id.fragment_container,
             toolbarType = ToolbarType.INTERNAL_NON_COLLAPSIBLE,
-            supportsEdgeToEdge = false,
         ),
     }
 
@@ -183,8 +171,27 @@ class ScheduleRemindersFragment :
 
     private var troubleshootingSnackbar: Snackbar? = null
 
+    /**
+     * Whether there are any reminders currently being displayed in the UI.
+     * Kept in sync with [reminders] by [triggerUIUpdate].
+     */
+    private val flowOfHasReminders = MutableStateFlow(false)
+
+    /**
+     * Whether the troubleshooting snackbar should currently be visible.
+     * The snackbar is only relevant if the user actually has reminders which the troubleshooting problem could
+     * prevent from firing, so this depends on both [flowOfHasReminders] and the troubleshooting checks themselves.
+     */
+    private val flowOfShowTroubleshooting: StateFlow<Boolean> by lazy {
+        combine(troubleshootingViewModel.state, flowOfHasReminders) { state, hasReminders ->
+            hasReminders && state.summaryStatus == SummaryStatus.Error
+        }.stateIn(lifecycleScope, SharingStarted.Eagerly, initialValue = false)
+    }
+
     override val baseSnackbarBuilder: SnackbarBuilder = {
         anchorView = binding.floatingActionButtonAdd
+        // reposition if the anchor moves, e.g. when the window insets arrive after showing
+        isAnchorViewLayoutListenerEnabled = true
     }
 
     /**
@@ -207,26 +214,22 @@ class ScheduleRemindersFragment :
     ) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Set up root layout insets if the host of this fragment does not support edge-to-edge
-        if (host.supportsEdgeToEdge) {
-            binding.rootLayout.fitsSystemWindows = false // No need for legacy insets behavior
-        } else {
-            binding.rootLayout.fitsSystemWindows = true // Legacy insets behavior to avoid overlapping the status bar
-            if (host.toolbarType == ToolbarType.INTERNAL_NON_COLLAPSIBLE) {
-                // The legacy behavior is broken for the non-collapsible toolbar, also implement a manual workaround for it
-                setNonCollapsibleToolbarInsets()
-            }
-        }
-
         // Set up toolbar
         when (host.toolbarType) {
             ToolbarType.EXTERNAL -> setupExternalActivityToolbar()
-            ToolbarType.INTERNAL_COLLAPSIBLE -> setupInternalFragmentToolbar(isCollapsible = true)
-            ToolbarType.INTERNAL_NON_COLLAPSIBLE -> setupInternalFragmentToolbar(isCollapsible = false)
+            ToolbarType.INTERNAL_COLLAPSIBLE -> {
+                setCollapsibleToolbarInsets()
+                setupInternalFragmentToolbar(isCollapsible = true)
+            }
+            ToolbarType.INTERNAL_NON_COLLAPSIBLE -> {
+                setNonCollapsibleToolbarInsets()
+                setupInternalFragmentToolbar(isCollapsible = false)
+            }
         }
+        setContentInsets()
 
         binding.floatingActionButtonAdd.setOnClickListener { addReminder() }
-        troubleshootingViewModel.state.launchCollectionInLifecycleScope(::setupTroubleshootingSnackbar)
+        flowOfShowTroubleshooting.launchCollectionInLifecycleScope(::renderTroubleshootingSnackbar)
 
         // Set up recycler view
         binding.recyclerView.layoutManager = LinearLayoutManager(requireContext())
@@ -257,25 +260,18 @@ class ScheduleRemindersFragment :
     }
 
     /**
-     * Sets up the troubleshooting snackbar which is shown persistently when checks find a warning/error.
+     * Shows or hides the troubleshooting snackbar, which is visible persistently when checks find an error.
      * Tapping "Fix" opens the full troubleshooting screen.
      */
-    private fun setupTroubleshootingSnackbar(state: ReminderTroubleshootingState) {
-        val message =
-            when (state.summaryStatus) {
-                SummaryStatus.Ok, SummaryStatus.Warning -> {
-                    troubleshootingSnackbar?.dismiss()
-                    troubleshootingSnackbar = null
-                    return
-                }
-                SummaryStatus.Error -> "Reminders are unavailable"
-            }
-        if (troubleshootingSnackbar?.isShown == true) {
-            troubleshootingSnackbar?.setText(message)
+    private fun renderTroubleshootingSnackbar(show: Boolean) {
+        if (!show) {
+            troubleshootingSnackbar?.dismiss()
+            troubleshootingSnackbar = null
             return
         }
+        if (troubleshootingSnackbar?.isShown == true) return
         troubleshootingSnackbar =
-            showSnackbar(text = message, duration = Snackbar.LENGTH_INDEFINITE) {
+            showSnackbar(text = "Reminders are unavailable", duration = Snackbar.LENGTH_INDEFINITE) {
                 setAction("Fix") { openTroubleshootingScreen() }
             }
     }
@@ -328,29 +324,68 @@ class ScheduleRemindersFragment :
         }
     }
 
-    /**
-     * The collapsible and non-collapsible toolbar are both located within the appbar.
-     * At most one is visible at a time (both are hidden if an external toolbar is being used).
-     * They must be nested within the same appbar because having more than one appbar causes issues with where
-     * the second one is rendered on the screen. If edge-to-edge is not implemented for the [FragmentHost] of this fragment
-     * yet, this fragment's layout and appbar has the fitsSystemWindows attribute set to ensure its
-     * child toolbar is rendered below the status bar.
-     *
-     * However, because the collapsible toolbar is before the non-collapsible toolbar in the layout file,
-     * it consumes the fitsSystemWindows inset first and does not pass any to the non-collapsible toolbar.
-     * Hence, we manually set the insets of the non-collapsible toolbar when it is visible
-     * via the modern setOnApplyWindowInsetsListener API. We cannot use this API for both the
-     * collapsible and non-collapsible toolbars and then omit fitsSystemWindows on the appbar. This is
-     * because doing so causes UI glitches within the status bar when the collapsible toolbar transitions
-     * between its expanded and collapsed states.
-     *
-     * This should only be used for the non-collapsible toolbar if edge-to-edge is not implemented on the host yet.
-     */
+    private fun setCollapsibleToolbarInsets() {
+        val styleExpandedTitleMarginStart = binding.collapsingToolbarLayout.expandedTitleMarginStart
+        val styleExpandedTitleMarginEnd = binding.collapsingToolbarLayout.expandedTitleMarginEnd
+        setRootInsetsListener { bars ->
+            // the top inset is left to the appbar's fitsSystemWindows attribute. The padding
+            // goes on the collapsing layout, not the app bar, so the collapsed content scrim
+            // extends behind the cutout
+            binding.collapsingToolbarLayout.updatePadding(left = bars.left, right = bars.right)
+            // the expanded title ignores the padding: its margins are from the layout's edges
+            val isRtl = binding.collapsingToolbarLayout.layoutDirection == View.LAYOUT_DIRECTION_RTL
+            binding.collapsingToolbarLayout.expandedTitleMarginStart =
+                styleExpandedTitleMarginStart + if (isRtl) bars.right else bars.left
+            binding.collapsingToolbarLayout.expandedTitleMarginEnd =
+                styleExpandedTitleMarginEnd + if (isRtl) bars.left else bars.right
+        }
+    }
+
     private fun setNonCollapsibleToolbarInsets() {
-        ViewCompat.setOnApplyWindowInsetsListener(binding.rootLayout) { _, insets ->
-            val bars = insets.getInsets(statusBars() or displayCutout())
+        setRootInsetsListener { bars ->
+            // the collapsible toolbar (first in the shared appbar) consumes the insets
+            // so apply them manually
             binding.appbar.updatePadding(left = bars.left, top = bars.top, right = bars.right)
+        }
+    }
+
+    /**
+     * Replace the root CoordinatorLayout's inset handling.
+     *
+     * No-op in [FragmentHost.STUDY_OPTIONS_FRAGMENT] and [FragmentHost.STUDY_OPTIONS_FRAME]
+     */
+    private fun setRootInsetsListener(block: (bars: Insets) -> Unit) {
+        // API < 30: simulate API 30+ behaviour - insets are not affected by siblings.
+        ViewGroupCompat.installCompatInsetsDispatch(binding.rootLayout)
+        ViewCompat.setOnApplyWindowInsetsListener(binding.rootLayout) { _, insets ->
+            block(insets.getInsets(systemBars() or displayCutout()))
             insets
+        }
+    }
+
+    /**
+     * Keeps the list, the 'no reminders' placeholder and the 'add reminder' button clear of the
+     * navigation bar and any display cutout.
+     *
+     * These listeners are no-ops in hosts which apply the insets to this fragment's container
+     * and consume them.
+     */
+    private fun setContentInsets() {
+        binding.recyclerView.doOnApplyWindowInsets { view, insets, initial ->
+            val bars = insets.getInsets(systemBars() or displayCutout())
+            view.updatePadding(left = bars.left, right = bars.right, bottom = initial.padding.bottom + bars.bottom)
+        }
+        binding.noRemindersPlaceholder.doOnApplyWindowInsets { view, insets, _ ->
+            val bars = insets.getInsets(systemBars() or displayCutout())
+            view.updatePadding(left = bars.left, right = bars.right)
+        }
+        binding.floatingActionButtonAdd.doOnApplyWindowInsets { view, insets, initial ->
+            val bars = insets.getInsets(systemBars() or displayCutout())
+            view.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+                leftMargin = initial.margins.left + bars.left
+                rightMargin = initial.margins.right + bars.right
+                bottomMargin = initial.margins.bottom + bars.bottom
+            }
         }
     }
 
@@ -418,6 +453,7 @@ class ScheduleRemindersFragment :
         updateUIForAddEditDialog(newOrModifiedReminder, modeOfFinishedDialog)
         updateAlarmsForAddEditDialog(newOrModifiedReminder, modeOfFinishedDialog)
         // Feedback
+        if (flowOfShowTroubleshooting.value) return // Don't override the troubleshooting snackbar, which is more important
         showSnackbar(
             when (modeOfFinishedDialog) {
                 is AddEditReminderDialog.DialogMode.Add -> "Successfully added new review reminder"
@@ -487,14 +523,14 @@ class ScheduleRemindersFragment :
         modeOfFinishedDialog: AddEditReminderDialog.DialogMode,
     ) {
         if (modeOfFinishedDialog is AddEditReminderDialog.DialogMode.Edit) {
-            AlarmManagerService.unscheduleReviewReminderNotifications(
+            ReviewReminderAlarmManager.unscheduleReviewReminderNotifications(
                 requireContext(),
                 modeOfFinishedDialog.reminderToBeEdited,
             )
         }
         newOrModifiedReminder?.let {
             if (it.enabled) {
-                AlarmManagerService.scheduleReviewReminderNotification(
+                ReviewReminderAlarmManager.scheduleReviewReminderNotification(
                     requireContext(),
                     it,
                     attemptImmediateNotification = false,
@@ -555,12 +591,12 @@ class ScheduleRemindersFragment :
         val updatedReminder = reminders[reminder.id] ?: return
         when (updatedReminder.enabled) {
             true ->
-                AlarmManagerService.scheduleReviewReminderNotification(
+                ReviewReminderAlarmManager.scheduleReviewReminderNotification(
                     requireContext(),
                     updatedReminder,
                     attemptImmediateNotification = false,
                 )
-            false -> AlarmManagerService.unscheduleReviewReminderNotifications(requireContext(), reminder)
+            false -> ReviewReminderAlarmManager.unscheduleReviewReminderNotifications(requireContext(), reminder)
         }
     }
 
@@ -613,6 +649,7 @@ class ScheduleRemindersFragment :
                 .toList()
         adapter.submitList(listToDisplay)
         binding.noRemindersPlaceholder.isVisible = listToDisplay.isEmpty()
+        flowOfHasReminders.value = listToDisplay.isNotEmpty()
     }
 
     override fun onResume() {

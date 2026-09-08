@@ -23,6 +23,7 @@ import com.ichi2.anki.common.destinations.CardInfoDestination
 import com.ichi2.anki.common.destinations.CardInfoDestination.EntryPoint
 import com.ichi2.anki.common.destinations.DeckOptionsDestination
 import com.ichi2.anki.common.destinations.DeckOptionsEntry
+import com.ichi2.anki.common.destinations.NoteEditorDestination
 import com.ichi2.anki.common.destinations.StatisticsDestination
 import com.ichi2.anki.launchCatchingIO
 import com.ichi2.anki.libanki.Card
@@ -33,7 +34,6 @@ import com.ichi2.anki.libanki.NoteId
 import com.ichi2.anki.libanki.redoLabel
 import com.ichi2.anki.libanki.sched.CurrentQueueState
 import com.ichi2.anki.libanki.undoLabel
-import com.ichi2.anki.noteeditor.NoteEditorLauncher
 import com.ichi2.anki.observability.ChangeManager
 import com.ichi2.anki.observability.undoableOp
 import com.ichi2.anki.pages.AnkiServer
@@ -55,7 +55,6 @@ import com.ichi2.anki.ui.windows.reviewer.autoadvance.AnswerAction
 import com.ichi2.anki.ui.windows.reviewer.autoadvance.AutoAdvance
 import com.ichi2.anki.ui.windows.reviewer.autoadvance.AutoAdvanceAction
 import com.ichi2.anki.ui.windows.reviewer.autoadvance.QuestionAction
-import com.ichi2.anki.utils.Destination
 import com.ichi2.anki.utils.ext.answerCard
 import com.ichi2.anki.utils.ext.cardStatsNoCardClean
 import com.ichi2.anki.utils.ext.flag
@@ -107,7 +106,6 @@ class ReviewerViewModel(
     val typeAnswerFlow = MutableStateFlow<TypeAnswer?>(null)
     val onTypedAnswerResultFlow = MutableSharedFlow<CompletableDeferred<String>>()
     val onCardUpdatedFlow = MutableSharedFlow<Unit>()
-    val destinationFlow = MutableSharedFlow<Destination>()
     val openAiChatFlow = MutableSharedFlow<AiChatLaunchArgs>()
     val navigateFlow = MutableSharedFlow<NavigateDestination>()
     val editNoteTagsFlow = MutableSharedFlow<NoteId>()
@@ -138,12 +136,12 @@ class ReviewerViewModel(
      * ensure that the custom JS scheduler has persisted its SchedulingStates
      * back to the Reviewer before we save it to the database.
      *
-     * This flag should be reset when we show the front of the card
-     * and only complete once we know the custom scheduler has finished its
-     * execution, or complete immediately if the custom scheduler has not
+     * This flag is reset before we show the front of the card
+     * and only completes once we know the custom scheduler has finished its
+     * execution, or completes immediately if the custom scheduler has not
      * been configured.
      */
-    private var mutationSignal = CompletableDeferred(Unit)
+    private var mutationSignal = CompletableDeferred<Unit>()
 
     val isAutoAdvanceEnabledFlow = MutableStateFlow(autoAdvance.isEnabled)
     val answerButtonsNextTimeFlow: MutableStateFlow<AnswerButtonsNextTime?> = MutableStateFlow(null)
@@ -269,14 +267,13 @@ class ReviewerViewModel(
 
     private suspend fun emitEditNoteDestination() {
         val cardId = currentCard.await().id
-        val destination = NoteEditorLauncher.EditNoteFromPreviewer(cardId)
         Timber.i("Opening 'edit note' for card %d", cardId)
-        destinationFlow.emit(destination)
+        navigateFlow.emit(NoteEditorDestination.EditNoteFromPreviewer(cardId))
     }
 
     private suspend fun emitAddNoteDestination() {
         Timber.i("Launching 'add note'")
-        destinationFlow.emit(NoteEditorLauncher.AddNoteFromReviewer())
+        navigateFlow.emit(NoteEditorDestination.AddNoteFromReviewer())
     }
 
     private suspend fun emitCardInfoDestination() {
@@ -452,6 +449,10 @@ class ReviewerViewModel(
                 isInputFocused = false
                 return byteArrayOf()
             }
+            "statesMutated" -> {
+                onStateMutationCallback()
+                return byteArrayOf()
+            }
         }
         return when (uri.backendMethodName) {
             "getSchedulingStatesWithContext" -> getSchedulingStatesWithContext()
@@ -462,6 +463,11 @@ class ReviewerViewModel(
 
     override suspend fun showQuestion() {
         Timber.v("ReviewerViewModel::showQuestion")
+        // 'Show answer' may be pressed while the question loads: reset before, not after.
+        // If it was pressed earlier, it is already waiting on the pending signal: keep it.
+        if (mutationSignal.isCompleted) {
+            mutationSignal = CompletableDeferred()
+        }
         super.showQuestion()
         runStateMutationHook()
         updateMarkIcon()
@@ -479,9 +485,12 @@ class ReviewerViewModel(
             }
             return
         }
-        mutationSignal = CompletableDeferred()
+        // https://github.com/ankitects/anki/commit/bd88c6d352dc7aeb4a674029eab7bdda2a821a78
         statesMutationEvalFlow.emit(
-            "anki.mutateNextCardStates('$stateMutationKey', async (states, customData, ctx) => { $js });",
+            """
+            anki.mutateNextCardStates('$stateMutationKey', async (states, customData, ctx) => { $js })
+                .finally(() => fetch("ankidroid/statesMutated", { method: "POST" }));
+            """,
         )
     }
 
@@ -514,6 +523,7 @@ class ReviewerViewModel(
 
     private suspend fun answerCardInternal(rating: Rating) {
         Timber.v("ReviewerViewModel::answerCard")
+        mutationSignal.await()
         val state = queueState.await() ?: return
         val card = currentCard.await()
         val answer =

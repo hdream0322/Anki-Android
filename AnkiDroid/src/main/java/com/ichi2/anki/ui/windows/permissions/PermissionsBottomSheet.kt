@@ -1,32 +1,17 @@
-/*
- *  Copyright (c) 2025 Eric Li <ericli3690@gmail.com>
- *
- *  This program is free software; you can redistribute it and/or modify it under
- *  the terms of the GNU General Public License as published by the Free Software
- *  Foundation; either version 3 of the License, or (at your option) any later
- *  version.
- *
- *  This program is distributed in the hope that it will be useful, but WITHOUT ANY
- *  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- *  PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along with
- *  this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2025 Eric Li <ericli3690@gmail.com>
 
 package com.ichi2.anki.ui.windows.permissions
 
-import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.annotation.RequiresApi
 import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.commit
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
-import com.ichi2.anki.PermissionSet
+import com.ichi2.anki.OptionalPermissionSet
 import com.ichi2.anki.R
 import com.ichi2.anki.databinding.FragmentPermissionsBottomSheetBinding
 import com.ichi2.anki.utils.ext.behavior
@@ -41,7 +26,6 @@ import dev.androidbroadcast.vbpd.viewBinding
  * should be used to request optional permissions from the user, and can be launched as the user gradually
  * encounters features that require permissions rather than being shoved in the face of every first-time user.
  */
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 class PermissionsBottomSheet : BottomSheetDialogFragment() {
     private val binding by viewBinding(FragmentPermissionsBottomSheetBinding::bind)
 
@@ -67,11 +51,8 @@ class PermissionsBottomSheet : BottomSheetDialogFragment() {
             dismiss()
         }
 
-        val permissionSet = requireArguments().requireParcelable<PermissionSet>(ARG_PERMISSION_SET)
-        val permissionsFragment =
-            requireNotNull(permissionSet.permissionsFragment?.getDeclaredConstructor()?.newInstance()) {
-                "invalid permissionsFragment"
-            }
+        val permissionSet = requireArguments().requireParcelable<OptionalPermissionSet>(ARG_PERMISSION_SET)
+        val permissionsFragment = permissionSet.permissionsFragment.getDeclaredConstructor().newInstance()
         view.post {
             childFragmentManager.commit {
                 replace(binding.bottomSheetFragmentContainer.id, permissionsFragment)
@@ -86,7 +67,7 @@ class PermissionsBottomSheet : BottomSheetDialogFragment() {
         private const val FRAGMENT_TAG = "notifications_bottom_sheet"
 
         /**
-         * Arguments key for the [PermissionSet] to launch this BottomSheet with.
+         * Arguments key for the [OptionalPermissionSet] to launch this BottomSheet with.
          */
         private const val ARG_PERMISSION_SET = "arg_permission_set"
 
@@ -97,11 +78,11 @@ class PermissionsBottomSheet : BottomSheetDialogFragment() {
         const val RESULT_DISMISS = "result_dismiss"
 
         /**
-         * Starts this BottomSheet with the provided [PermissionSet].
+         * Starts this BottomSheet with the provided [OptionalPermissionSet].
          */
         fun launch(
             fragmentManager: FragmentManager,
-            permissionsSet: PermissionSet,
+            permissionsSet: OptionalPermissionSet,
         ) {
             val bottomSheet =
                 PermissionsBottomSheet().apply {

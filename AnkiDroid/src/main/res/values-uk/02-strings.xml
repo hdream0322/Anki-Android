@@ -267,7 +267,7 @@
     <string name="percentage">%s%%</string>
     <string name="download_deck">Завантажити колоду</string>
     <string name="open_in_browser" comment="Label of a button inviting to open ankiweb\'s shared deck page if automated download failed">Відкрити в переглядачі карток</string>
-    <string name="try_again">Спробувати знову</string>
+    <string name="try_again">Спробуйте знову</string>
     <string name="cancel_download">Скасувати завантаження</string>
     <string name="cancel_download_question_title">Скасувати завантаження?</string>
     <string name="downloading_file">Завантаження %s</string>
@@ -381,4 +381,8 @@
     <string name="set_due_date_day" comment="Used for setting due date">День</string>
     <string name="set_due_date_date_range">Діапазон дат</string>
     <string comment="Shown when retrying a running action" name="already_in_progress">Уже в процесі</string>
+    <!-- Switch profiles screen -->
+    <string name="switch_profile" maxLength="41" comment="Title of the screen where the user switches between profiles">Switch profile</string>
+    <string name="edit_profile" comment="Content description of the button that edits a profile in the profile list">Edit profile</string>
+    <string name="delete_profile" comment="Content description of the button that deletes a profile in the profile list">Delete profile</string>
 </resources>

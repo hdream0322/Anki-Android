@@ -1,19 +1,6 @@
-/*
- *  Copyright (c) 2016 Siarhei Krukau <siarhei.krukau@gmail.com>
- *  Copyright (c) 2025 Eric Li <ericli3690@gmail.com>
- *
- *  This program is free software; you can redistribute it and/or modify it under
- *  the terms of the GNU General Public License as published by the Free Software
- *  Foundation; either version 3 of the License, or (at your option) any later
- *  version.
- *
- *  This program is distributed in the hope that it will be useful, but WITHOUT ANY
- *  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- *  PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along with
- *  this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2016 Siarhei Krukau <siarhei.krukau@gmail.com>
+// SPDX-FileCopyrightText: Copyright (c) 2025 Eric Li <ericli3690@gmail.com>
 
 package com.ichi2.anki.services
 
@@ -35,6 +22,8 @@ import com.ichi2.anki.libanki.Collection
 import com.ichi2.anki.preferences.PENDING_NOTIFICATIONS_ONLY
 import com.ichi2.anki.runGloballyWithTimeout
 import com.ichi2.anki.settings.Prefs
+import com.ichi2.anki.widget.RECURRING_WIDGETS
+import com.ichi2.utils.AlarmManagement
 import com.ichi2.widget.DayRolloverAlarm
 import com.ichi2.widget.restoreRecurringAlarms
 import timber.log.Timber
@@ -69,10 +58,13 @@ class BootService : AnkiBroadcastReceiver() {
             Timber.w("Boot Service did not execute - no permissions")
             return
         }
+        // In the future, if more notifications are added to AnkiDroid, AlarmManagement.scheduleAllNotifications
+        // should be extended to handle them, but since for now the only modernized notifications are review reminder
+        // notifications, we block this behind the review-reminder-specific feature flag.
         if (Prefs.newReviewRemindersEnabled) {
-            Timber.i("Executing Boot Service - Review reminders")
+            Timber.i("Setting notifications upon boot")
             runGloballyWithTimeout(SCHEDULE_NOTIFICATIONS_TIMEOUT) {
-                AlarmManagerService.scheduleAllNotifications(context)
+                AlarmManagement.scheduleAllNotifications(context)
             }
         } else {
             // There are cases where the app is installed, and we have access, but nothing exist yet
@@ -86,12 +78,12 @@ class BootService : AnkiBroadcastReceiver() {
             failedToShowNotifications = false
         }
 
-        restoreRecurringAlarms(context)
+        restoreRecurringAlarms(context, RECURRING_WIDGETS)
         DayRolloverAlarm.scheduleNext(context)
         wasRun = true
     }
 
-    @LegacyNotifications("Will be moved to AlarmManagerService")
+    @LegacyNotifications("Will be moved to AlarmManagement")
     private fun catchAlarmManagerErrors(
         context: Context,
         runnable: Runnable,

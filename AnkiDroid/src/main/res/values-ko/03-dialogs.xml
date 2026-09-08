@@ -46,7 +46,7 @@
     <string name="custom_study_new_extend">오늘의 새로운 카드 제한을 (“-3”) 만큼 증가/감소시키기</string>
     <string name="custom_study_rev_extend">오늘의 복습 제한을 (“-3”) 만큼 증가/감소시키기</string>
     <string name="custom_study_forgotten">최근 x일 동안 잊혀진 복습 카드:</string>
-    <string name="custom_study_ahead">x일 만큼 미리 복습하기:</string>
+    <string name="custom_study_ahead_description">Review cards due in the next:</string>
     <string name="custom_study_preview">최근 x일 내에 추가된 카드 미리 학습하기:</string>
     <string name="custom_study_tags">카드 묶음으로부터 선택된 카드 수:</string>
     <string name="storage_full_title">저장 공간이 가득 찼습니다.</string>
@@ -68,6 +68,7 @@
     <string name="dialog_exit" comment="Label for a button which will exit/finish the current screen">나가기</string>
     <string name="dialog_continue">계속하기</string>
     <string name="dialog_processing">처리 중&#8230;</string>
+    <string name="dialog_allow">Allow</string>
     <string name="dialog_positive_create" comment="Create a new collection, probably erasing the previous one, may be necessary in case of error.">만들기</string>
     <string name="dialog_positive_delete" maxLength="28">삭제</string>
     <!-- Currently unsued, should be useful in the future -->
@@ -101,7 +102,7 @@
     <!-- Multimedia - Audio View -->
     <string name="multimedia_editor_audio_permission_denied">오디오 녹음 권한이 거부됨</string>
     <string name="permission_denied">권한이 거부되었습니다.</string>
-    <string name="recording_permission_denied_message">\"음성 녹음\" 기능을 사용하려면 마이크 권한이 필요합니다. 앱 설정에서 권한을 허용해 주세요.</string>
+    <string name="microphone_permission_denied_message">Microphone permission denied. Please grant it in the app settings.</string>
     <!-- Database Integrity Check -->
     <string name="integrity_check_continue_anyway">Continue Anyway</string>
     <string name="integrity_check_insufficient_space">Check Database uses a large amount of temporary storage.\n\nIt is strongly recommended that you have at least %s free space on your device before continuing.</string>
@@ -111,8 +112,8 @@
     <string name="card_viewer_url_decode_error">Error decoding data from card</string>
     <!-- Deck Options -->
     <!-- Database Errors-->
-    <string name="database_locked_title">Database Locked</string>
-    <string name="database_locked_summary">The AnkiDroid database is in use by another application. Please close the other application then reopen AnkiDroid.</string>
+    <string name="database_locked_title">데이터베이스 잠김</string>
+    <string name="database_locked_summary">다른 앱에 의해 AnkiDroid의 데이터베이스가 사용 중입니다. 다른 앱을 닫고 AnkiDroid를 재시작하세요.</string>
     <string name="incompatible_database_version_title">Incompatible Database Version</string>
     <string name="incompatible_database_version_summary">The database is a more advanced version than this version of AnkiDroid can work with. Upgrade AnkiDroid or downgrade the database to open it\n\nSupported version: %1$d\nDatabase version: %2$d\n\nThe following restore options will overwrite your current collection, possibly with a compatible database version:</string>
     <!-- Deck Picker Background-->
@@ -249,4 +250,11 @@
     <string name="special_field_card_id_help" comment="%s: either blank or \' %s\'">The ID of the card%s</string>
     <string name="special_field_card_help" comment="%s: either blank or \' %s\'">The name of the card template%s</string>
     <string name="special_field_type_help" comment="%s: either blank or \' %s\'">The name of the note type%s</string>
+    <!-- Change Note Type Dialog -->
+    <string name="change_note_type_from" comment="Label indicating the original note type before changing it">From</string>
+    <string name="change_note_type_to" comment="Label indicating the new note type to change to">To</string>
+    <!-- Add profile dialog -->
+    <string name="profile_name" comment="Label of the text field where the user types the name of a new profile">Profile name</string>
+    <string name="profile_name_empty_error" comment="Error shown when the user leaves the profile name empty">Profile name can’t be empty</string>
+    <string name="profile_name_too_long_error" comment="Error shown when a profile name exceeds the maximum length. %1$d is the maximum number of characters">Profile name must be %1$d characters or fewer</string>
 </resources>

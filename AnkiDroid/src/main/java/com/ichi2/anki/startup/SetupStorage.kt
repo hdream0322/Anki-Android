@@ -6,21 +6,24 @@ import android.content.Context
 import android.os.Environment
 import androidx.annotation.CheckResult
 import androidx.core.content.edit
+import com.ichi2.anki.StoragePermissionSet
 import com.ichi2.anki.common.preferences.sharedPrefs
 import com.ichi2.anki.common.storage.AnkiDroidFolder
 import com.ichi2.anki.common.storage.CollectionHelper
+import com.ichi2.anki.common.storage.StorageDecision
 import com.ichi2.anki.exception.StorageNotConfiguredException
 import com.ichi2.anki.exception.SystemStorageException
 import com.ichi2.anki.selectAnkiDroidFolder
+import com.ichi2.anki.selectStoragePermissions
 import timber.log.Timber
 import java.io.File
 
 /**
- * Ensures [CollectionHelper.PREF_COLLECTION_PATH] is set, choosing and persisting
- * [getDefaultAnkiDroidDirectory] if it is unset.
+ * Persists the collection path ([CollectionHelper.PREF_COLLECTION_PATH]) chosen by the
+ * [StoragePolicy] of the required [StoragePermissionSet], if it is unset.
  *
- * This decides the storage location on the user's behalf: until a storage setup flow exists
- * (#19552), the user is not asked.
+ * Does nothing if the policy defers the choice to the user: the [StorageDecision] stays
+ * [StorageDecision.Undecided] until the permission screen is completed.
  *
  * @throws SystemStorageException if `getExternalFilesDir` returns null. The failure is recorded
  * in [CollectionHelper.systemStorageFailure] so reads report it rather than
@@ -29,9 +32,15 @@ import java.io.File
 fun ensureCollectionPathSet(context: Context) {
     val preferences = context.sharedPrefs()
     if (preferences.contains(CollectionHelper.PREF_COLLECTION_PATH)) return
+    val folder = selectStoragePermissions(context).folderToPersist(context)
+    if (folder == null) {
+        // unreachable until 13574 is fixed.
+        Timber.i("deferring the storage decision to the user")
+        return
+    }
     val defaultPath =
         try {
-            getDefaultAnkiDroidDirectory(context).absolutePath
+            getDefaultAnkiDroidDirectory(context, folder = folder).absolutePath
         } catch (e: SystemStorageException) {
             CollectionHelper.systemStorageFailure = e
             throw e
@@ -107,6 +116,8 @@ fun ensureCollectionPathSet(context: Context) {
  * @param directoryName  The leaf folder name to use at the end of the returned path.
  *                       Defaults to `"AnkiDroid"` (the historical default-profile folder name).
  *                       Callers wanting a profile-specific layout can pass e.g. the profile id.
+ * @param folder  The storage location to return the default directory for.
+ *                Defaults to [selectAnkiDroidFolder].
  * @return Absolute Path to the default location starting location for the AnkiDroid directory
  *
  * @throws SystemStorageException if `getExternalFilesDir` returns null
@@ -116,14 +127,12 @@ fun ensureCollectionPathSet(context: Context) {
 fun getDefaultAnkiDroidDirectory(
     context: Context,
     directoryName: String = "AnkiDroid",
-): File {
-    val legacyStorage = selectAnkiDroidFolder(context) != AnkiDroidFolder.APP_PRIVATE
-    return if (legacyStorage) {
-        legacyAnkiDroidDirectory(directoryName)
-    } else {
-        File(getAppSpecificExternalAnkiDroidDirectory(context), directoryName)
+    folder: AnkiDroidFolder = selectAnkiDroidFolder(context),
+): File =
+    when (folder) {
+        AnkiDroidFolder.PUBLIC -> legacyAnkiDroidDirectory(directoryName)
+        AnkiDroidFolder.APP_PRIVATE -> File(getAppSpecificExternalAnkiDroidDirectory(context), directoryName)
     }
-}
 
 /**
  * Returns the absolute path to the AnkiDroid directory under the primary/shared external storage directory.

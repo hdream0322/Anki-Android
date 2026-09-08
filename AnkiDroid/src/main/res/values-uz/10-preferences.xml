@@ -47,7 +47,7 @@
     <string name="pref_cat_workarounds" maxLength="41">Vaqtinchalik yechimlar</string>
     <string name="pref_cat_plugins" maxLength="41">Plaginlar</string>
     <string name="pref_cat_editing" maxLength="41">Tahrirlash</string>
-    <string name="pref_cat_security" maxLength="41">Security</string>
+    <string name="pref_cat_security" maxLength="41">Xavfsizlik</string>
     <!-- Card template JavaScript API permissions -->
     <string name="allow_dangerous_js_api_title" maxLength="41">Globally allow dangerous JavaScript APIs</string>
     <string name="allow_dangerous_js_api_summ">Allows any card or template to read and modify other cards, or your Anki collection data.\nLeave off unless you trust all cards and templates in your collection.</string>
@@ -143,9 +143,9 @@
     <string name="select_locale_title">Tilni tanlash</string>
     <string name="software_render" maxLength="41">Qurilma renderini oʻchirish</string>
     <string name="software_render_summ">Qurilma renderi tezroq, lekin muammolarga duch kelishi mumkin, xususan, Android 8/8.1ʼda. Agar siz kartani takrorlash foydalanuvchi interfeysi qismlarini koʻrmasangiz, ushbu sozlamani sinab koʻring.</string>
-    <string name="disable_extended_text_ui" maxLength="41">Yagona maydon tahrirlash rejimini oʻchir</string>
+    <string name="disable_extended_text_ui" maxLength="41">Disable single-field edit mode</string>
     <!--See: multimedia_editor_popup_cloze. We can\'t use format strings as this is auto-generated-->
-    <string name="disable_extended_text_ui_summ">Albom (gorizontal) rejimida \'Boʻshliqni toʻldirish\' kontekst menyusini yoqish</string>
+    <string name="disable_extended_text_ui_summ">Allows \'Cloze deletion\' context menu when in landscape mode.</string>
     <string name="vertical_centering" maxLength="41">Markazga tenglashtirish</string>
     <string name="vertical_centering_summ">Kartalar tarkibini vertikal ravishda markazga tekislash</string>
     <string name="pref_double_tap_time_interval" maxLength="41">Ikki marta bosish intervali</string>
@@ -232,7 +232,7 @@
     <string name="analytics_title" maxLength="41">Funksiyalarni ishlatishimni ulashish</string>
     <string name="analytics_summ">Dasturchilarga odamlar qaysi funksiyalardan foydalanayotganligini koʻrishga yordam berish orqali AnkiDroidʼga hissa qoʻshishingiz mumkin</string>
     <string name="note_editor_replace_newlines" maxLength="41">Yangi qatorlarni HTML bilan almashtirish</string>
-    <string name="note_editor_replace_newlines_summ">Qayd muharririda &lt;br&gt; belgilari kartani tahrirlayotganda yangi qatorlarga oʻgiriladi.</string>
+    <string name="note_editor_replace_newlines_summ">In the note editor, convert any instances of &lt;br&gt; to newlines when editing a card.</string>
     <string name="type_in_answer_focus" maxLength="41">‘Javobni kiritish’ maydoniga oʻtish</string>
     <string name="type_in_answer_focus_summ">Oʻrganish ekranida ‘javobni kiritish’ maydoniga avtomatik tarzda oʻtish</string>
     <!-- About -->
@@ -262,8 +262,8 @@
     <string name="user_action_8" maxLength="28">Foydalanuvchi amali 8</string>
     <string name="user_action_9" maxLength="28">Foydalanuvchi amali 9</string>
     <string name="toggle_auto_advance" maxLength="28">Avtomatik ilgarilashni yoqish/oʻchirish</string>
-    <string name="enable_auto_advance" maxLength="28">Enable auto advance</string>
-    <string name="disable_auto_advance" maxLength="28">Disable auto advance</string>
+    <string name="enable_auto_advance" maxLength="28">Avto‑ilgarilashni yoqish</string>
+    <string name="disable_auto_advance" maxLength="28">Avto‑ilgarilashni oʻchirish</string>
     <string name="enable_voice_recording" maxLength="28">Enable voice recording</string>
     <string name="disable_voice_recording" maxLength="28">Disable voice recording</string>
     <!-- Select card side -->
@@ -280,6 +280,8 @@
     <string name="pref_cat_experimental" maxLength="41" tools:ignore="UnusedResources">Tajribaviy</string>
     <string name="readtext_deprecation_warn">AnkiDroid boshqa Anki mijozlari bilan mos tushadigan va koʻproq ovozlar va tilni ijro etish uchun takomillashtirishlarni oʻz ichiga olgan yaxshiroq nutq sintezatori mexanizmini taqdim etdi!\n\nImkon qadar tezroq yangilang, chunki bu sozlama tez orada oʻchiriladi.</string>
     <string name="readtext_reviewer_warn" tools:ignore="UnusedResources">Iltimos, yangi nutq sintezatori formatiga yangilang</string>
+    <string name="allow_templates_to_record_audio" maxLength="41">Allow templates to record audio</string>
+    <string name="template_is_trying_to_record_audio">This template is trying to record audio</string>
     <string name="pref_fixed_port_title" maxLength="41">Oʻrganish ekranida localStorage</string>
     <string name="pref_fixed_port_summary">Oʻrganish ekranida belgilangan server portidan foydalangan JavaScript localStorage funksiyasini yoqadi</string>
     <!-- Developer options -->

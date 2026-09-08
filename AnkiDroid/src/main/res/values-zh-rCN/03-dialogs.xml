@@ -46,7 +46,7 @@
     <string name="custom_study_new_extend">增加/减少（“-3”）今天的新卡片限制</string>
     <string name="custom_study_rev_extend">增加/减少（“-3”）今天的复习卡片限制</string>
     <string name="custom_study_forgotten">复习过去 x 天中忘记的卡片：</string>
-    <string name="custom_study_ahead">提前 x 天复习：</string>
+    <string name="custom_study_ahead_description">Review cards due in the next:</string>
     <string name="custom_study_preview">预览过去 x 天中新增的卡片：</string>
     <string name="custom_study_tags">从牌组中选择 x 张卡片：</string>
     <string name="storage_full_title">存储空间已满</string>
@@ -68,6 +68,7 @@
     <string name="dialog_exit" comment="Label for a button which will exit/finish the current screen">退出</string>
     <string name="dialog_continue">继续</string>
     <string name="dialog_processing">处理中&#8230;</string>
+    <string name="dialog_allow">允许</string>
     <string name="dialog_positive_create" comment="Create a new collection, probably erasing the previous one, may be necessary in case of error.">创建</string>
     <string name="dialog_positive_delete" maxLength="28">删除</string>
     <!-- Currently unsued, should be useful in the future -->
@@ -101,7 +102,7 @@
     <!-- Multimedia - Audio View -->
     <string name="multimedia_editor_audio_permission_denied">录音权限被拒绝</string>
     <string name="permission_denied">权限被拒绝</string>
-    <string name="recording_permission_denied_message">麦克风权限是\"录制声音\"功能所必需的。请在应用程序设置中授予它。</string>
+    <string name="microphone_permission_denied_message">麦克风权限被拒绝。请在应用设置中授予权限。</string>
     <!-- Database Integrity Check -->
     <string name="integrity_check_continue_anyway">仍要继续</string>
     <string name="integrity_check_insufficient_space">检查数据库使用大量临时存储。\n\n强烈建议您在继续之前在设备上至少有 %s 可用空间。</string>
@@ -249,4 +250,11 @@
     <string name="special_field_card_id_help" comment="%s: either blank or \' %s\'">卡片%s的ID</string>
     <string name="special_field_card_help" comment="%s: either blank or \' %s\'">卡片模板%s 的名称</string>
     <string name="special_field_type_help" comment="%s: either blank or \' %s\'">笔记类型%s的名称</string>
+    <!-- Change Note Type Dialog -->
+    <string name="change_note_type_from" comment="Label indicating the original note type before changing it">从</string>
+    <string name="change_note_type_to" comment="Label indicating the new note type to change to">到</string>
+    <!-- Add profile dialog -->
+    <string name="profile_name" comment="Label of the text field where the user types the name of a new profile">Profile name</string>
+    <string name="profile_name_empty_error" comment="Error shown when the user leaves the profile name empty">Profile name can’t be empty</string>
+    <string name="profile_name_too_long_error" comment="Error shown when a profile name exceeds the maximum length. %1$d is the maximum number of characters">Profile name must be %1$d characters or fewer</string>
 </resources>

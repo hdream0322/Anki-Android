@@ -1,16 +1,5 @@
-/*
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 3 of the License, or (at your option) any later
- * version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- * PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program. If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 package com.ichi2.anki.export
 
 import androidx.fragment.app.testing.launchFragment
@@ -39,7 +28,7 @@ class ExportDialogFragmentTest : RobolectricTest() {
         onExportDialog {
             // Select export type as anki collection package.
             onView(withId(R.id.export_type_selector)).inRoot(isDialog()).perform(click())
-            onData(containsString(TR.exportingAnkiCollectionPackage()))
+            onData(containsString("Anki collection package"))
                 .inAdapterView(withId(R.id.export_type_selector))
                 .perform(click())
 
@@ -63,7 +52,7 @@ class ExportDialogFragmentTest : RobolectricTest() {
         onExportDialog {
             // Select export type as anki deck package.
             onView(withId(R.id.export_type_selector)).inRoot(isDialog()).perform(click())
-            onData(containsString(TR.exportingAnkiDeckPackage()))
+            onData(containsString("Anki deck package"))
                 .inAdapterView(withId(R.id.export_type_selector))
                 .perform(click())
 
@@ -99,7 +88,7 @@ class ExportDialogFragmentTest : RobolectricTest() {
         onExportDialog {
             // check legacy checkboxes status for collection export
             onView(withId(R.id.export_type_selector)).inRoot(isDialog()).perform(click())
-            onData(containsString(TR.exportingAnkiCollectionPackage()))
+            onData(containsString("Anki collection package"))
                 .inAdapterView(withId(R.id.export_type_selector))
                 .perform(click())
             onView(withId(R.id.collection_export_legacy))
@@ -114,7 +103,7 @@ class ExportDialogFragmentTest : RobolectricTest() {
 
             // check legacy checkboxes status for apkg export
             onView(withId(R.id.export_type_selector)).inRoot(isDialog()).perform(click())
-            onData(containsString(TR.exportingAnkiDeckPackage()))
+            onData(containsString("Anki deck package"))
                 .inAdapterView(withId(R.id.export_type_selector))
                 .perform(click())
             onView(withId(R.id.apkg_export_legacy))
@@ -129,7 +118,7 @@ class ExportDialogFragmentTest : RobolectricTest() {
 
             // checkboxes are not shown for notes export
             onView(withId(R.id.export_type_selector)).inRoot(isDialog()).perform(click())
-            onData(containsString(TR.exportingNotesInPlainText()))
+            onData(containsString("Notes in plain text"))
                 .inAdapterView(withId(R.id.export_type_selector))
                 .perform(click())
             onView(withId(R.id.apkg_export_legacy))
@@ -141,7 +130,7 @@ class ExportDialogFragmentTest : RobolectricTest() {
 
             // checkboxes are not shown for cards export
             onView(withId(R.id.export_type_selector)).inRoot(isDialog()).perform(click())
-            onData(containsString(TR.exportingCardsInPlainText()))
+            onData(containsString("Cards in plain text"))
                 .inAdapterView(withId(R.id.export_type_selector))
                 .perform(click())
             onView(withId(R.id.apkg_export_legacy))

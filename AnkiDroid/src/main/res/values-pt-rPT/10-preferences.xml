@@ -144,9 +144,9 @@
     <string name="select_locale_title">Selecionar Idioma</string>
     <string name="software_render" maxLength="41">Desactivar processamento de fichas por \"hardware\"</string>
     <string name="software_render_summ">O processamento por \"hardware\" é mais rápido, mas pode causar problemas, principalmente em Android 8/8.1. Se não conseguir ver partes da “interface” aquando da revisão de fichas, experimente esta opção.</string>
-    <string name="disable_extended_text_ui" maxLength="41">Desativar o modo de edição de campo único</string>
+    <string name="disable_extended_text_ui" maxLength="41">Disable single-field edit mode</string>
     <!--See: multimedia_editor_popup_cloze. We can\'t use format strings as this is auto-generated-->
-    <string name="disable_extended_text_ui_summ">Activa a opção \"Omitir\" no menu de contexto, no modo horizontal</string>
+    <string name="disable_extended_text_ui_summ">Allows \'Cloze deletion\' context menu when in landscape mode.</string>
     <string name="vertical_centering" maxLength="41">Alinhar ao centro</string>
     <string name="vertical_centering_summ">Centrar o conteúdo das fichas verticalmente</string>
     <string name="pref_double_tap_time_interval" maxLength="41">Intervalo de tempo para o duplo toque</string>
@@ -234,7 +234,7 @@
     <string name="analytics_title" maxLength="41">Partilhar dados de utilização da funcionalidade</string>
     <string name="analytics_summ">Podes contribuir para o AnkiDroid ao ajudar a equipa de programadores a ver quais os recursos as pessoas usam</string>
     <string name="note_editor_replace_newlines" maxLength="41">Substituir novas linhas por HTML</string>
-    <string name="note_editor_replace_newlines_summ">No editor de notas, converter instâncias de &lt;br&gt; em novas linhas.</string>
+    <string name="note_editor_replace_newlines_summ">In the note editor, convert any instances of &lt;br&gt; to newlines when editing a card.</string>
     <string name="type_in_answer_focus" maxLength="41">Focar a caixa de resposta</string>
     <string name="type_in_answer_focus_summ">No ecrã de estudo, focar automaticamente a ‘caixa de resposta’</string>
     <!-- About -->
@@ -282,6 +282,8 @@
     <string name="pref_cat_experimental" maxLength="41" tools:ignore="UnusedResources">Experimental</string>
     <string name="readtext_deprecation_warn">O AnkiDroid introduziu um sistema de conversão de texto para fala melhor, compatível com outras aplicações do Anki e que inclui mais vozes e melhorias na reprodução da língua!\n\nEsta definição será removida em breve, por favor, actualize assim que possível</string>
     <string name="readtext_reviewer_warn" tools:ignore="UnusedResources">Por favor, actualize para o novo formato de conversão de texto para fala</string>
+    <string name="allow_templates_to_record_audio" maxLength="41">Allow templates to record audio</string>
+    <string name="template_is_trying_to_record_audio">This template is trying to record audio</string>
     <string name="pref_fixed_port_title" maxLength="41">localstorage no Ecrã de Estudo</string>
     <string name="pref_fixed_port_summary">Activar o localstorage do JavaScript utilizando um servidor de porta fixa no Ecrã de Estudo</string>
     <!-- Developer options -->

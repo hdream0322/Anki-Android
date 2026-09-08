@@ -1,22 +1,7 @@
-/*
- *  Copyright (c) 2026 David Allison <davidallisongithub@gmail.com>
- *
- *  This program is free software; you can redistribute it and/or modify it under
- *  the terms of the GNU General Public License as published by the Free Software
- *  Foundation; either version 3 of the License, or (at your option) any later
- *  version.
- *
- *  This program is distributed in the hope that it will be useful, but WITHOUT ANY
- *  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- *  PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along with
- *  this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
 
 package com.ichi2.anki.reviewreminders
 
-import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -28,10 +13,15 @@ import android.view.ViewGroup
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.net.toUri
+import androidx.core.view.WindowInsetsCompat.Type.displayCutout
+import androidx.core.view.WindowInsetsCompat.Type.systemBars
 import androidx.core.view.isVisible
+import androidx.core.view.updateLayoutParams
+import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.recyclerview.widget.DiffUtil
@@ -43,15 +33,17 @@ import com.ichi2.anki.common.utils.android.getColorFromAttr
 import com.ichi2.anki.databinding.FragmentReminderTroubleshootingBinding
 import com.ichi2.anki.databinding.ItemTroubleshootingCheckBinding
 import com.ichi2.anki.requireAnkiActivity
-import com.ichi2.anki.settings.Prefs
+import com.ichi2.anki.utils.doOnApplyWindowInsets
 import com.ichi2.anki.utils.ext.launchCollectionInLifecycleScope
 import com.ichi2.anki.utils.ext.onWindowFocusChanged
 import com.ichi2.anki.utils.ext.requireParcelable
 import com.ichi2.anki.utils.ext.setBackgroundTint
+import com.ichi2.utils.Permissions.attemptToEnableNotifications
 import com.ichi2.utils.Permissions.openAppNotificationsSettingsScreen
-import com.ichi2.utils.Permissions.requestPermissionThroughDialogOrSettings
+import com.ichi2.utils.copyToClipboard
 import com.ichi2.utils.dp
 import dev.androidbroadcast.vbpd.viewBinding
+import kotlinx.coroutines.launch
 import timber.log.Timber
 
 /**
@@ -100,8 +92,6 @@ class ReminderTroubleshootingFragment : Fragment(R.layout.fragment_reminder_trou
     ) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Set up root layout insets if the host of this fragment does not support edge-to-edge
-        binding.rootLayout.fitsSystemWindows = !host.supportsEdgeToEdge
         when (host.toolbarType) {
             ScheduleRemindersFragment.ToolbarType.EXTERNAL -> setupExternalActivityToolbar()
             ScheduleRemindersFragment.ToolbarType.INTERNAL_COLLAPSIBLE,
@@ -112,6 +102,32 @@ class ReminderTroubleshootingFragment : Fragment(R.layout.fragment_reminder_trou
         setupSummary()
         setupTroubleshootingChecks()
         setupSettingChangeDetector()
+        setupDebugButton()
+        setupContentInsets()
+    }
+
+    /**
+     * Keeps the toolbar and the end of the scrolled content clear of the system bars and any
+     * display cutout.
+     *
+     * The content renders underneath the bottom bar while scrolling.
+     *
+     * These listeners are no-ops in hosts which apply the insets to this fragment's container
+     * and consume them.
+     */
+    private fun setupContentInsets() {
+        binding.troubleshootingToolbar.doOnApplyWindowInsets { view, insets, initial ->
+            val bars = insets.getInsets(systemBars() or displayCutout())
+            view.updatePadding(left = bars.left, right = bars.right)
+            // Margin must be used to align the icon and the title.
+            view.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+                topMargin = initial.margins.top + bars.top
+            }
+        }
+        binding.scrollView.doOnApplyWindowInsets { view, insets, initial ->
+            val bars = insets.getInsets(systemBars() or displayCutout())
+            view.updatePadding(left = bars.left, right = bars.right, bottom = initial.padding.bottom + bars.bottom)
+        }
     }
 
     private fun setupExternalActivityToolbar() {
@@ -182,6 +198,18 @@ class ReminderTroubleshootingFragment : Fragment(R.layout.fragment_reminder_trou
      */
     private fun setupSettingChangeDetector() {
         onWindowFocusChanged { hasFocus -> if (hasFocus) viewModel.refreshChecks() }
+    }
+
+    private fun setupDebugButton() {
+        binding.copyDebugInfo.setOnClickListener {
+            viewLifecycleOwner.lifecycleScope.launch {
+                val debugInfo = ReminderLogTree.readReminderLog() + "\n\n" + ReviewRemindersDatabase.dumpContentsToString()
+                requireContext().copyToClipboard(
+                    debugInfo,
+                    failureMessageId = R.string.about_ankidroid_error_copy_debug_info,
+                )
+            }
+        }
     }
 
     companion object {
@@ -386,20 +414,13 @@ private fun TroubleshootingCheck.resolveAction(): ResolveCheckAction? {
     val context = fragment.requireContext()
 
     // TODO: move labels to string resources
-    fun requestNotificationPermission(): ResolveCheckAction? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return null
-        return ResolveCheckAction(
+    fun requestNotificationPermission(): ResolveCheckAction? =
+        ResolveCheckAction(
             label = "Grant permission",
             logDescription = "requesting POST_NOTIFICATIONS via system dialog or app settings",
         ) {
-            fragment.requestPermissionThroughDialogOrSettings(
-                activity = fragment.requireActivity(),
-                permission = Manifest.permission.POST_NOTIFICATIONS,
-                permissionRequestedFlag = Prefs::notificationsPermissionRequested,
-                permissionRequestLauncher = fragment.notificationPermissionLauncher,
-            )
+            fragment.attemptToEnableNotifications(fragment.notificationPermissionLauncher)
         }
-    }
 
     fun requestReminderNotifChannelPermission(): ResolveCheckAction? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return null

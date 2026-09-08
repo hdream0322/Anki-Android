@@ -1,18 +1,6 @@
-/*
- *  Copyright (c) 2022 Brayan Oliveira <brayandso.dev@gmail.com>
- *
- *  This program is free software; you can redistribute it and/or modify it under
- *  the terms of the GNU General Public License as published by the Free Software
- *  Foundation; either version 3 of the License, or (at your option) any later
- *  version.
- *
- *  This program is distributed in the hope that it will be useful, but WITHOUT ANY
- *  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- *  PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along with
- *  this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2022 Brayan Oliveira <brayandso.dev@gmail.com>
+
 package com.ichi2.anki.preferences
 
 import android.content.Context
@@ -25,6 +13,7 @@ import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AlertDialog
 import androidx.core.net.toUri
 import androidx.core.text.parseAsHtml
+import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import com.ichi2.anki.BuildConfig
 import com.ichi2.anki.CollectionManager.TR
@@ -104,10 +93,15 @@ class AboutFragment : Fragment(R.layout.fragment_about) {
         }
 
         // Donate text
-        val donateLink = getString(R.string.link_opencollective_donate)
-        binding.donateDescription.apply {
-            text = getString(R.string.donate_description, donateLink).parseAsHtml()
-            movementMethod = LinkMovementMethod.getInstance()
+        if (BuildConfig.SHOW_DONATE_LINKS) {
+            val donateLink = getString(R.string.link_opencollective_donate)
+            binding.donateDescription.apply {
+                text = getString(R.string.donate_description, donateLink).parseAsHtml()
+                movementMethod = LinkMovementMethod.getInstance()
+            }
+        } else {
+            binding.aboutDonateTitle.isVisible = false
+            binding.donateDescription.isVisible = false
         }
 
         // Deurim: 원본 AnkiDroid 설치 페이지로 보냄 (Play Store가 없으면 웹으로 폴백)

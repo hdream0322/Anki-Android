@@ -1,18 +1,6 @@
-/*
- *  Copyright (c) 2023 Brayan Oliveira <brayandso.dev@gmail.com>
- *
- *  This program is free software; you can redistribute it and/or modify it under
- *  the terms of the GNU General Public License as published by the Free Software
- *  Foundation; either version 3 of the License, or (at your option) any later
- *  version.
- *
- *  This program is distributed in the hope that it will be useful, but WITHOUT ANY
- *  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- *  PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along with
- *  this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2023 Brayan Oliveira <brayandso.dev@gmail.com>
+
 package com.ichi2.anki.ui.windows.permissions
 
 import android.Manifest
@@ -31,11 +19,12 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.setFragmentResult
 import com.ichi2.anki.R
 import com.ichi2.anki.common.annotations.NeedsTest
+import com.ichi2.anki.common.permissions.MANAGE_EXTERNAL_STORAGE
 import com.ichi2.anki.common.permissions.hasPermission
 import com.ichi2.anki.settings.Prefs
-import com.ichi2.utils.Permissions.openAppSettingsScreen
+import com.ichi2.utils.Permissions.openAppSettingsScreenForPermission
 import com.ichi2.utils.Permissions.requestPermissionThroughDialogOrSettings
-import com.ichi2.utils.Permissions.showToastAndOpenAppSettingsScreen
+import com.ichi2.utils.Permissions.showToastAndOpenAppSettingsScreenForPermission
 import timber.log.Timber
 
 /**
@@ -62,7 +51,8 @@ abstract class PermissionsFragment(
                 Timber.i("Internet permission granted")
             } else {
                 Timber.i("Internet permission denied")
-                showToastAndOpenAppSettingsScreen(
+                showToastAndOpenAppSettingsScreenForPermission(
+                    Manifest.permission.INTERNET,
                     getString(R.string.permission_required_message, getString(R.string.internet_access_title)),
                 )
             }
@@ -93,7 +83,7 @@ abstract class PermissionsFragment(
             Timber.i("launching ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION")
             launch(intent)
         } else {
-            openAppSettingsScreen()
+            openAppSettingsScreenForPermission(MANAGE_EXTERNAL_STORAGE)
         }
     }
 
@@ -138,7 +128,7 @@ abstract class PermissionsFragment(
     protected fun PermissionsItem.revokeIfGrantedOnClickElse(callback: () -> Unit) {
         setOnPermissionsRequested { areAlreadyGranted ->
             if (areAlreadyGranted) {
-                showToastAndOpenAppSettingsScreen(R.string.revoke_permissions)
+                showToastAndOpenAppSettingsScreenForPermission(permissions.singleOrNull(), R.string.revoke_permissions)
             } else {
                 callback()
             }

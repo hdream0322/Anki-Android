@@ -55,6 +55,11 @@
             android:key="@string/whiteboard_card_zoom_sync_key"
             android:title="@string/whiteboard_card_zoom_sync"
             android:summary="@string/whiteboard_card_zoom_sync_summ" />
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="@string/whiteboard_undo_restore_key"
+            android:title="@string/whiteboard_undo_restore"
+            android:summary="@string/whiteboard_undo_restore_summ" />
     </PreferenceCategory>
     <PreferenceCategory android:title="@string/pref_cat_sound_effects">
         <SwitchPreferenceCompat

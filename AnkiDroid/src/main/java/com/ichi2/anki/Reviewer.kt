@@ -1120,6 +1120,12 @@ open class Reviewer :
     private fun updateWhiteboardForCurrentCard() {
         val whiteboard = whiteboard ?: return
         val cardId = currentCard?.id
+        if (!isWhiteboardUndoRestoreEnabled) {
+            isUndoingToPreviousCard = false
+            whiteboard.clear()
+            whiteboardCardId = cardId
+            return
+        }
         if (cardId != whiteboardCardId) {
             whiteboardCardId?.let { whiteboardSnapshots.save(it, whiteboard.takeSnapshot()) }
         }
@@ -1136,6 +1142,10 @@ open class Reviewer :
         isUndoingToPreviousCard = colIsOpenUnsafe() && getColUnsafe.undoAvailable()
         return super.undo()
     }
+
+    /** Whether undoing an answer should restore the undone card's whiteboard drawing. */
+    private val isWhiteboardUndoRestoreEnabled: Boolean
+        get() = sharedPrefs().getBoolean(getString(R.string.whiteboard_undo_restore_key), true)
 
     override fun unblockControls() {
         if (prefWhiteboard && whiteboard != null) {

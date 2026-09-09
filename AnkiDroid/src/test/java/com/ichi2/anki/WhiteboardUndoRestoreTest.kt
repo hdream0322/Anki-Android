@@ -3,8 +3,10 @@ package com.ichi2.anki
 
 import android.os.SystemClock
 import android.view.MotionEvent
+import androidx.core.content.edit
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import anki.scheduler.CardAnswer.Rating
+import com.ichi2.anki.common.preferences.sharedPrefs
 import com.ichi2.anki.libanki.CardId
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.equalTo
@@ -55,6 +57,23 @@ class WhiteboardUndoRestoreTest : RobolectricTest() {
             reviewer.undo()
             advanceRobolectricLooper()
             assertThat("the undone card's drawing is restored", reviewer.hasDrawing(), equalTo(true))
+        }
+
+    @Test
+    fun `drawing is not restored when the preference is off`() =
+        runTest {
+            val reviewer = startReviewerWithWhiteboard(cardCount = 2)
+            reviewer.sharedPrefs().edit {
+                putBoolean(reviewer.getString(R.string.whiteboard_undo_restore_key), false)
+            }
+            drawStroke(reviewer.whiteboard!!)
+
+            reviewer.answerCard(Rating.GOOD)
+            advanceRobolectricLooper()
+            reviewer.undo()
+            advanceRobolectricLooper()
+
+            assertThat("the drawing stays gone", reviewer.hasDrawing(), equalTo(false))
         }
 
     @Test

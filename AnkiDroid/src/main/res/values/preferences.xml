@@ -278,6 +278,7 @@
     <string name="reviewer_frame_style_key">reviewerFrameStyle</string>
     <string name="reviewer_toolbar_position_key">reviewerToolbarPosition</string>
     <string name="whiteboard_card_zoom_sync_key">is_card_zoom_sync_enabled</string>
+    <string name="whiteboard_undo_restore_key">is_whiteboard_undo_restore_enabled</string>
 
     <!-- Onboarding -->
     <string name="internet_permission_requested_key">internetPermissionRequested</string>

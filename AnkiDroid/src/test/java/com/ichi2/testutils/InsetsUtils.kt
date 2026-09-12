@@ -75,6 +75,8 @@ fun insetsOf(
  * @param cutoutTop a display cutout on the top edge (portrait phone with a notch)
  * @param bottomCornerRadius the radius of both bottom rounded display corners
  * @param imeBottom the height of the on-screen keyboard
+ * @param imeVisible whether the keyboard is shown. Defaults to whether it has a height: a physical
+ * keyboard may show an IME with only a navigation strip, or no height at all
  * @param barsVisible whether the status and navigation bars are shown; `false` in immersive mode
  */
 context(context: Context)
@@ -86,6 +88,7 @@ fun windowInsetsOf(
     cutoutTop: Dp = 0.dp,
     bottomCornerRadius: Dp = 0.dp,
     imeBottom: Dp = 0.dp,
+    imeVisible: Boolean = imeBottom.dp > 0f,
     barsVisible: Boolean = true,
 ): WindowInsetsCompat =
     WindowInsetsCompat
@@ -99,6 +102,7 @@ fun windowInsetsOf(
         ).setInsets(displayCutout(), insetsOf(left = cutoutLeft, top = cutoutTop))
         .setInsetsIgnoringVisibility(displayCutout(), insetsOf(left = cutoutLeft, top = cutoutTop))
         .setInsets(ime(), insetsOf(bottom = imeBottom))
+        .setVisible(ime(), imeVisible)
         .setVisible(statusBars() or navigationBars(), barsVisible)
         .apply {
             // set even when zero: Robolectric's WindowInsets.Builder leaks rounded corners between tests
@@ -121,6 +125,7 @@ fun Activity.dispatchInsets(
     cutoutTop: Dp = 0.dp,
     bottomCornerRadius: Dp = 0.dp,
     imeBottom: Dp = 0.dp,
+    imeVisible: Boolean = imeBottom.dp > 0f,
     barsVisible: Boolean = true,
 ) {
     val insets =
@@ -132,6 +137,7 @@ fun Activity.dispatchInsets(
             cutoutTop = cutoutTop,
             bottomCornerRadius = bottomCornerRadius,
             imeBottom = imeBottom,
+            imeVisible = imeVisible,
             barsVisible = barsVisible,
         )
     ViewCompat.dispatchApplyWindowInsets(window.decorView, insets)
@@ -189,5 +195,37 @@ fun Activity.simulateSystemBars(
     bands.forEach { params ->
         decor.addView(View(this).apply { setBackgroundColor(0x80000000.toInt()) }, params)
     }
+    advanceRobolectricLooper()
+}
+
+/**
+ * Injects insets to simulate the keyboard open over the navigation bar, as on an edge-to-edge
+ * device.
+ *
+ * A translucent band marks where the keyboard would sit, so content drawn underneath it can be
+ * seen.
+ *
+ * @param keyboardHeight the height of the keyboard, measured from the bottom of the screen
+ * @param navBarBottom the height of the navigation bar, which the keyboard covers
+ */
+fun Activity.simulateKeyboard(
+    keyboardHeight: Dp = 300.dp,
+    navBarBottom: Dp = 48.dp,
+) {
+    val context: Context = this
+    val insets =
+        WindowInsetsCompat
+            .Builder()
+            .setInsets(statusBars(), insetsOf(top = 24.dp))
+            .setInsets(navigationBars(), insetsOf(bottom = navBarBottom))
+            .setInsets(ime(), insetsOf(bottom = keyboardHeight))
+            .build()
+    ViewCompat.dispatchApplyWindowInsets(window.decorView, insets)
+
+    val decor = window.decorView as ViewGroup
+    decor.addView(
+        View(this).apply { setBackgroundColor(0x80000000.toInt()) },
+        FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, keyboardHeight.toPx(context), Gravity.BOTTOM),
+    )
     advanceRobolectricLooper()
 }

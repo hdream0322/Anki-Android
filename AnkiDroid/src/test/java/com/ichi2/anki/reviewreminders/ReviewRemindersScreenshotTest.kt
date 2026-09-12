@@ -3,36 +3,56 @@
 
 package com.ichi2.anki.reviewreminders
 
+import android.app.NotificationManager
 import androidx.annotation.IdRes
+import androidx.core.content.edit
+import androidx.core.content.getSystemService
 import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.commit
 import androidx.test.core.app.ActivityScenario
 import com.google.android.material.appbar.AppBarLayout
+import com.ichi2.anki.OptionalPermissionSet
 import com.ichi2.anki.R
 import com.ichi2.anki.ScreenshotTest
 import com.ichi2.anki.StudyOptionsActivity
 import com.ichi2.anki.common.destinations.StudyOptionsDestination
 import com.ichi2.anki.common.destinations.launchActivity
 import com.ichi2.anki.databinding.FragmentReminderTroubleshootingBinding
-import com.ichi2.anki.databinding.FragmentScheduleRemindersBinding
 import com.ichi2.anki.preferences.PreferencesActivity
 import com.ichi2.anki.preferences.PreferencesFragment
 import com.ichi2.anki.reviewreminders.ScheduleRemindersFragment.FragmentHost
+import com.ichi2.anki.settings.Prefs
+import com.ichi2.anki.ui.windows.permissions.PermissionsBottomSheet
+import com.ichi2.anki.ui.windows.permissions.PermissionsFragment
 import com.ichi2.anki.utils.ConfigAwareSingleFragmentActivity
 import com.ichi2.anki.withDeckPicker
 import com.ichi2.testutils.BackupManagerTestUtilities
+import com.ichi2.testutils.positiveButton
+import com.ichi2.testutils.scrollToLastPosition
 import com.ichi2.testutils.simulateSystemBars
 import com.ichi2.utils.dp
 import kotlinx.coroutines.runBlocking
+import org.junit.After
+import org.junit.Before
 import org.junit.Test
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 
 /**
  * Covers all [FragmentHost] configurations of the fragment.
  */
 class ReviewRemindersScreenshotTest : ScreenshotTest() {
+    @Before
+    @After
+    fun clearReminders() {
+        // The database retains its own SharedPreferences instance across Robolectric test cases.
+        ReviewRemindersDatabase.remindersSharedPrefs.edit { clear() }
+    }
+
     @Test
     fun `settings host`() {
+        // overflow the list: the toolbar only collapses once the list can scroll
+        insertReminders(count = 12)
         captureSettingsHost("settingsHost")
     }
 
@@ -147,6 +167,63 @@ class ReviewRemindersScreenshotTest : ScreenshotTest() {
         }
 
     @Test
+    fun `enabled and disabled global and deck reminders`() {
+        val deckScope = ReviewReminderScope.DeckSpecific(addDeck("Japanese::Vocabulary"))
+        insertReminder(ReviewReminderTime(8, 0))
+        insertReminder(ReviewReminderTime(9, 30), enabled = false)
+        insertReminder(ReviewReminderTime(18, 15), scope = deckScope)
+        insertReminder(ReviewReminderTime(21, 45), scope = deckScope, enabled = false)
+
+        withStandaloneScheduleReminders {
+            captureScreen("globalAndDeckReminders_enabledAndDisabled")
+        }
+    }
+
+    @Test
+    fun `reminders for a deleted deck`() {
+        val deckId = addDeck("Deleted deck")
+        val deckScope = ReviewReminderScope.DeckSpecific(deckId)
+        insertReminder(ReviewReminderTime(8, 0))
+        insertReminder(ReviewReminderTime(9, 30), scope = deckScope)
+        insertReminder(ReviewReminderTime(18, 15), scope = deckScope, enabled = false)
+        col.decks.remove(listOf(deckId))
+
+        withStandaloneScheduleReminders {
+            captureScreen("deletedDeckReminders")
+        }
+    }
+
+    @Test
+    fun `notification permission bottom sheet after adding a reminder`() {
+        shadowOf(targetContext.getSystemService<NotificationManager>()!!).setNotificationsEnabled(false)
+        Prefs.reminderNotifsRequestShown = false
+        Prefs.notificationsPermissionRequested = false
+
+        withScheduleRemindersFragment { fragment ->
+            fragment.binding.floatingActionButtonAdd.performClick()
+            advanceRobolectricLooper()
+
+            fragment.addEditReminderDialog.positiveButton.performClick()
+            advanceRobolectricLooperUntil {
+                fragment.permissionsBottomSheet?.permissionsFragment?.view != null &&
+                    fragment.reminderCount == 1
+            }
+            captureScreen("notificationPermissionBottomSheet")
+        }
+    }
+
+    @Test
+    fun `legacy notification permission bottom sheet`() {
+        shadowOf(targetContext.getSystemService<NotificationManager>()!!).setNotificationsEnabled(false)
+        withScheduleRemindersFragment { fragment ->
+            // Capture the legacy content on the suite's SDK; mixing SDKs cannot share the native backend.
+            PermissionsBottomSheet.launch(fragment.childFragmentManager, OptionalPermissionSet.LEGACY_NOTIFICATIONS)
+            advanceRobolectricLooper()
+            captureScreen("legacyNotificationPermissionBottomSheet")
+        }
+    }
+
+    @Test
     fun `standalone activity host with system bars`() =
         withStandaloneScheduleReminders { activity ->
             activity.simulateSystemBars()
@@ -156,11 +233,11 @@ class ReviewRemindersScreenshotTest : ScreenshotTest() {
     @Test
     fun `standalone activity host with system bars and a scrollable list`() {
         insertReminders(count = 12)
-        withStandaloneScheduleReminders { activity ->
-            activity.simulateSystemBars()
-            val binding = FragmentScheduleRemindersBinding.bind(activity.fragment!!.requireView())
+        withScheduleRemindersFragment { fragment ->
+            fragment.requireActivity().simulateSystemBars()
+            val binding = fragment.binding
             // scrolled to the end: the last reminder must clear the navigation bar band
-            binding.recyclerView.scrollToPosition(binding.recyclerView.adapter!!.itemCount - 1)
+            binding.recyclerView.scrollToLastPosition()
             advanceRobolectricLooper()
             captureScreen("standaloneActivityHost_systemBars_scrolledToEnd")
         }
@@ -191,6 +268,16 @@ class ReviewRemindersScreenshotTest : ScreenshotTest() {
             advanceRobolectricLooper()
             captureScreen("standaloneActivityHost_troubleshooting_systemBars")
         }
+    }
+
+    private fun insertReminder(
+        time: ReviewReminderTime,
+        scope: ReviewReminderScope = ReviewReminderScope.Global,
+        enabled: Boolean = true,
+    ) = runBlocking {
+        ReviewRemindersDatabase.insertReminder(
+            ReviewReminder.createReviewReminder(time = time, scope = scope, enabled = enabled),
+        )
     }
 
     /** Inserts [count] reminders so the list has content to render behind the simulated bars */
@@ -258,6 +345,10 @@ class ReviewRemindersScreenshotTest : ScreenshotTest() {
         }
     }
 
+    /** Launches [ScheduleRemindersFragment] in its own activity, exposing the fragment */
+    private fun withScheduleRemindersFragment(block: (ScheduleRemindersFragment) -> Unit) =
+        withStandaloneScheduleReminders { activity -> block(activity.fragment as ScheduleRemindersFragment) }
+
     /** Collapses the settings host's toolbar, as when the list has been scrolled */
     private fun FragmentManager.collapseToolbar() {
         findFragmentById(R.id.settings_container)
@@ -266,4 +357,18 @@ class ReviewRemindersScreenshotTest : ScreenshotTest() {
             ?.setExpanded(false, false)
         advanceRobolectricLooper()
     }
+
+    private val ScheduleRemindersFragment.addEditReminderDialog: AddEditReminderDialog
+        get() = childFragmentManager.fragments.filterIsInstance<AddEditReminderDialog>().single()
+
+    private val ScheduleRemindersFragment.permissionsBottomSheet: PermissionsBottomSheet?
+        get() = childFragmentManager.fragments.filterIsInstance<PermissionsBottomSheet>().singleOrNull()
+
+    /** The number of reminders in the list */
+    private val ScheduleRemindersFragment.reminderCount: Int
+        get() = binding.recyclerView.adapter!!.itemCount
+
+    /** The content the sheet hosts, once it has been committed */
+    private val PermissionsBottomSheet.permissionsFragment: PermissionsFragment?
+        get() = childFragmentManager.fragments.filterIsInstance<PermissionsFragment>().singleOrNull()
 }

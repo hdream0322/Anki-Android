@@ -1,19 +1,5 @@
-/*
- * Copyright (c) 2025 Ashish Yadav <mailtoashish693@gmail.com>
- *
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 3 of the License, or (at your option) any later
- * version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
- * details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2025 Ashish Yadav <mailtoashish693@gmail.com>
 
 package com.ichi2.anki.mediacheck
 
@@ -25,6 +11,7 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
 import android.webkit.WebViewClient
+import androidx.annotation.StringRes
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.MenuHost
@@ -36,16 +23,18 @@ import androidx.lifecycle.lifecycleScope
 import com.ichi2.anki.CollectionManager.TR
 import com.ichi2.anki.R
 import com.ichi2.anki.SingleFragmentActivity
+import com.ichi2.anki.common.utils.android.getColorFromAttr
 import com.ichi2.anki.databinding.FragmentMediaCheckBinding
 import com.ichi2.anki.launchCatchingTask
+import com.ichi2.anki.progress.observeProgress
 import com.ichi2.anki.ui.internationalization.sentenceCase
-import com.ichi2.anki.withProgress
 import com.ichi2.utils.cancelable
 import com.ichi2.utils.message
 import com.ichi2.utils.negativeButton
 import com.ichi2.utils.positiveButton
 import com.ichi2.utils.show
 import com.ichi2.utils.title
+import com.ichi2.utils.toRGBHex
 import dev.androidbroadcast.vbpd.viewBinding
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -74,11 +63,8 @@ class MediaCheckFragment : Fragment(R.layout.fragment_media_check) {
 
         (requireActivity() as AppCompatActivity).setSupportActionBar(binding.toolbar)
 
-        launchCatchingTask {
-            withProgress(R.string.check_media_message) {
-                viewModel.checkMedia().join()
-            }
-        }
+        observeProgress(viewModel) { progress -> getString(progress.messageRes) }
+        viewModel.checkMedia()
 
         lifecycleScope.launch {
             viewModel.mediaCheckResult.collectLatest { result ->
@@ -131,11 +117,19 @@ class MediaCheckFragment : Fragment(R.layout.fragment_media_check) {
     }
 
     private fun updateWebView(report: String) {
+        val backgroundColor = getColorFromAttr(requireContext(), android.R.attr.colorBackground)
+        val textColor = getColorFromAttr(requireContext(), android.R.attr.textColorPrimary)
+
+        val backgroundColorHex = backgroundColor.toRGBHex()
+        val textColorHex = textColor.toRGBHex()
+
         val html =
             """
             <html>
                 <body style="
-                      padding: 0px 8px;
+                    background-color: $backgroundColorHex;
+                    color: $textColorHex;
+                    padding: 0px 8px;
                     font-size:14px;
                     white-space: pre-wrap;">$report
                 </body>
@@ -153,13 +147,11 @@ class MediaCheckFragment : Fragment(R.layout.fragment_media_check) {
 
             setOnClickListener {
                 launchCatchingTask {
-                    withProgress(getString(R.string.check_media_adding_missing_tag)) {
-                        viewModel.tagMissing(TR.mediaCheckMissingMediaTag()).join()
-                        showResultDialog(
-                            R.string.check_media_tags_added,
-                            TR.browsingNotesUpdated(viewModel.taggedFiles),
-                        )
-                    }
+                    viewModel.tagMissing(TR.mediaCheckMissingMediaTag()).join()
+                    showResultDialog(
+                        R.string.check_media_tags_added,
+                        TR.browsingNotesUpdated(viewModel.taggedFiles),
+                    )
                 }
             }
         }
@@ -175,19 +167,15 @@ class MediaCheckFragment : Fragment(R.layout.fragment_media_check) {
 
     private fun confirmMediaRestore() {
         launchCatchingTask {
-            withProgress {
-                viewModel.restoreTrash().join()
-                showTrashRestoredDialog()
-            }
+            viewModel.restoreTrash().join()
+            showTrashRestoredDialog()
         }
     }
 
     private fun deleteTrash() {
         launchCatchingTask {
-            withProgress {
-                viewModel.deleteTrash().join()
-                showTrashDeletedDialog()
-            }
+            viewModel.deleteTrash().join()
+            showTrashDeletedDialog()
         }
     }
 
@@ -201,10 +189,8 @@ class MediaCheckFragment : Fragment(R.layout.fragment_media_check) {
 
     private fun handleDeleteConfirmation() {
         launchCatchingTask {
-            withProgress(resources.getString(R.string.delete_media_message)) {
-                viewModel.deleteUnusedMedia().join()
-                showDeletionResult()
-            }
+            viewModel.deleteUnusedMedia().join()
+            showDeletionResult()
         }
     }
 
@@ -264,3 +250,12 @@ class MediaCheckFragment : Fragment(R.layout.fragment_media_check) {
         fun getIntent(context: Context): Intent = SingleFragmentActivity.getIntent(context, MediaCheckFragment::class)
     }
 }
+
+@get:StringRes
+private val MediaCheckProgress.messageRes: Int
+    get() =
+        when (this) {
+            MediaCheckProgress.CHECKING_MEDIA -> R.string.check_media_message
+            MediaCheckProgress.ADDING_TAGS -> R.string.check_media_adding_missing_tag
+            MediaCheckProgress.DELETING_MEDIA -> R.string.delete_media_message
+        }

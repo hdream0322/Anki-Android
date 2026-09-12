@@ -6,6 +6,7 @@ package com.ichi2.anki.ai
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import timber.log.Timber
@@ -17,7 +18,7 @@ class AiKeyStore(
 ) {
     var apiKey: String?
         get() = prefs.getString(KEY_API_KEY, null)
-        set(value) = prefs.edit().putString(KEY_API_KEY, value).apply()
+        set(value) = prefs.edit { putString(KEY_API_KEY, value) }
 
     fun hasApiKey(): Boolean = !apiKey.isNullOrBlank()
 

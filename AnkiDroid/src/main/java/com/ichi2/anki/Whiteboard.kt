@@ -29,6 +29,7 @@ import androidx.annotation.CheckResult
 import androidx.annotation.VisibleForTesting
 import androidx.core.content.edit
 import androidx.core.graphics.scale
+import androidx.core.graphics.withMatrix
 import com.ichi2.anki.common.android.appContext
 import com.ichi2.anki.common.annotations.NeedsTest
 import com.ichi2.anki.common.preferences.sharedPrefs
@@ -156,22 +157,21 @@ class Whiteboard(
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        canvas.save()
-        canvas.concat(contentMatrix)
-        canvas.drawColor(0)
-        // canvas.concat(contentMatrix) also scales stroke width, since Paint.strokeWidth is
-        // defined in the canvas's pre-transform coordinate space. Counter-scale it here so the
-        // pen keeps a constant on-screen thickness regardless of the card's current zoom level.
-        val strokeWidthScale = if (isContentSyncEnabled && contentScale > 0f) 1f / contentScale else 1f
-        if (isContentSyncEnabled) {
-            // The card's zoom/scroll can move content outside the bitmap's fixed bounds,
-            // so paths are drawn straight from the undo history instead of the raster buffer.
-            undo.drawTo(canvas, strokeWidthScale)
-        } else {
-            canvas.drawBitmap(bitmap, 0f, 0f, bitmapPaint)
+        canvas.withMatrix(contentMatrix) {
+            drawColor(0)
+            // concat(contentMatrix) also scales stroke width, since Paint.strokeWidth is
+            // defined in the canvas's pre-transform coordinate space. Counter-scale it here so the
+            // pen keeps a constant on-screen thickness regardless of the card's current zoom level.
+            val strokeWidthScale = if (isContentSyncEnabled && contentScale > 0f) 1f / contentScale else 1f
+            if (isContentSyncEnabled) {
+                // The card's zoom/scroll can move content outside the bitmap's fixed bounds,
+                // so paths are drawn straight from the undo history instead of the raster buffer.
+                undo.drawTo(this, strokeWidthScale)
+            } else {
+                drawBitmap(bitmap, 0f, 0f, bitmapPaint)
+            }
+            drawPath(path, strokeWidthCompensatedPaint(paint, strokeWidthScale))
         }
-        canvas.drawPath(path, strokeWidthCompensatedPaint(paint, strokeWidthScale))
-        canvas.restore()
     }
 
     private fun strokeWidthCompensatedPaint(

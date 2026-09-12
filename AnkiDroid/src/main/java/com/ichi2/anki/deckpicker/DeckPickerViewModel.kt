@@ -6,6 +6,7 @@ import android.annotation.SuppressLint
 import android.content.SharedPreferences
 import android.os.Build
 import androidx.annotation.CheckResult
+import androidx.core.content.edit
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import anki.card_rendering.EmptyCardsReport
@@ -694,10 +695,9 @@ class DeckPickerViewModel :
     }
 
     private fun saveSortOrderPref(order: DeckSortOrder) {
-        Prefs.sharedPrefs
-            .edit()
-            .putString(PREF_DECK_SORT_ORDER, order.name)
-            .apply()
+        Prefs.sharedPrefs.edit {
+            putString(PREF_DECK_SORT_ORDER, order.name)
+        }
     }
 
     companion object {

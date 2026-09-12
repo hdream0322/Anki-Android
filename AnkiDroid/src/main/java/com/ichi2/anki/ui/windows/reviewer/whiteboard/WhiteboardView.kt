@@ -29,6 +29,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import androidx.core.graphics.createBitmap
+import androidx.core.graphics.withMatrix
 import com.ichi2.anki.R
 import com.ichi2.anki.ui.windows.reviewer.whiteboard.SmoothPath.Companion.drawPath
 import timber.log.Timber
@@ -154,26 +155,24 @@ class WhiteboardView : View {
      */
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        canvas.save()
-        canvas.concat(contentMatrix)
+        canvas.withMatrix(contentMatrix) {
+            if (isContentSyncEnabled) {
+                // The card's zoom/scroll can move content outside the buffer's fixed bounds,
+                // so paths are drawn straight from history instead of a screen-space buffer.
+                drawActions(this, history)
+            } else {
+                // Draw the committed history
+                drawBitmap(bufferBitmap, 0f, 0f, canvasPaint)
+            }
 
-        if (isContentSyncEnabled) {
-            // The card's zoom/scroll can move content outside the buffer's fixed bounds,
-            // so paths are drawn straight from history instead of a screen-space buffer.
-            drawActions(canvas, history)
-        } else {
-            // Draw the committed history
-            canvas.drawBitmap(bufferBitmap, 0f, 0f, canvasPaint)
+            // Draw the live preview path for the current gesture
+            if (isEraserActive) {
+                drawPath(currentPath, eraserPreviewPaint)
+            } else {
+                // Draw the normal brush or pixel eraser preview
+                drawPath(currentPath, currentPaint)
+            }
         }
-
-        // Draw the live preview path for the current gesture
-        if (isEraserActive) {
-            canvas.drawPath(currentPath, eraserPreviewPaint)
-        } else {
-            // Draw the normal brush or pixel eraser preview
-            canvas.drawPath(currentPath, currentPaint)
-        }
-        canvas.restore()
     }
 
     /**

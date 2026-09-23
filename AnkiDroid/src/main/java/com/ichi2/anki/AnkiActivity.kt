@@ -592,7 +592,7 @@ open class AnkiActivity(
                 ).setSmallIcon(R.drawable.ic_star_notify)
                 .setContentTitle(title)
                 .setContentText(message)
-                .setColor(getColor(CommonR.color.material_light_blue_500))
+                .setColor(getColor(R.color.brand_500))
                 .setStyle(NotificationCompat.BigTextStyle().bigText(message))
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setTicker(ticker)

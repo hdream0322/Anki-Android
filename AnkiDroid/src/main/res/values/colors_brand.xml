@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Deurim fork brand palette: Material Deep Orange, replacing upstream's light blue 1:1 by tone -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="UnusedResources">
+    <color name="brand_50">#FBE9E7</color>
+    <color name="brand_100">#FFCCBC</color>
+    <color name="brand_200">#FFAB91</color>
+    <color name="brand_300">#FF8A65</color>
+    <color name="brand_400">#FF7043</color>
+    <color name="brand_500">#FF5722</color>
+    <color name="brand_600">#F4511E</color>
+    <color name="brand_700">#E64A19</color>
+    <color name="brand_800">#D84315</color>
+    <color name="brand_900">#BF360C</color>
+
+    <!-- App icon star gradient (see build.gradle anki_foreground_icon_color_*) -->
+    <color name="brand_logo_start">#FFFF784D</color>
+    <color name="brand_logo_end">#FFFF5621</color>
+
+    <!-- Upstream's blue-tinted neutrals, hue-rotated to the brand hue (same lightness/saturation) -->
+    <color name="brand_light_secondary_container">#FFD0C1</color>
+    <color name="brand_light_surface_container_high">#FDEAE4</color>
+    <color name="brand_light_surface_container">#0FFF5722</color>
+    <color name="brand_dark_secondary_container">#6E483C</color>
+    <color name="brand_dark_surface_container_high">#544642</color>
+    <color name="brand_dark_surface_container">#0FFF7043</color>
+    <color name="brand_dark_show_answer_background">#3F2922</color>
+</resources>

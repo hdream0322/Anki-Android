@@ -8,9 +8,9 @@
 
     <style name="Base.Theme.Dark.Black" parent="Theme_Dark">
         <!-- Android colors -->
-        <item name="colorPrimary">@color/material_blue_400</item>
+        <item name="colorPrimary">@color/brand_400</item>
         <item name="colorPrimaryDark">@color/black</item>
-        <item name="colorAccent">@color/material_blue_500</item>
+        <item name="colorAccent">@color/brand_500</item>
         <item name="colorSecondaryContainer">#252525</item>
         <item name="colorSurfaceContainerHigh">#151515</item>
         <item name="android:textColor">@color/text_color_dark</item>
@@ -28,12 +28,12 @@
         <item name="actionModeBackground">@color/theme_black_primary_dark</item>
         <!-- Tab layout -->
         <item name="tabLayoutBackgroundColor">@color/theme_black_primary_dark</item>
-        <item name="tabActiveIconColor">@color/material_blue_500</item>
+        <item name="tabActiveIconColor">@color/brand_500</item>
         <!-- Deck list colors and divider -->
         <item name="currentDeckBackground">@drawable/item_background_selected</item>
         <item name="currentDeckBackgroundColor">@color/theme_black_row_current</item>
         <item name="focusedRowBackgroundColor">@color/theme_black_row_current</item>
-        <item name="dynDeckColor">@color/material_light_blue_500</item>
+        <item name="dynDeckColor">@color/brand_400</item>
         <item name="deckDivider">@drawable/divider_black</item>
         <item name="expandRef">@drawable/ic_chevron_right_white</item>
         <item name="collapseRef">@drawable/ic_expand_more_white</item>
@@ -82,7 +82,7 @@
         <item name="duplicateColor">#855</item>
         <!-- Note editor colors -->
         <item name="editTextBackgroundColor">#EE5C5C5C</item>
-        <item name="editTextHighlightColor">@color/material_light_blue_900</item>
+        <item name="editTextHighlightColor">@color/brand_900</item>
         <item name="toolbarBackgroundColor">#616161</item>
         <item name="toolbarIconColor">@color/white</item>
         <item name="buttonShadowColor">#726B6B</item>
@@ -107,7 +107,7 @@
         <!-- Snackbar -->
         <item name="snackbarTextViewStyle">@style/SnackbarTextStyleBlack</item>
         <item name="snackbarBackgroundTintColor">#ff303030</item>
-        <item name="snackbarButtonTextColor">@color/material_light_blue_300</item>
+        <item name="snackbarButtonTextColor">@color/brand_300</item>
 
         <!-- Introduction -->
         <item name="introductionLogoTransparent">#55111111</item>
@@ -117,7 +117,7 @@
 
         <!-- ProgressDialog-->
         <item name="dialogBackground">@color/theme_black_primary_light</item>
-        <item name="progressDialogButtonTextColor">@color/material_light_blue_400</item>
+        <item name="progressDialogButtonTextColor">@color/brand_400</item>
 
 
         <item name="incrementerButtonBackground">@color/material_blue_grey_900</item>

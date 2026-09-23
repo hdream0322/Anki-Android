@@ -49,8 +49,8 @@
 
             android:progress="0"
 
-            app:indicatorColor="@color/material_blue_500"
-            app:trackColor="@color/material_light_blue_100"
+            app:indicatorColor="@color/brand_500"
+            app:trackColor="@color/brand_100"
             android:visibility="gone"
             />
 
@@ -124,7 +124,7 @@
             android:minHeight="300px"
             android:paddingVertical="6dp"
             android:src="@drawable/round_audio_file_24"
-            android:tint="@color/material_blue_500" />
+            android:tint="@color/brand_500" />
 
         <androidx.constraintlayout.widget.ConstraintLayout
             android:layout_width="match_parent"
@@ -142,7 +142,7 @@
                 android:clickable="true"
                 android:focusable="true"
                 android:enabled="false"
-                app:backgroundTint="@color/material_blue_500"
+                app:backgroundTint="@color/brand_500"
                 app:icon="@drawable/baseline_replay_5_24"
                 app:iconPadding="0dp"
                 app:iconSize="22dp"
@@ -180,7 +180,7 @@
                 android:clickable="true"
                 android:focusable="true"
                 android:enabled="false"
-                app:backgroundTint="@color/material_blue_500"
+                app:backgroundTint="@color/brand_500"
                 app:icon="@drawable/baseline_forward_5_24"
                 app:iconPadding="0dp"
                 app:iconSize="22dp"
@@ -194,7 +194,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="6dp"
-                app:backgroundTint="@color/material_blue_500"
+                app:backgroundTint="@color/brand_500"
                 app:icon="@drawable/ic_delete"
                 app:iconPadding="0dp"
                 app:iconSize="22dp"

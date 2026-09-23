@@ -43,7 +43,6 @@ import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
-import com.ichi2.anki.common.android.R as CommonR
 
 /**
  * Performs the actual firing of review reminder notifications, both recurring ones and snoozed ones.
@@ -265,7 +264,7 @@ class NotificationService : AnkiBroadcastReceiver() {
                     .Builder(context, NotificationChannel.REVIEW_REMINDERS.id)
                     .setCategory(NotificationCompat.CATEGORY_REMINDER)
                     .setSmallIcon(R.drawable.ic_star_notify)
-                    .setColor(context.getColor(CommonR.color.material_light_blue_700))
+                    .setColor(context.getColor(R.color.brand_700))
                     .setContentTitle(title)
                     .setContentText(description)
                     .setContentIntent(pendingIntent)
@@ -368,7 +367,7 @@ class NotificationService : AnkiBroadcastReceiver() {
                             NotificationChannel.GENERAL.id,
                         ).setCategory(NotificationCompat.CATEGORY_REMINDER)
                         .setSmallIcon(R.drawable.ic_star_notify)
-                        .setColor(context.getColor(CommonR.color.material_light_blue_700))
+                        .setColor(context.getColor(R.color.brand_700))
                         .setContentTitle(cardsDueText)
                         .setTicker(cardsDueText)
                 // Enable vibrate and blink if set in preferences

@@ -59,11 +59,11 @@
     <string name="pref_review_progress_bar_glow_summ">Shows a light sweeping across the session progress bar</string>
     <string name="pref_review_progress_bar_glow_speed_key">deurim_review_progress_bar_glow_speed</string>
     <string name="pref_review_progress_bar_glow_speed" maxLength="41">Progress bar glow speed</string>
-    <string name="review_progress_bar_glow_speed_sloth_value">sloth</string>
-    <string name="review_progress_bar_glow_speed_slow_value">slow</string>
-    <string name="review_progress_bar_glow_speed_medium_value">medium</string>
-    <string name="review_progress_bar_glow_speed_fast_value">fast</string>
-    <string name="review_progress_bar_glow_speed_ultra_value">ultra</string>
+    <string name="review_progress_bar_glow_speed_sloth_value" translatable="false">sloth</string>
+    <string name="review_progress_bar_glow_speed_slow_value" translatable="false">slow</string>
+    <string name="review_progress_bar_glow_speed_medium_value" translatable="false">medium</string>
+    <string name="review_progress_bar_glow_speed_fast_value" translatable="false">fast</string>
+    <string name="review_progress_bar_glow_speed_ultra_value" translatable="false">ultra</string>
     <string-array name="review_progress_bar_glow_speed_labels">
         <item>Sloth</item>
         <item>Slow</item>

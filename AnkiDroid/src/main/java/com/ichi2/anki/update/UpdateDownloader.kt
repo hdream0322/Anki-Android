@@ -32,13 +32,13 @@ object UpdateDownloader {
      * Downloads [release].apkUrl to the app cache and returns a FileProvider URI
      * suitable for handing to the system installer.
      *
-     * [onProgress] is invoked on the calling coroutine's thread with values in [0f, 1f];
-     * `null` percent means the total size was unknown (rare for GitHub asset CDN).
+     * [onProgress] is invoked on [Dispatchers.IO] for each stage and after every read.
+     * [DownloadProgress.totalBytes] is `null` when the size is unknown (rare for GitHub asset CDN).
      */
     suspend fun download(
         context: Context,
         release: GitHubRelease,
-        onProgress: (Float?) -> Unit = {},
+        onProgress: (DownloadProgress) -> Unit = {},
     ): Uri =
         withContext(Dispatchers.IO) {
             val targetDir = File(context.cacheDir, "updates").apply { mkdirs() }
@@ -52,6 +52,8 @@ object UpdateDownloader {
             }
             val client = HttpFetcher.getOkHttpBuilder(fakeUserAgent = false).build()
             val request = Request.Builder().url(release.apkUrl).build()
+
+            onProgress(DownloadProgress(DownloadProgress.Stage.CONNECTING))
 
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
@@ -68,7 +70,7 @@ object UpdateDownloader {
                             if (read == -1) break
                             output.write(buffer, 0, read)
                             downloaded += read
-                            onProgress(total?.let { downloaded.toFloat() / it.toFloat() })
+                            onProgress(DownloadProgress(DownloadProgress.Stage.DOWNLOADING, downloaded, total))
                         }
                     }
                 }
@@ -76,6 +78,7 @@ object UpdateDownloader {
             Timber.i("Downloaded %s (%d bytes)", targetFile.name, targetFile.length())
 
             release.apkSha256?.let { expected ->
+                onProgress(DownloadProgress(DownloadProgress.Stage.VERIFYING, targetFile.length(), targetFile.length()))
                 val actual = computeSha256(targetFile)
                 if (!sha256Matches(actual, expected)) {
                     targetFile.delete()

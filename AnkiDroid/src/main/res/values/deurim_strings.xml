@@ -77,6 +77,20 @@
     <string name="update_already_latest">Already up to date</string>
     <string name="update_downloading">Downloading new version…</string>
     <string name="update_download_progress">%1$d%%</string>
+    <!-- %1$s = current version, %2$s = new version -->
+    <string name="update_version_transition">%1$s → %2$s</string>
+    <string name="update_stage_connecting">Connecting…</string>
+    <string name="update_stage_downloading">Downloading</string>
+    <string name="update_stage_verifying">Verifying file…</string>
+    <!-- %1$s = downloaded size, %2$s = total size, e.g. "12.3 MB / 25.1 MB" -->
+    <string name="update_download_bytes">%1$s / %2$s</string>
+    <!-- %s = size per second, e.g. "2.4 MB" -->
+    <string name="update_download_speed">%s/s</string>
+    <!-- %1$s = speed, %2$s = remaining time -->
+    <string name="update_download_speed_eta">%1$s · %2$s</string>
+    <string name="update_eta_calculating">Estimating time left…</string>
+    <string name="update_eta_seconds">About %d s left</string>
+    <string name="update_eta_minutes">About %d min left</string>
     <string name="update_need_install_permission">Permission to install unknown apps is required. Please allow it in Settings.</string>
 
     <!-- AI card chat -->

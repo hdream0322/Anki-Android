@@ -38,6 +38,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
+import androidx.core.view.isVisible
 import androidx.fragment.app.FragmentActivity
 import com.ichi2.anki.BuildConfig
 import com.ichi2.anki.NOTIFICATION_MIN_DELAY_MS
@@ -62,6 +63,9 @@ import timber.log.Timber
 object UpdateManager {
     private const val CHECK_INTERVAL_MS = 24L * 60 * 60 * 1000
     private const val NOTIFICATION_ID = 0xD20A7E
+
+    /** 다이얼로그 갱신 간격 — 매 read(64KB)마다 메인 스레드를 깨우지 않도록 제한한다. */
+    private const val UI_UPDATE_INTERVAL_MS = 250L
 
     /** 진행 중인 다운로드가 있으면 "지금 설치" 재실행이 새 다운로드를 시작하지 않도록 막는다. */
     @Volatile
@@ -197,21 +201,25 @@ object UpdateManager {
 
         val appCtx = activity.applicationContext
         val nm = NotificationManagerCompat.from(appCtx)
+        val current = BuildConfig.FORK_VERSION.ifEmpty { "(dev)" }
+        val versionText = activity.getString(R.string.update_version_transition, current, release.tag)
+        val connecting = DownloadProgress(DownloadProgress.Stage.CONNECTING)
+        val estimator = DownloadRateEstimator()
 
         val ongoing =
             NotificationCompat
                 .Builder(appCtx, NotificationChannel.APP_UPDATE.id)
                 .setSmallIcon(R.drawable.ic_star_notify)
-                .setContentTitle(appCtx.getString(R.string.update_downloading))
-                .setContentText(release.tag)
+                .setSubText(versionText)
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
-                .setProgress(100, 0, true)
+        bindNotification(ongoing, connecting, describeProgress(activity, connecting, estimator))
         safeNotify(nm, appCtx, ongoing.build())
 
         // 인앱 진행률 다이얼로그 — 알림 권한이 없어도 사용자가 진행 상황을 볼 수 있게 한다.
         val binding = DialogUpdateProgressBinding.inflate(LayoutInflater.from(activity))
-        binding.updateProgressVersion.text = release.tag
+        binding.updateProgressVersion.text = versionText
+        bindProgressDialog(binding, connecting, describeProgress(activity, connecting, estimator))
         val progressDialog =
             AlertDialog
                 .Builder(activity)
@@ -223,27 +231,34 @@ object UpdateManager {
 
         // 알림 업데이트 throttle — Android는 초당 ~5건 제한이 있어 매 read마다 보내면 무시됨.
         var lastNotifyMs = 0L
+        var lastUiMs = 0L
+        var lastStage = connecting.stage
 
         activity.launchCatchingTask {
             try {
                 val uri =
-                    UpdateDownloader.download(activity, release) { pct ->
-                        // 콜백은 Dispatchers.IO 에서 호출되므로 뷰 갱신은 메인 스레드로 마샬링한다.
-                        if (pct != null) {
-                            val percent = (pct * 100).toInt()
+                    UpdateDownloader.download(activity, release) { progress ->
+                        val now = TimeManager.time.intTimeMS()
+                        if (progress.stage == DownloadProgress.Stage.DOWNLOADING) {
+                            estimator.record(now, progress.downloadedBytes)
+                        }
+                        // 단계가 바뀌면 throttle 과 무관하게 바로 반영한다.
+                        val stageChanged = progress.stage != lastStage
+                        lastStage = progress.stage
+                        val uiDue = stageChanged || now - lastUiMs >= UI_UPDATE_INTERVAL_MS
+                        val notifyDue = stageChanged || now - lastNotifyMs >= NOTIFICATION_MIN_DELAY_MS
+                        if (!uiDue && !notifyDue) return@download
+                        val text = describeProgress(activity, progress, estimator)
+                        if (uiDue) {
+                            lastUiMs = now
+                            // 콜백은 Dispatchers.IO 에서 호출되므로 뷰 갱신은 메인 스레드로 마샬링한다.
                             activity.runOnUiThread {
-                                if (progressDialog.isShowing) {
-                                    binding.updateProgressIndicator.isIndeterminate = false
-                                    binding.updateProgressIndicator.setProgressCompat(percent, true)
-                                    binding.updateProgressPercent.text =
-                                        activity.getString(R.string.update_download_progress, percent)
-                                }
+                                if (progressDialog.isShowing) bindProgressDialog(binding, progress, text)
                             }
                         }
-                        val now = TimeManager.time.intTimeMS()
-                        if (pct != null && now - lastNotifyMs >= NOTIFICATION_MIN_DELAY_MS) {
+                        if (notifyDue) {
                             lastNotifyMs = now
-                            ongoing.setProgress(100, (pct * 100).toInt(), false)
+                            bindNotification(ongoing, progress, text)
                             safeNotify(nm, appCtx, ongoing.build())
                         }
                     }
@@ -272,6 +287,91 @@ object UpdateManager {
                 isDownloading = false
             }
         }
+    }
+
+    /** 다이얼로그와 알림이 함께 쓰는 진행 상황 문구. 값이 없는 줄은 `null`. */
+    private data class ProgressText(
+        val stage: String,
+        val bytes: String?,
+        val percent: String?,
+        val eta: String?,
+        val speedLine: String?,
+    )
+
+    private fun describeProgress(
+        ctx: Context,
+        progress: DownloadProgress,
+        estimator: DownloadRateEstimator,
+    ): ProgressText {
+        val stage =
+            ctx.getString(
+                when (progress.stage) {
+                    DownloadProgress.Stage.CONNECTING -> R.string.update_stage_connecting
+                    DownloadProgress.Stage.DOWNLOADING -> R.string.update_stage_downloading
+                    DownloadProgress.Stage.VERIFYING -> R.string.update_stage_verifying
+                },
+            )
+        if (progress.stage != DownloadProgress.Stage.DOWNLOADING) return ProgressText(stage, null, null, null, null)
+
+        val total = progress.totalBytes
+        val downloaded = formatBytes(progress.downloadedBytes)
+        val bytes = total?.let { ctx.getString(R.string.update_download_bytes, downloaded, formatBytes(it)) } ?: downloaded
+        val percent = progress.fraction?.let { ctx.getString(R.string.update_download_progress, (it * 100).toInt()) }
+        val speed =
+            estimator.bytesPerSecond()?.let { ctx.getString(R.string.update_download_speed, formatBytes(it.toLong())) }
+        val eta = total?.let { estimator.etaSeconds(it) }?.let { formatEta(ctx, it) }
+        val speedLine =
+            when {
+                speed != null && eta != null -> ctx.getString(R.string.update_download_speed_eta, speed, eta)
+                speed != null -> speed
+                // 전체 크기는 알지만 아직 샘플이 부족한 초반 구간
+                total != null -> ctx.getString(R.string.update_eta_calculating)
+                else -> null
+            }
+        return ProgressText(stage, bytes, percent, eta, speedLine)
+    }
+
+    private fun formatEta(
+        ctx: Context,
+        seconds: Long,
+    ): String =
+        if (seconds < 60) {
+            ctx.getString(R.string.update_eta_seconds, seconds.coerceAtLeast(1))
+        } else {
+            ctx.getString(R.string.update_eta_minutes, (seconds + 59) / 60)
+        }
+
+    private fun bindProgressDialog(
+        binding: DialogUpdateProgressBinding,
+        progress: DownloadProgress,
+        text: ProgressText,
+    ) {
+        binding.updateProgressStage.text = text.stage
+        val fraction = progress.fraction.takeIf { progress.stage == DownloadProgress.Stage.DOWNLOADING }
+        if (fraction == null) {
+            binding.updateProgressIndicator.isIndeterminate = true
+        } else {
+            binding.updateProgressIndicator.isIndeterminate = false
+            binding.updateProgressIndicator.setProgressCompat((fraction * 100).toInt(), true)
+        }
+        binding.updateProgressBytes.text = text.bytes
+        binding.updateProgressBytes.isVisible = text.bytes != null
+        binding.updateProgressPercent.text = text.percent
+        binding.updateProgressPercent.isVisible = text.percent != null
+        binding.updateProgressSpeed.text = text.speedLine
+        binding.updateProgressSpeed.isVisible = text.speedLine != null
+    }
+
+    private fun bindNotification(
+        builder: NotificationCompat.Builder,
+        progress: DownloadProgress,
+        text: ProgressText,
+    ) {
+        val fraction = progress.fraction.takeIf { progress.stage == DownloadProgress.Stage.DOWNLOADING }
+        builder
+            .setContentTitle(text.stage)
+            .setContentText(listOfNotNull(text.bytes, text.eta).joinToString(" · ").ifEmpty { null })
+            .setProgress(100, ((fraction ?: 0f) * 100).toInt(), fraction == null)
     }
 
     private fun showCompleteNotification(

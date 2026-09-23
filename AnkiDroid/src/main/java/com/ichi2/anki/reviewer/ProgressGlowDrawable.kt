@@ -29,6 +29,7 @@ import android.graphics.drawable.Drawable
 import android.view.View
 import android.widget.ProgressBar
 import androidx.annotation.VisibleForTesting
+import androidx.core.graphics.withSave
 import kotlin.math.PI
 import kotlin.math.cos
 
@@ -88,18 +89,18 @@ class ProgressGlowDrawable private constructor(
         val offset = glowOffset(sweep, fillWidth, glowWidth)
         val rtl = progressBar.layoutDirection == View.LAYOUT_DIRECTION_RTL
 
-        canvas.save()
-        if (rtl) {
-            canvas.clipRect(b.right - fillWidth, b.top.toFloat(), b.right.toFloat(), b.bottom.toFloat())
-            // mirror the sweep so it still travels from the start of the bar
-            canvas.scale(-1f, 1f, b.exactCenterX(), 0f)
-        } else {
-            canvas.clipRect(b.left.toFloat(), b.top.toFloat(), b.left + fillWidth, b.bottom.toFloat())
+        canvas.withSave {
+            if (rtl) {
+                clipRect(b.right - fillWidth, b.top.toFloat(), b.right.toFloat(), b.bottom.toFloat())
+                // mirror the sweep so it still travels from the start of the bar
+                scale(-1f, 1f, b.exactCenterX(), 0f)
+            } else {
+                clipRect(b.left.toFloat(), b.top.toFloat(), b.left + fillWidth, b.bottom.toFloat())
+            }
+            shaderMatrix.setTranslate(b.left + offset, 0f)
+            paint.shader?.setLocalMatrix(shaderMatrix)
+            drawRect(b.left + offset, b.top.toFloat(), b.left + offset + glowWidth, b.bottom.toFloat(), paint)
         }
-        shaderMatrix.setTranslate(b.left + offset, 0f)
-        paint.shader?.setLocalMatrix(shaderMatrix)
-        canvas.drawRect(b.left + offset, b.top.toFloat(), b.left + offset + glowWidth, b.bottom.toFloat(), paint)
-        canvas.restore()
     }
 
     override fun setAlpha(alpha: Int) {

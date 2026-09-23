@@ -15,6 +15,7 @@
  */
 package com.ichi2.anki.update
 
+import android.annotation.SuppressLint
 import java.util.Locale
 import kotlin.math.ceil
 
@@ -75,6 +76,7 @@ class DownloadRateEstimator(
 }
 
 /** Formats a byte count as `300 B`, `512 KB`, `12.3 MB` or `1.0 GB`. */
+@SuppressLint("LocaleRootUsage") // fixed '.' decimal separator, matches the unit-only format
 fun formatBytes(bytes: Long): String {
     val kb = 1024.0
     val mb = kb * 1024

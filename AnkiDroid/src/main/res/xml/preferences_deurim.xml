@@ -48,6 +48,14 @@
             android:key="@string/pref_review_progress_bar_glow_key"
             android:title="@string/pref_review_progress_bar_glow"
             android:summary="@string/pref_review_progress_bar_glow_summ"/>
+        <ListPreference
+            android:defaultValue="@string/review_progress_bar_glow_speed_medium_value"
+            android:dependency="@string/pref_review_progress_bar_glow_key"
+            android:entries="@array/review_progress_bar_glow_speed_labels"
+            android:entryValues="@array/review_progress_bar_glow_speed_values"
+            android:key="@string/pref_review_progress_bar_glow_speed_key"
+            android:title="@string/pref_review_progress_bar_glow_speed"
+            app:useSimpleSummaryProvider="true"/>
     </PreferenceCategory>
     <PreferenceCategory android:title="@string/pref_cat_whiteboard">
         <SwitchPreferenceCompat

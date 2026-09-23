@@ -30,6 +30,7 @@ import android.view.View
 import android.widget.ProgressBar
 import androidx.annotation.VisibleForTesting
 import androidx.core.graphics.withSave
+import com.ichi2.anki.settings.enums.ProgressGlowSpeed
 import kotlin.math.PI
 import kotlin.math.cos
 
@@ -41,6 +42,7 @@ import kotlin.math.cos
  */
 class ProgressGlowDrawable private constructor(
     private val progressBar: ProgressBar,
+    speed: ProgressGlowSpeed,
 ) : Drawable() {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val shaderMatrix = Matrix()
@@ -49,7 +51,7 @@ class ProgressGlowDrawable private constructor(
 
     private val animator =
         ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = CYCLE_MS
+            duration = speed.cycleMs
             repeatCount = ValueAnimator.INFINITE
             addUpdateListener {
                 phase = it.animatedValue as Float
@@ -115,17 +117,17 @@ class ProgressGlowDrawable private constructor(
     override fun getOpacity() = PixelFormat.TRANSLUCENT
 
     companion object {
-        /** One sweep plus the pause before the next one. */
-        private const val CYCLE_MS = 2600L
-
-        /** Portion of [CYCLE_MS] spent sweeping; the rest is a pause, as on Windows. */
+        /** Portion of [ProgressGlowSpeed.cycleMs] spent sweeping; the rest is a pause, as on Windows. */
         private const val SWEEP_PORTION = 0.6f
 
         private const val GLOW_WIDTH_FRACTION = 0.25f
         private const val GLOW_ALPHA = 150
 
         /** Adds (or removes) the glow on [progressBar]. */
-        fun ProgressBar.setGlowEnabled(enabled: Boolean) {
+        fun ProgressBar.setGlowEnabled(
+            enabled: Boolean,
+            speed: ProgressGlowSpeed = ProgressGlowSpeed.MEDIUM,
+        ) {
             (foreground as? ProgressGlowDrawable)?.let {
                 removeOnAttachStateChangeListener(it.attachListener)
                 it.animator.cancel()
@@ -134,7 +136,7 @@ class ProgressGlowDrawable private constructor(
                 foreground = null
                 return
             }
-            val glow = ProgressGlowDrawable(this)
+            val glow = ProgressGlowDrawable(this, speed)
             foreground = glow
             addOnAttachStateChangeListener(glow.attachListener)
             if (isAttachedToWindow) glow.animator.start()

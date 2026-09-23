@@ -22,6 +22,7 @@ import com.ichi2.anki.settings.enums.FrameStyle
 import com.ichi2.anki.settings.enums.HideSystemBars
 import com.ichi2.anki.settings.enums.NightTheme
 import com.ichi2.anki.settings.enums.PrefEnum
+import com.ichi2.anki.settings.enums.ProgressGlowSpeed
 import com.ichi2.anki.settings.enums.ShouldFetchMedia
 import com.ichi2.anki.settings.enums.ToolbarPosition
 import kotlin.properties.ReadWriteProperty
@@ -369,6 +370,9 @@ open class PrefsRepository(
 
     /** Whether a glow repeatedly sweeps across the legacy reviewer's session progress bar. */
     val reviewProgressBarGlow by booleanPref(R.string.pref_review_progress_bar_glow_key, defaultValue = true)
+
+    /** How fast the glow of [reviewProgressBarGlow] sweeps across the bar. */
+    val reviewProgressBarGlowSpeed by enumPref(R.string.pref_review_progress_bar_glow_speed_key, ProgressGlowSpeed.MEDIUM)
 
     val swipeSensitivity: Float
         get() = getInt(R.string.pref_swipe_sensitivity_key, 100) / 100F

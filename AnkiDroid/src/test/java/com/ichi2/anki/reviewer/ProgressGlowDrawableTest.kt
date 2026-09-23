@@ -17,6 +17,7 @@ package com.ichi2.anki.reviewer
 
 import com.ichi2.anki.reviewer.ProgressGlowDrawable.Companion.glowOffset
 import com.ichi2.anki.reviewer.ProgressGlowDrawable.Companion.sweepFraction
+import com.ichi2.anki.settings.enums.ProgressGlowSpeed
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -39,5 +40,13 @@ class ProgressGlowDrawableTest {
         assertTrue(early!! < late!!)
         assertEquals(0f, sweepFraction(0f)!!, 0.001f)
         assertNull("no glow during the pause", sweepFraction(0.8f))
+    }
+
+    @Test
+    fun `speeds go from sloth to ultra and medium keeps the original pace`() {
+        val cycles = ProgressGlowSpeed.entries.map { it.cycleMs }
+        assertEquals(cycles.sortedDescending(), cycles)
+        assertEquals(cycles.size, cycles.toSet().size)
+        assertEquals(2600L, ProgressGlowSpeed.MEDIUM.cycleMs)
     }
 }

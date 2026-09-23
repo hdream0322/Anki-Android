@@ -326,7 +326,7 @@ open class Reviewer :
         reviewProgressBar =
             findViewById<ProgressBar>(R.id.review_progress_bar).apply {
                 progressTintList = ColorStateList.valueOf(Prefs.reviewProgressBarColor)
-                setGlowEnabled(Prefs.reviewProgressBarGlow)
+                setGlowEnabled(Prefs.reviewProgressBarGlow, Prefs.reviewProgressBarGlowSpeed)
             }
         toolbar = findViewById(R.id.toolbar)
         micToolBarLayer = findViewById(R.id.mic_tool_bar_layer)

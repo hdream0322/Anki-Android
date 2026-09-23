@@ -31,6 +31,7 @@ import android.text.Spanned
 import android.text.style.RelativeSizeSpan
 import android.text.style.StyleSpan
 import android.view.LayoutInflater
+import androidx.annotation.StringRes
 import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AlertDialog
 import androidx.core.app.NotificationCompat
@@ -47,6 +48,8 @@ import com.ichi2.anki.common.time.TimeManager
 import com.ichi2.anki.common.utils.android.showThemedToast
 import com.ichi2.anki.databinding.DialogUpdateProgressBinding
 import com.ichi2.anki.launchCatchingTask
+import com.ichi2.anki.snackbar.canProperlyShowSnackbars
+import com.ichi2.anki.snackbar.showSnackbar
 import com.ichi2.utils.customView
 import com.ichi2.utils.message
 import com.ichi2.utils.negativeButton
@@ -99,18 +102,18 @@ object UpdateManager {
         if (shouldBlockForWifiOnly(wifiOnly, isWifiConnected(activity))) {
             // 스탬프를 찍지 않아 Wi-Fi 연결 후 다음 앱 실행 때 바로 재시도된다 (24h 쿨다운 미적용).
             Timber.d("Update check skipped: Wi-Fi-only is enabled and no Wi-Fi is connected")
-            if (manual) showThemedToast(activity, R.string.update_wifi_required, true)
+            if (manual) showMessage(activity, R.string.update_wifi_required)
             return
         }
         activity.launchCatchingTask {
             val release = UpdateChecker.fetchLatestRelease()
             stampCheck(activity)
             if (release == null) {
-                if (manual) showThemedToast(activity, R.string.update_check_failed, true)
+                if (manual) showMessage(activity, R.string.update_check_failed)
                 return@launchCatchingTask
             }
             if (!UpdateChecker.isNewerThanCurrent(release.tag)) {
-                if (manual) showThemedToast(activity, R.string.update_already_latest, true)
+                if (manual) showMessage(activity, R.string.update_already_latest)
                 return@launchCatchingTask
             }
             // Manual checks always prompt, even for a version the user previously skipped —
@@ -120,6 +123,18 @@ object UpdateManager {
                 return@launchCatchingTask
             }
             promptUpdate(activity, release)
+        }
+    }
+
+    /** 앱 스낵바 스타일로 안내한다. 스낵바를 띄울 root_layout이 없는 화면에서만 토스트로 대체. */
+    private fun showMessage(
+        activity: FragmentActivity,
+        @StringRes message: Int,
+    ) {
+        if (activity.canProperlyShowSnackbars()) {
+            activity.showSnackbar(message)
+        } else {
+            showThemedToast(activity, message, true)
         }
     }
 
@@ -166,7 +181,7 @@ object UpdateManager {
         val wifiOnly = activity.sharedPrefs().getBoolean(wifiOnlyKey, false)
         if (shouldBlockForWifiOnly(wifiOnly, isWifiConnected(activity))) {
             Timber.d("Update download blocked: Wi-Fi-only is enabled and no Wi-Fi is connected")
-            showThemedToast(activity, R.string.update_wifi_required, true)
+            showMessage(activity, R.string.update_wifi_required)
             return
         }
 
@@ -252,7 +267,7 @@ object UpdateManager {
                 Timber.w(e, "Update download failed")
                 progressDialog.dismiss()
                 nm.cancel(NOTIFICATION_ID)
-                showThemedToast(activity, R.string.download_failed, true)
+                showMessage(activity, R.string.download_failed)
             } finally {
                 isDownloading = false
             }

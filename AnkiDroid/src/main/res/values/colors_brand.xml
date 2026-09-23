@@ -1,27 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Deurim fork brand palette: Material Deep Orange, replacing upstream's light blue 1:1 by tone -->
+<!-- Deurim fork brand palette: Material Deep Orange mapped 1:1 onto upstream's light blue tones,
+     with saturation scaled by 0.72 to reduce glare (brand_500 #FF5722 -> #E0643E) -->
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="UnusedResources">
-    <color name="brand_50">#FBE9E7</color>
-    <color name="brand_100">#FFCCBC</color>
-    <color name="brand_200">#FFAB91</color>
-    <color name="brand_300">#FF8A65</color>
-    <color name="brand_400">#FF7043</color>
-    <color name="brand_500">#FF5722</color>
-    <color name="brand_600">#F4511E</color>
-    <color name="brand_700">#E64A19</color>
-    <color name="brand_800">#D84315</color>
-    <color name="brand_900">#BF360C</color>
+    <color name="brand_50">#F8EBEA</color>
+    <color name="brand_100">#F6D1C5</color>
+    <color name="brand_200">#F0B3A0</color>
+    <color name="brand_300">#E9957B</color>
+    <color name="brand_400">#E57E5D</color>
+    <color name="brand_500">#E0643E</color>
+    <color name="brand_600">#D6613C</color>
+    <color name="brand_700">#C95936</color>
+    <color name="brand_800">#BD5130</color>
+    <color name="brand_900">#A64325</color>
 
     <!-- App icon star gradient (see build.gradle anki_foreground_icon_color_*) -->
     <color name="brand_logo_start">#FFFF784D</color>
     <color name="brand_logo_end">#FFFF5621</color>
 
-    <!-- Upstream's blue-tinted neutrals, hue-rotated to the brand hue (same lightness/saturation) -->
-    <color name="brand_light_secondary_container">#FFD0C1</color>
-    <color name="brand_light_surface_container_high">#FDEAE4</color>
-    <color name="brand_light_surface_container">#0FFF5722</color>
-    <color name="brand_dark_secondary_container">#6E483C</color>
-    <color name="brand_dark_surface_container_high">#544642</color>
-    <color name="brand_dark_surface_container">#0FFF7043</color>
-    <color name="brand_dark_show_answer_background">#3F2922</color>
+    <!-- Upstream's blue-tinted neutrals, hue-rotated to the brand hue and softened like the palette above -->
+    <color name="brand_light_secondary_container">#F6D4CA</color>
+    <color name="brand_light_surface_container_high">#F9ECE8</color>
+    <color name="brand_light_surface_container">#0FE0643E</color>
+    <color name="brand_dark_secondary_container">#674C43</color>
+    <color name="brand_dark_surface_container_high">#514745</color>
+    <color name="brand_dark_surface_container">#0FE57E5D</color>
+    <color name="brand_dark_show_answer_background">#3B2B26</color>
 </resources>

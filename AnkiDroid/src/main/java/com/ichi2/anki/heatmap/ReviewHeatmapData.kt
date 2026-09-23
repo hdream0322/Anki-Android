@@ -89,9 +89,11 @@ fun Collection.fetchReviewHeatmapData(
     val lastWeekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
     val startDate = lastWeekStart.minusWeeks((weeks - 1).toLong())
 
+    // Anki days begin at the rollover hour (default 4 AM), not midnight.
     val cutoffMs =
         startDate
-            .atStartOfDay(ZoneId.systemDefault())
+            .atTime(rolloverHour, 0)
+            .atZone(ZoneId.systemDefault())
             .toInstant()
             .toEpochMilli()
 
@@ -102,10 +104,12 @@ fun Collection.fetchReviewHeatmapData(
     var maxCount = 0
     db
         .query(
-            "SELECT date(revlog.id / 1000, 'unixepoch', 'localtime') AS d, count() " +
+            // Shift back by the rollover so e.g. a 03:30 review lands on the previous Anki day.
+            "SELECT date(revlog.id / 1000 - ? * 3600, 'unixepoch', 'localtime') AS d, count() " +
                 "FROM revlog JOIN cards ON cards.id = revlog.cid " +
                 "WHERE revlog.id >= ? AND revlog.ease > 0 " +
                 "AND cards.did IN ($deckIdList) GROUP BY d",
+            rolloverHour,
             cutoffMs,
         ).use { cursor ->
             while (cursor.moveToNext()) {

@@ -125,6 +125,7 @@ import com.ichi2.anki.reviewer.CardMarker
 import com.ichi2.anki.reviewer.CardSide
 import com.ichi2.anki.reviewer.FullScreenMode
 import com.ichi2.anki.reviewer.FullScreenMode.Companion.isFullScreenReview
+import com.ichi2.anki.reviewer.ProgressGlowDrawable.Companion.setGlowEnabled
 import com.ichi2.anki.reviewer.ReviewerBinding
 import com.ichi2.anki.reviewer.ReviewerUi
 import com.ichi2.anki.scheduling.ForgetCardsDialog
@@ -325,6 +326,7 @@ open class Reviewer :
         reviewProgressBar =
             findViewById<ProgressBar>(R.id.review_progress_bar).apply {
                 progressTintList = ColorStateList.valueOf(Prefs.reviewProgressBarColor)
+                setGlowEnabled(Prefs.reviewProgressBarGlow)
             }
         toolbar = findViewById(R.id.toolbar)
         micToolBarLayer = findViewById(R.id.mic_tool_bar_layer)

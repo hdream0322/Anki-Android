@@ -367,6 +367,9 @@ open class PrefsRepository(
         defaultValue = DEFAULT_REVIEW_PROGRESS_BAR_COLOR,
     )
 
+    /** Whether a glow repeatedly sweeps across the legacy reviewer's session progress bar. */
+    val reviewProgressBarGlow by booleanPref(R.string.pref_review_progress_bar_glow_key, defaultValue = true)
+
     val swipeSensitivity: Float
         get() = getInt(R.string.pref_swipe_sensitivity_key, 100) / 100F
 

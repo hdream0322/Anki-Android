@@ -54,6 +54,9 @@
     <string name="pref_cat_deurim_reviewer" maxLength="41">Reviewer</string>
     <string name="pref_review_progress_bar_color" maxLength="41">Progress bar color</string>
     <string name="pref_review_progress_bar_color_summ">Changes the color of the session progress bar (legacy reviewer)</string>
+    <string name="pref_review_progress_bar_glow_key">deurim_review_progress_bar_glow</string>
+    <string name="pref_review_progress_bar_glow" maxLength="41">Progress bar glow</string>
+    <string name="pref_review_progress_bar_glow_summ">Shows a light sweeping across the session progress bar</string>
 
     <!-- Heatmap widget -->
     <string name="heatmap_widget_label">Review heatmap</string>

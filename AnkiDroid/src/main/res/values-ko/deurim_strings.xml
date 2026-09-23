@@ -37,6 +37,8 @@
     <string name="pref_cat_deurim_reviewer">리뷰어</string>
     <string name="pref_review_progress_bar_color">진행률 바 색상</string>
     <string name="pref_review_progress_bar_color_summ">세션 진행률 바의 색상을 바꿉니다 (레거시 리뷰어)</string>
+    <string name="pref_review_progress_bar_glow">진행률 바 반짝임 효과</string>
+    <string name="pref_review_progress_bar_glow_summ">진행률 바에 빛이 왼쪽에서 오른쪽으로 지나가는 효과를 표시합니다</string>
 
     <!-- Heatmap widget -->
     <string name="heatmap_widget_label">리뷰 히트맵</string>

@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// SPDX-FileCopyrightText: Copyright (c) 2024 Brayan Oliveira <brayandso.dev@gmail.com>
 
 package com.ichi2.anki.previewer
 
@@ -86,7 +85,7 @@ class TemplatePreviewerViewModelTest : JvmTest() {
         fields: List<String>? = null,
         block: suspend TemplatePreviewerViewModel.() -> Unit,
     ) = runTest {
-        val notetype = col.notetypes.byName("Basic (optional reversed card)")!!
+        val notetype = col.notetypes.basicOptionalReversed
         val arguments =
             TemplatePreviewerArguments(
                 notetypeFile = NotetypeFile(tempDirectory.root, notetype),
@@ -104,7 +103,7 @@ class TemplatePreviewerViewModelTest : JvmTest() {
         fields: List<String>? = null,
         block: suspend TemplatePreviewerViewModel.() -> Unit,
     ) = runTest {
-        val notetype = col.notetypes.byName("Cloze")!!
+        val notetype = col.notetypes.cloze
         val arguments =
             TemplatePreviewerArguments(
                 notetypeFile = NotetypeFile(tempDirectory.root, notetype),

@@ -146,9 +146,9 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-${{ matrix.api-level }}-${{ matrix.arch }}-${{matrix.target}}-v1-${{ github.event.inputs.clearCaches }}
+          key: avd-${{ matrix.api-level }}-${{ matrix.arch }}-${{matrix.target}}-v2-${{ github.event.inputs.clearCaches }}
           restore-keys: |
-            avd-${{ matrix.api-level }}-${{ matrix.arch }}-${{matrix.target}}-v1
+            avd-${{ matrix.api-level }}-${{ matrix.arch }}-${{matrix.target}}-v2
 
       - name: Warm Gradle Cache
         # This makes sure we fetch gradle network resources with a retry
@@ -221,6 +221,9 @@ jobs:
           script: |
             touch adb-log.txt
             $ANDROID_HOME/platform-tools/adb logcat '*:D' >> adb-log.txt &
+            bash .github/disable_art_metrics.sh
+            # Fix "Speech Recognition and Synthesis from Google keeps stopping" causing RootViewWithoutFocusException  
+            adb shell settings put global hide_error_dialogs 1
             adb emu screenrecord start --time-limit 1800 video.webm
             sleep 5
             ./gradlew uninstallAll jacocoAndroidTestReport --daemon

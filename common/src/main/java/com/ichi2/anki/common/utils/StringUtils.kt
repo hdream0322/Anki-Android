@@ -1,6 +1,4 @@
 /*
- Copyright (c) 2020 David Allison <davidallisongithub@gmail.com>
-
  This program is free software; you can redistribute it and/or modify it under
  the terms of the GNU General Public License as published by the Free Software
  Foundation; either version 3 of the License, or (at your option) any later
@@ -38,7 +36,6 @@ import com.ichi2.anki.common.annotations.DuplicatedCode
 import org.jetbrains.annotations.Contract
 import java.text.BreakIterator
 import java.util.Locale
-import kotlin.math.min
 
 object StringUtils {
     /** Converts the string to where the first letter is uppercase, and the rest of the string is lowercase  */
@@ -51,8 +48,6 @@ object StringUtils {
         return s[0].uppercase(Locale.getDefault()) + s.substring(1).lowercase(Locale.getDefault())
     }
 }
-
-fun String.trimToLength(maxLength: Int): String = this.substring(0, min(this.length, maxLength))
 
 fun String.indexOfOrNull(
     c: Char,

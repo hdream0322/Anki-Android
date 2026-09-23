@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// SPDX-FileCopyrightText: Copyright (c) 2022 Brayan Oliveira <brayandso.dev@gmail.com>
 
 package com.ichi2.anki.pages
 
@@ -32,7 +31,6 @@ class Statistics : PageFragment(R.layout.page_statistics) {
     // After killing the app, printManager.printJobs can still list active jobs
     private var pendingPrintJob: PrintJob? = null
 
-    @Suppress("deprecation", "API35 properly handle edge-to-edge")
     override fun onViewCreated(
         view: View,
         savedInstanceState: Bundle?,
@@ -80,7 +78,11 @@ class Statistics : PageFragment(R.layout.page_statistics) {
         val printManager = getSystemService(requireContext(), PrintManager::class.java) ?: return
         val currentDateTime = getTimestamp(TimeManager.time)
         val jobName = "${getString(R.string.app_name)}-stats-$currentDateTime"
-        val printAdapter = webViewLayout.createPrintDocumentAdapter(jobName)
+        val printAdapter =
+            webViewLayout.createPrintDocumentAdapter(jobName) ?: run {
+                Timber.w("Skipping stats PDF export; WebView is destroyed")
+                return
+            }
         pendingPrintJob =
             printManager.print(
                 jobName,

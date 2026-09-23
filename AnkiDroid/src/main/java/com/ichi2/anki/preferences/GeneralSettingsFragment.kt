@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// SPDX-FileCopyrightText: Copyright (c) 2022 Brayan Oliveira <brayandso.dev@gmail.com>
 
 package com.ichi2.anki.preferences
 
@@ -20,6 +19,7 @@ import com.ichi2.utils.LanguageUtil
 import com.ichi2.utils.LanguageUtil.getStringByLocale
 import com.ichi2.utils.LanguageUtil.getSystemLocale
 import kotlinx.coroutines.runBlocking
+import timber.log.Timber
 
 class GeneralSettingsFragment : SettingsFragment() {
     override val preferenceResource: Int
@@ -98,6 +98,7 @@ class GeneralSettingsFragment : SettingsFragment() {
                     }
                 val localeList = LocaleListCompat.forLanguageTags(localeCode)
                 AppCompatDelegate.setApplicationLocales(localeList)
+                Timber.w("Known bug: some strings may be stale after a language change until the app is restarted")
             }
         }
     }

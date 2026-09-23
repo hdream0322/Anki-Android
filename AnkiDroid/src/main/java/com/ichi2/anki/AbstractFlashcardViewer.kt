@@ -100,6 +100,7 @@ import com.ichi2.anki.cardviewer.handledGamepadKeyUp
 import com.ichi2.anki.common.android.animationDisabled
 import com.ichi2.anki.common.android.animationEnabled
 import com.ichi2.anki.common.annotations.NeedsTest
+import com.ichi2.anki.common.destinations.NoteEditorDestination
 import com.ichi2.anki.common.destinations.PreferencesDestination
 import com.ichi2.anki.common.destinations.navigate
 import com.ichi2.anki.common.preferences.sharedPrefs
@@ -112,7 +113,6 @@ import com.ichi2.anki.compat.CompatHelper.Companion.resolveActivityCompat
 import com.ichi2.anki.compat.ResolveInfoFlagsCompat
 import com.ichi2.anki.dialogs.TtsPlaybackErrorDialog
 import com.ichi2.anki.dialogs.TtsVoicesDialogFragment
-import com.ichi2.anki.dialogs.tags.TagsDialog
 import com.ichi2.anki.dialogs.tags.TagsDialogFactory
 import com.ichi2.anki.dialogs.tags.TagsDialogListener
 import com.ichi2.anki.libanki.Card
@@ -125,7 +125,6 @@ import com.ichi2.anki.libanki.TTSTag
 import com.ichi2.anki.libanki.TtsPlayer
 import com.ichi2.anki.model.CardStateFilter
 import com.ichi2.anki.multimedia.getAvTag
-import com.ichi2.anki.noteeditor.NoteEditorLauncher
 import com.ichi2.anki.observability.ChangeManager
 import com.ichi2.anki.observability.undoableOp
 import com.ichi2.anki.pages.AnkiServer
@@ -803,8 +802,9 @@ abstract class AbstractFlashcardViewer :
         }
         val animation = fromGesture.toAnimationTransition().invert()
         Timber.i("Launching 'edit card'")
-        val editCardIntent = NoteEditorLauncher.EditSelection(listOf(currentCard!!.id), animation).toIntent(this)
-        editCurrentCardLauncher.launch(editCardIntent)
+        editCurrentCardLauncher.navigate(
+            NoteEditorDestination.EditSelection(listOf(currentCard!!.id), animation),
+        )
     }
 
     protected fun showDeleteNoteDialog() {
@@ -2739,11 +2739,7 @@ abstract class AbstractFlashcardViewer :
     internal fun showTagsDialog() {
         Timber.i("opening tags dialog")
         val noteId = currentCard!!.note(getColUnsafe).id
-        val dialog =
-            tagsDialogFactory!!
-                .newTagsDialog()
-                .withArguments(this, TagsDialog.DialogType.EDIT_TAGS, noteIds = listOf(noteId))
-        showDialogFragment(dialog)
+        tagsDialogFactory!!.show(this, noteIds = listOf(noteId))
     }
 
     override fun onSelectedTags(

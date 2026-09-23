@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// SPDX-FileCopyrightText: Copyright (c) 2022 Brayan Oliveira <brayandso.dev@gmail.com>
 
 package com.ichi2.anki.preferences
 
@@ -28,6 +27,7 @@ import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.ui.internationalization.sentenceCase
 import com.ichi2.anki.update.UpdateManager
 import com.ichi2.utils.IntentUtil
+import com.ichi2.utils.TruncatedString
 import com.ichi2.utils.VersionUtils.pkgVersionName
 import com.ichi2.utils.copyToClipboard
 import com.ichi2.utils.show
@@ -141,7 +141,7 @@ class AboutFragment : Fragment(R.layout.fragment_about) {
                     DebugInfoService.getDebugInfo(requireContext())
                 }
             requireContext().copyToClipboard(
-                debugInfo,
+                TruncatedString.from(debugInfo),
                 failureMessageId = R.string.about_ankidroid_error_copy_debug_info,
             )
         }

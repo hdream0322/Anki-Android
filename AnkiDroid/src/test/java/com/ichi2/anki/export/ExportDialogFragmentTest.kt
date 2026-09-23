@@ -6,20 +6,26 @@ import androidx.fragment.app.testing.launchFragment
 import androidx.test.espresso.Espresso.onData
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.action.ViewActions.click
+import androidx.test.espresso.action.ViewActions.scrollTo
 import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.matcher.RootMatchers.isDialog
+import androidx.test.espresso.matcher.ViewMatchers.Visibility.GONE
 import androidx.test.espresso.matcher.ViewMatchers.isChecked
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
+import androidx.test.espresso.matcher.ViewMatchers.withEffectiveVisibility
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ichi2.anki.CollectionManager.TR
 import com.ichi2.anki.R
 import com.ichi2.anki.RobolectricTest
+import com.ichi2.anki.browser.IdsFile
+import com.ichi2.anki.utils.ext.requireParcelable
 import org.hamcrest.CoreMatchers.containsString
 import org.hamcrest.CoreMatchers.not
 import org.junit.Test
 import org.junit.runner.RunWith
+import kotlin.test.assertTrue
 
 @RunWith(AndroidJUnit4::class)
 class ExportDialogFragmentTest : RobolectricTest() {
@@ -27,7 +33,7 @@ class ExportDialogFragmentTest : RobolectricTest() {
     fun `collection export options are initialized correctly`() {
         onExportDialog {
             // Select export type as anki collection package.
-            onView(withId(R.id.export_type_selector)).inRoot(isDialog()).perform(click())
+            onView(withId(R.id.export_type_selector)).inRoot(isDialog()).perform(scrollTo(), click())
             onData(containsString("Anki collection package"))
                 .inAdapterView(withId(R.id.export_type_selector))
                 .perform(click())
@@ -35,12 +41,14 @@ class ExportDialogFragmentTest : RobolectricTest() {
             // Check that the UI elements are displayed and have the correct text and default values for checkboxes.
             onView(withId(R.id.collection_include_media))
                 .inRoot(isDialog())
+                .perform(scrollTo())
                 .check(matches(isDisplayed()))
                 .check(matches(withText(TR.exportingIncludeMedia())))
                 .check(matches(isChecked()))
 
             onView(withId(R.id.collection_export_legacy))
                 .inRoot(isDialog())
+                .perform(scrollTo())
                 .check(matches(isDisplayed()))
                 .check(matches(withText(TR.exportingSupportOlderAnkiVersions())))
                 .check(matches(not(isChecked())))
@@ -51,7 +59,7 @@ class ExportDialogFragmentTest : RobolectricTest() {
     fun `apkg export options are initialized correctly`() {
         onExportDialog {
             // Select export type as anki deck package.
-            onView(withId(R.id.export_type_selector)).inRoot(isDialog()).perform(click())
+            onView(withId(R.id.export_type_selector)).inRoot(isDialog()).perform(scrollTo(), click())
             onData(containsString("Anki deck package"))
                 .inAdapterView(withId(R.id.export_type_selector))
                 .perform(click())
@@ -59,24 +67,28 @@ class ExportDialogFragmentTest : RobolectricTest() {
             // Check that the UI elements are displayed and have the correct text and default values for checkboxes.
             onView(withId(R.id.apkg_include_media))
                 .inRoot(isDialog())
+                .perform(scrollTo())
                 .check(matches(isDisplayed()))
                 .check(matches(withText(TR.exportingIncludeMedia())))
                 .check(matches(isChecked()))
 
             onView(withId(R.id.apkg_include_deck_configs))
                 .inRoot(isDialog())
+                .perform(scrollTo())
                 .check(matches(isDisplayed()))
                 .check(matches(withText(TR.exportingIncludeDeckConfigs())))
                 .check(matches(not(isChecked())))
 
             onView(withId(R.id.apkg_include_schedule))
                 .inRoot(isDialog())
+                .perform(scrollTo())
                 .check(matches(isDisplayed()))
                 .check(matches(withText(TR.exportingIncludeSchedulingInformation())))
                 .check(matches(isChecked()))
 
             onView(withId(R.id.apkg_export_legacy))
                 .inRoot(isDialog())
+                .perform(scrollTo())
                 .check(matches(isDisplayed()))
                 .check(matches(withText(TR.exportingSupportOlderAnkiVersions())))
                 .check(matches(not(isChecked())))
@@ -87,58 +99,80 @@ class ExportDialogFragmentTest : RobolectricTest() {
     fun `Legacy export checkbox(default false) is shown only for collection and apkg`() {
         onExportDialog {
             // check legacy checkboxes status for collection export
-            onView(withId(R.id.export_type_selector)).inRoot(isDialog()).perform(click())
+            onView(withId(R.id.export_type_selector)).inRoot(isDialog()).perform(scrollTo(), click())
             onData(containsString("Anki collection package"))
                 .inAdapterView(withId(R.id.export_type_selector))
                 .perform(click())
             onView(withId(R.id.collection_export_legacy))
                 .inRoot(isDialog())
+                .perform(scrollTo())
                 .check(matches(isDisplayed()))
             onView(withId(R.id.collection_export_legacy))
                 .inRoot(isDialog())
                 .check(matches(not(isChecked())))
             onView(withId(R.id.apkg_export_legacy))
                 .inRoot(isDialog())
-                .check(matches(not(isDisplayed())))
+                .check(matches(withEffectiveVisibility(GONE)))
 
             // check legacy checkboxes status for apkg export
-            onView(withId(R.id.export_type_selector)).inRoot(isDialog()).perform(click())
+            onView(withId(R.id.export_type_selector)).inRoot(isDialog()).perform(scrollTo(), click())
             onData(containsString("Anki deck package"))
                 .inAdapterView(withId(R.id.export_type_selector))
                 .perform(click())
             onView(withId(R.id.apkg_export_legacy))
                 .inRoot(isDialog())
+                .perform(scrollTo())
                 .check(matches(isDisplayed()))
             onView(withId(R.id.apkg_export_legacy))
                 .inRoot(isDialog())
                 .check(matches(not(isChecked())))
             onView(withId(R.id.collection_export_legacy))
                 .inRoot(isDialog())
-                .check(matches(not(isDisplayed())))
+                .check(matches(withEffectiveVisibility(GONE)))
 
             // checkboxes are not shown for notes export
-            onView(withId(R.id.export_type_selector)).inRoot(isDialog()).perform(click())
+            onView(withId(R.id.export_type_selector)).inRoot(isDialog()).perform(scrollTo(), click())
             onData(containsString("Notes in plain text"))
                 .inAdapterView(withId(R.id.export_type_selector))
                 .perform(click())
             onView(withId(R.id.apkg_export_legacy))
                 .inRoot(isDialog())
-                .check(matches(not(isDisplayed())))
+                .check(matches(withEffectiveVisibility(GONE)))
             onView(withId(R.id.collection_export_legacy))
                 .inRoot(isDialog())
-                .check(matches(not(isDisplayed())))
+                .check(matches(withEffectiveVisibility(GONE)))
 
             // checkboxes are not shown for cards export
-            onView(withId(R.id.export_type_selector)).inRoot(isDialog()).perform(click())
+            onView(withId(R.id.export_type_selector)).inRoot(isDialog()).perform(scrollTo(), click())
             onData(containsString("Cards in plain text"))
                 .inAdapterView(withId(R.id.export_type_selector))
                 .perform(click())
             onView(withId(R.id.apkg_export_legacy))
                 .inRoot(isDialog())
-                .check(matches(not(isDisplayed())))
+                .check(matches(withEffectiveVisibility(GONE)))
             onView(withId(R.id.collection_export_legacy))
                 .inRoot(isDialog())
-                .check(matches(not(isDisplayed())))
+                .check(matches(withEffectiveVisibility(GONE)))
+        }
+    }
+
+    @Test
+    fun `ids file is not removed on a configuration change`() {
+        val fragment =
+            ExportDialogFragment.newInstance(
+                cacheDir = targetContext.cacheDir,
+                type = ExportDialogFragment.ExportType.Notes,
+                ids = listOf(1L, 2L, 3L),
+            )
+        val idsFile = fragment.requireArguments().requireParcelable<IdsFile>(ARG_IDS_FILE)
+        assertTrue(idsFile.exists())
+
+        launchFragment<ExportDialogFragment>(
+            fragmentArgs = fragment.arguments,
+            themeResId = R.style.Theme_Light,
+        ).use { scenario ->
+            scenario.recreate()
+            assertTrue(idsFile.exists(), "ids file must survive a configuration change")
         }
     }
 
@@ -147,4 +181,8 @@ class ExportDialogFragmentTest : RobolectricTest() {
         launchFragment<ExportDialogFragment>(
             themeResId = R.style.Theme_Light,
         ).use { scenario -> scenario.onFragment { action(it) } }
+
+    companion object {
+        private const val ARG_IDS_FILE = "arg_ids_file"
+    }
 }

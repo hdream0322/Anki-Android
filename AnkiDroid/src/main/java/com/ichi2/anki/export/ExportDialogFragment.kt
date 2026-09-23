@@ -60,6 +60,9 @@ class ExportDialogFragment : AnalyticsDialogFragment() {
 
     override fun onDismiss(dialog: DialogInterface) {
         super.onDismiss(dialog)
+        // onDismiss is also called on a configuration change (from onDestroyView), in which case
+        // the dialog is recreated with the same arguments and still needs the ids file
+        if (activity?.isChangingConfigurations == true) return
         if (arguments?.containsKey(ARG_IDS_FILE) == true) {
             removeIdsFile()
         }
@@ -88,6 +91,7 @@ class ExportDialogFragment : AnalyticsDialogFragment() {
         }
         return AlertDialog
             .Builder(requireActivity())
+            .setTitle(TR.actionsExport())
             .setView(binding.root)
             .negativeButton(R.string.dialog_cancel)
             .positiveButton(text = TR.actionsExport()) {

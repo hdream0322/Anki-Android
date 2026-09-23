@@ -22,7 +22,7 @@ ktlint = '1.8.0'
 # https://developer.android.com/build/releases/past-releases
 # Pinned to 9.0.1 until building androidTest in release mode circular dependency issue resolved
 # Upstream reference https://issuetracker.google.com/issues/491718901
-androidGradlePlugin = "9.0.1"
+androidGradlePlugin = "9.4.0"
 # https://developer.android.com/jetpack/androidx/releases/activity
 androidxActivity = "1.12.4"
 # https://developer.android.com/jetpack/androidx/releases/annotation
@@ -70,7 +70,7 @@ androidxWebkit = "1.16.0"
 # https://developer.android.com/jetpack/androidx/releases/work
 androidxWork = "2.11.2"
 # https://github.com/ankidroid/Anki-Android-Backend/
-ankiBackend = '0.1.66-anki26.05'
+ankiBackend = '0.1.68-anki26.05'
 autoService = "1.1.1"
 autoServiceAnnotations = "1.1.1"
 # https://github.com/skydoves/ColorPickerView/releases
@@ -94,7 +94,7 @@ javaSemver = "0.10.2"
 jetbrainsAnnotations = "26.1.0"
 json = "20260814"
 # https://github.com/jhy/jsoup/releases
-jsoup = "1.23.1"
+jsoup = "1.23.2"
 androidTestJunit = "1.3.0"
 # https://github.com/junit-team/junit5/releases/
 junit = "6.1.3"
@@ -116,17 +116,17 @@ nanohttpd = "2.3.1"
 okhttp = "5.4.0"
 androidxSecurityCrypto = "1.1.0"
 # https://github.com/protocolbuffers/protobuf/releases
-protobufKotlinLite = "4.35.1"
+protobufKotlinLite = "4.36.1"
 # ../AnkiDroid/robolectricDownload.gradle may need changes - read instructions in that file
 robolectric = "4.16.1"
 # https://github.com/takahirom/roborazzi/releases
-roborazzi = "1.73.0"
+roborazzi = "1.74.0"
 searchpreference = "2.7.3"
 seismic = "1.0.3"
 sharedPreferencesMock = "1.2.4"
 slackKeeper = "0.16.1"
 # https://github.com/qos-ch/slf4j
-slf4j = "2.0.18"
+slf4j = "2.0.19"
 slf4jTimber = "3.1"
 # https://github.com/google/TestParameterInjector/blob/main/CHANGELOG.md
 testParameterInjector = "1.22"
@@ -224,6 +224,8 @@ androidx-test-runner = { module = "androidx.test:runner", version.ref = "android
 androidx-test-rules = { module = "androidx.test:rules", version.ref = "androidxTest" }
 androidx-test-core = { module = "androidx.test:core", version.ref = "androidxTest" }
 androidx-work-testing = { module = "androidx.work:work-testing", version.ref = "androidxWork" }
+androidx-compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
+androidx-compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
 hamcrest = { module = "org.hamcrest:hamcrest", version.ref = "hamcrest" }
 hamcrest-library = { module = "org.hamcrest:hamcrest-library", version.ref = "hamcrest" }
 ivanshafran-shared-preferences-mock = { module = "io.github.ivanshafran:shared-preferences-mock", version.ref = "sharedPreferencesMock" }

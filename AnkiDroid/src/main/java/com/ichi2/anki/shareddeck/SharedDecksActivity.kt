@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: Copyright (c) 2021 Shridhar Goel <shridhar.goel@gmail.com>
 
-package com.ichi2.anki
+package com.ichi2.anki.shareddeck
 
 import android.app.DownloadManager
-import android.content.Context
 import android.graphics.Color
 import android.os.Bundle
 import android.view.Menu
@@ -27,7 +26,11 @@ import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
 import androidx.fragment.app.commit
 import com.google.android.material.snackbar.BaseTransientBottomBar.LENGTH_INDEFINITE
+import com.ichi2.anki.AnkiActivity
+import com.ichi2.anki.R
+import com.ichi2.anki.common.utils.ext.requireSystemService
 import com.ichi2.anki.databinding.ActivitySharedDecksBinding
+import com.ichi2.anki.isLoggedIn
 import com.ichi2.anki.snackbar.showSnackbar
 import com.ichi2.anki.workarounds.SafeWebViewLayout
 import com.ichi2.utils.FileNameAndExtension
@@ -228,11 +231,16 @@ class SharedDecksActivity : AnkiActivity(R.layout.activity_shared_decks) {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.setDisplayShowHomeEnabled(true)
 
-        downloadManager = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        downloadManager = requireSystemService<DownloadManager>()
 
+        setupWebView()
+        onBackPressedDispatcher.addCallback(onBackPressedCallback)
+    }
+
+    /** Opens the AnkiWeb shared decks page, handing any download it starts to [SharedDecksDownloadFragment] */
+    private fun setupWebView() {
         binding.webView.settings.javaScriptEnabled = true
         binding.webView.loadUrl(resources.getString(R.string.shared_decks_url))
-        binding.webView.webViewClient = WebViewClient()
         binding.webView.setDownloadListener { url, userAgent, contentDisposition, mimetype, _ ->
             // If the activity/fragment lifecycle has already begun teardown process,
             // avoid handling the download, as FragmentManager.commit will throw
@@ -251,9 +259,7 @@ class SharedDecksActivity : AnkiActivity(R.layout.activity_shared_decks) {
                 }
             }
         }
-
         binding.webView.webViewClient = webViewClient
-        onBackPressedDispatcher.addCallback(onBackPressedCallback)
     }
 
     /** Applies edge-to-edge insets for the screen */

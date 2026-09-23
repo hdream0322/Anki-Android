@@ -8,6 +8,10 @@ import android.app.Activity
 import android.content.ClipData
 import android.content.Intent
 import android.os.Bundle
+import android.os.Parcel
+import android.os.Parcelable
+import android.util.SparseArray
+import android.view.View
 import android.widget.EditText
 import android.widget.Spinner
 import android.widget.TextView
@@ -24,6 +28,7 @@ import com.ichi2.anki.NoteEditorTest.FromScreen.REVIEWER
 import com.ichi2.anki.api.AddContentApi.Companion.DEFAULT_DECK_ID
 import com.ichi2.anki.common.annotations.DuplicatedCode
 import com.ichi2.anki.common.destinations.NoteEditorDestination
+import com.ichi2.anki.common.destinations.toBundle
 import com.ichi2.anki.common.destinations.toIntent
 import com.ichi2.anki.common.ui.TransitionDirection.DEFAULT
 import com.ichi2.anki.libanki.Consts
@@ -33,7 +38,6 @@ import com.ichi2.anki.libanki.Note
 import com.ichi2.anki.libanki.NotetypeJson
 import com.ichi2.anki.libanki.testutils.AnkiTest
 import com.ichi2.anki.model.SelectableDeck
-import com.ichi2.anki.noteeditor.NoteEditorLauncher
 import com.ichi2.anki.noteeditor.getNoteEditorFragment
 import com.ichi2.anki.noteeditor.openNoteEditorWithArgs
 import com.ichi2.testutils.getString
@@ -41,6 +45,7 @@ import kotlinx.coroutines.runBlocking
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.contains
 import org.hamcrest.Matchers.equalTo
+import org.hamcrest.Matchers.lessThan
 import org.hamcrest.Matchers.not
 import org.junit.Ignore
 import org.junit.Test
@@ -78,6 +83,57 @@ class NoteEditorTest : RobolectricTest() {
             val actualResourceId = noteEditor.snackbarErrorText
             assertThat(actualResourceId, equalTo(CollectionManager.TR.addingTheFirstFieldIsEmpty()))
         }
+
+    @Test
+    fun savedFieldStateStaysWithinTransactionLimit() {
+        val fieldCount = 400
+        val fields = Array(fieldCount) { "Field$it" }
+        val noteTypeName = addStandardNoteType("Many Fields", fields, "{{Field0}}", "{{Field0}}")
+        val notetype = col.notetypes.byName(noteTypeName)!!
+        val editor = NoteEditorTestBuilder(notetype).build()
+
+        val viewState = SparseArray<Parcelable>()
+        editor.requireView().saveHierarchyState(viewState)
+        val parcel = Parcel.obtain()
+        val sizeInBytes =
+            try {
+                parcel.writeSparseArray(viewState)
+                parcel.dataSize()
+            } finally {
+                parcel.recycle()
+            }
+
+        assertThat(
+            "saved field state for $fieldCount fields must stay well under the Binder limit (was $sizeInBytes bytes)",
+            sizeInBytes,
+            lessThan(256 * 1024),
+        )
+    }
+
+    @Test
+    fun cursorSelectionIsRetainedAcrossViewStateRestore() {
+        val editor =
+            getNoteEditorAdding(NoteType.BASIC)
+                .withFirstField("hello world")
+                .build()
+        val editText = editor.getFieldForTest(0)
+        editText.setSelection(2, 5)
+
+        var lineView: View = editText
+        while (lineView !is FieldEditLine) {
+            lineView = lineView.parent as View
+        }
+        val viewState = SparseArray<Parcelable>()
+        lineView.saveHierarchyState(viewState)
+
+        // restore into a fresh line, as happens after a configuration change
+        val restored = FieldEditLine(editor.requireContext())
+        restored.id = lineView.id
+        restored.restoreHierarchyState(viewState)
+
+        assertThat(restored.binding.editText.selectionStart, equalTo(2))
+        assertThat(restored.binding.editText.selectionEnd, equalTo(5))
+    }
 
     @Test
     fun testErrorMessageNull() =
@@ -692,9 +748,9 @@ class NoteEditorTest : RobolectricTest() {
             val cardIds: List<Long> = note.cardIds(col)
             val testDeckId: Long = addDeck("Test Deck")
 
-            // Launch Editor using the Launcher bundle (mimic launch from browser)
+            // Launch Editor using the destination bundle (mimic launch from browser)
             val bundle =
-                NoteEditorLauncher
+                NoteEditorDestination
                     .EditSelection(
                         cardIds = cardIds,
                         animation = DEFAULT,
@@ -723,9 +779,9 @@ class NoteEditorTest : RobolectricTest() {
             val initialDeckId = col.getCard(cardIds[1]).did
             val newDeckId: Long = addDeck("Test Deck")
 
-            // Launch Editor using the Launcher bundle with a single card id
+            // Launch Editor using the destination bundle with a single card id
             val bundle =
-                NoteEditorLauncher
+                NoteEditorDestination
                     .EditSelection(
                         cardIds = listOf(cardIds[0]),
                         animation = DEFAULT,
@@ -840,7 +896,7 @@ class NoteEditorTest : RobolectricTest() {
         ensureCollectionLoadIsSynchronous()
         val bundle =
             when (from) {
-                REVIEWER -> NoteEditorDestination.AddNoteFromReviewer().toIntent().extras!!
+                REVIEWER -> NoteEditorDestination.AddNoteFromReviewer().toBundle()
                 DECK_LIST -> NoteEditorFragment.addNoteArgs()
             }
         return openNoteEditorWithArgs(bundle)
@@ -861,7 +917,7 @@ class NoteEditorTest : RobolectricTest() {
     ): NoteEditorFragment {
         val bundle =
             when (from) {
-                REVIEWER -> NoteEditorLauncher.EditSelection(listOf(n.firstCard().id), DEFAULT).toBundle()
+                REVIEWER -> NoteEditorDestination.EditSelection(listOf(n.firstCard().id), DEFAULT).toBundle()
                 DECK_LIST -> NoteEditorFragment.addNoteArgs()
             }
         return openNoteEditorWithArgs(bundle)

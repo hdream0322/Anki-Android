@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// SPDX-FileCopyrightText: Copyright (c) 2024 Brayan Oliveira <brayandso.dev@gmail.com>
 
 package com.ichi2.anki.ui.windows.reviewer
 
@@ -49,7 +48,6 @@ import com.ichi2.anki.common.destinations.navigate
 import com.ichi2.anki.common.utils.android.isRobolectric
 import com.ichi2.anki.databinding.FragmentReviewerBinding
 import com.ichi2.anki.dialogs.showDeckOptionsSelectionDialog
-import com.ichi2.anki.dialogs.tags.TagsDialog
 import com.ichi2.anki.dialogs.tags.TagsDialogFactory
 import com.ichi2.anki.dialogs.tags.TagsDialogListener
 import com.ichi2.anki.model.CardStateFilter
@@ -132,17 +130,15 @@ class ReviewerFragment :
 
     override fun onStart() {
         super.onStart()
-        if (!requireActivity().isChangingConfigurations) {
-            shakeDetector?.start()
-        }
+        shakeDetector?.start()
     }
 
     override fun onStop() {
         super.onStop()
         if (!requireActivity().isChangingConfigurations) {
             viewModel.stopAutoAdvance()
-            shakeDetector?.stop()
         }
+        shakeDetector?.stop()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -353,6 +349,12 @@ class ReviewerFragment :
 
     @NeedsTest("Whiteboard takes priority on shake events")
     override fun hearShake() {
+        // Sensor events still arrive while a dialog or another window covers the reviewer.
+        if (view?.hasWindowFocus() != true) {
+            Timber.d("Ignoring shake: reviewer window does not have focus")
+            return
+        }
+
         if (whiteboardFragment?.onScreenShake() != true) {
             bindingMap.onGesture(Gesture.SHAKE)
         }
@@ -365,7 +367,6 @@ class ReviewerFragment :
         }
         if (bindingMap.isBound(Gesture.SHAKE)) {
             shakeDetector = AnkiShakeDetector.createInstance(requireContext(), this)
-            shakeDetector?.start()
         }
     }
 
@@ -622,18 +623,11 @@ class ReviewerFragment :
             }
 
         viewModel.editNoteTagsFlow.collectIn(lifecycleScope) { noteId ->
-            val dialogFragment =
-                tagsDialogFactory.newTagsDialog().withArguments(
-                    requireContext(),
-                    TagsDialog.DialogType.EDIT_TAGS,
-                    listOf(noteId),
-                )
-            showDialogFragment(dialogFragment)
+            tagsDialogFactory.show(requireActivity(), noteIds = listOf(noteId))
         }
 
         viewModel.setDueDateFlow.collectIn(lifecycleScope) { cardId ->
-            val dialogFragment = SetDueDateDialog.newInstance(this, listOf(cardId))
-            showDialogFragment(dialogFragment)
+            SetDueDateDialog.show(requireActivity(), listOf(cardId))
         }
 
         viewModel.pageUpFlow.flowWithLifecycle(lifecycle).collectIn(lifecycleScope) {

@@ -2,8 +2,10 @@
 
 package com.ichi2.anki.reviewreminders
 
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -12,9 +14,11 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.net.toUri
+import androidx.annotation.VisibleForTesting
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat.Type.displayCutout
 import androidx.core.view.WindowInsetsCompat.Type.systemBars
+import androidx.core.view.doOnAttach
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
@@ -38,8 +42,10 @@ import com.ichi2.anki.utils.ext.launchCollectionInLifecycleScope
 import com.ichi2.anki.utils.ext.onWindowFocusChanged
 import com.ichi2.anki.utils.ext.requireParcelable
 import com.ichi2.anki.utils.ext.setBackgroundTint
+import com.ichi2.utils.Permissions
 import com.ichi2.utils.Permissions.attemptToEnableNotifications
 import com.ichi2.utils.Permissions.openAppNotificationsSettingsScreen
+import com.ichi2.utils.TruncatedString
 import com.ichi2.utils.copyToClipboard
 import com.ichi2.utils.dp
 import dev.androidbroadcast.vbpd.viewBinding
@@ -69,7 +75,8 @@ class ReminderTroubleshootingFragment : Fragment(R.layout.fragment_reminder_trou
         reminderTroubleshootingViewModelFactory(requireContext())
     }
 
-    private val binding by viewBinding(FragmentReminderTroubleshootingBinding::bind)
+    @VisibleForTesting
+    internal val binding by viewBinding(FragmentReminderTroubleshootingBinding::bind)
 
     /**
      * [ScheduleRemindersFragment] can be hosted from multiple activities and must change its UI to accommodate its host
@@ -112,8 +119,7 @@ class ReminderTroubleshootingFragment : Fragment(R.layout.fragment_reminder_trou
      *
      * The content renders underneath the bottom bar while scrolling.
      *
-     * These listeners are no-ops in hosts which apply the insets to this fragment's container
-     * and consume them.
+     * Hosts which show this fragment below a toolbar of their own consume the top inset.
      */
     private fun setupContentInsets() {
         binding.troubleshootingToolbar.doOnApplyWindowInsets { view, insets, initial ->
@@ -128,6 +134,8 @@ class ReminderTroubleshootingFragment : Fragment(R.layout.fragment_reminder_trou
             val bars = insets.getInsets(systemBars() or displayCutout())
             view.updatePadding(left = bars.left, right = bars.right, bottom = initial.padding.bottom + bars.bottom)
         }
+        // the view replaces the reminders list after the insets were dispatched, so request them again
+        binding.root.doOnAttach { ViewCompat.requestApplyInsets(it) }
     }
 
     private fun setupExternalActivityToolbar() {
@@ -205,7 +213,7 @@ class ReminderTroubleshootingFragment : Fragment(R.layout.fragment_reminder_trou
             viewLifecycleOwner.lifecycleScope.launch {
                 val debugInfo = ReminderLogTree.readReminderLog() + "\n\n" + ReviewRemindersDatabase.dumpContentsToString()
                 requireContext().copyToClipboard(
-                    debugInfo,
+                    TruncatedString.from(debugInfo),
                     failureMessageId = R.string.about_ankidroid_error_copy_debug_info,
                 )
             }
@@ -432,14 +440,32 @@ private fun TroubleshootingCheck.resolveAction(): ResolveCheckAction? {
         }
     }
 
-    // Opens the full battery optimization list. The user must manually find the app.
-    // For 'full' (non-Play) builds, ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS could be used
-    // with the REQUEST_IGNORE_BATTERY_OPTIMIZATIONS manifest permission for a direct dialog,
-    // but Google Play restricts that permission.
-    fun requestUnrestrictedBackgroundUsage() =
-        ResolveCheckAction(label = "Open battery settings", logDescription = "opening ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS") {
-            context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+    fun requestUnrestrictedBackgroundUsage(): ResolveCheckAction {
+        fun openBatteryOptimizationList() = context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+
+        return if (Permissions.canRequestIgnoreBatteryOptimizations(context)) {
+            ResolveCheckAction(
+                label = "Disable battery optimization",
+                logDescription = "opening ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
+            ) {
+                try {
+                    context.startActivity(
+                        Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                            data = Uri.fromParts("package", context.packageName, null)
+                        },
+                    )
+                } catch (e: ActivityNotFoundException) {
+                    // not all devices can request an exemption
+                    Timber.w(e, "cannot request a battery optimization exemption; opening the list")
+                    openBatteryOptimizationList()
+                }
+            }
+        } else {
+            ResolveCheckAction(label = "Open battery settings", logDescription = "opening ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS") {
+                openBatteryOptimizationList()
+            }
         }
+    }
 
     fun openBatterySaverSettings() =
         ResolveCheckAction(label = "Open battery settings", logDescription = "opening ACTION_BATTERY_SAVER_SETTINGS") {
@@ -451,7 +477,7 @@ private fun TroubleshootingCheck.resolveAction(): ResolveCheckAction? {
         return ResolveCheckAction(label = "Grant permission", logDescription = "opening ACTION_REQUEST_SCHEDULE_EXACT_ALARM") {
             context.startActivity(
                 Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
-                    data = "package:${context.packageName}".toUri()
+                    data = Uri.fromParts("package", context.packageName, null)
                 },
             )
         }

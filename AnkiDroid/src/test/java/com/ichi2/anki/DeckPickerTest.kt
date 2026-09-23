@@ -15,15 +15,17 @@ import android.view.View
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.Toolbar
-import androidx.core.content.IntentCompat
 import androidx.core.content.edit
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.Insets
+import androidx.core.net.toUri
+import androidx.core.view.ContentInfoCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.children
 import androidx.test.core.app.ActivityScenario
 import androidx.test.filters.SdkSuppress
+import anki.backend.backendError
 import anki.collection.opChanges
 import anki.scheduler.CardAnswer.Rating
 import app.cash.turbine.test
@@ -35,6 +37,7 @@ import com.ichi2.anki.common.preferences.sharedPrefs
 import com.ichi2.anki.common.time.TimeManager
 import com.ichi2.anki.common.utils.android.getResFromAttr
 import com.ichi2.anki.common.utils.annotation.KotlinCleanup
+import com.ichi2.anki.common.utils.ext.getParcelableExtraCompat
 import com.ichi2.anki.databinding.ActivityHomescreenBinding
 import com.ichi2.anki.deckpicker.DeckPickerViewModel
 import com.ichi2.anki.dialogs.DatabaseErrorDialog
@@ -59,18 +62,22 @@ import com.ichi2.anki.ui.windows.permissions.PermissionsActivity.Companion.EXTRA
 import com.ichi2.anki.utils.Destination
 import com.ichi2.anki.utils.ext.defaultConfig
 import com.ichi2.anki.utils.ext.dismissAllDialogFragments
+import com.ichi2.anki.widgets.DeckAdapter
 import com.ichi2.testutils.BackendEmulatingOpenConflict
 import com.ichi2.testutils.BackupManagerTestUtilities
 import com.ichi2.testutils.common.Flaky
 import com.ichi2.testutils.common.OS
 import com.ichi2.testutils.ext.addBasicNoteWithOp
 import com.ichi2.testutils.ext.menu
+import com.ichi2.testutils.ext.text
 import com.ichi2.testutils.grantWritePermissions
 import com.ichi2.testutils.revokeWritePermissions
 import com.ichi2.testutils.withBooleanPreference
 import com.ichi2.testutils.withDeniedPermissions
 import com.ichi2.testutils.withWritePermissions
+import com.ichi2.ui.AccessibleSearchView
 import kotlinx.coroutines.flow.merge
+import net.ankiweb.rsdroid.BackendException.BackendDbException.BackendDbCorruptException
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.containsInAnyOrder
 import org.hamcrest.Matchers.containsString
@@ -463,13 +470,15 @@ class DeckPickerTest : RobolectricTest() {
         return supportFragmentManager.findFragmentByTag("browser") as CardBrowserFragment
     }
 
-    private fun DeckPicker.longPressDeck(name: String): View =
-        deckPickerBinding.decks.children
-            .single { it.findViewById<TextView>(R.id.deck_name).text == name }
-            .also {
-                it.performLongClick()
-                advanceRobolectricLooper()
-            }
+    private fun DeckPicker.longPressDeck(name: String): View {
+        val decks = deckPickerBinding.decks
+        val adapter = decks.adapter as DeckAdapter
+        val deck = adapter.currentList.single { it.lastDeckNameComponent == name }
+        val position = adapter.currentList.indexOf(deck)
+        decks.findViewHolderForAdapterPosition(position)!!.itemView.performLongClick()
+        advanceRobolectricLooperUntil { adapter.currentList[position].isSelected }
+        return decks.findViewHolderForAdapterPosition(position)!!.itemView
+    }
 
     private fun keyDownEvent(
         keyCode: Int,
@@ -605,6 +614,132 @@ class DeckPickerTest : RobolectricTest() {
             studyOptionsFragment,
             notNullValue(),
         )
+        assertThat(
+            "DeckPicker should use the fragmented layout on tablet",
+            deckPickerEx.fragmented,
+            equalTo(true),
+        )
+    }
+
+    @Test
+    fun `deck search stays open while filtering`() {
+        addBasicNote()
+        repeat(10) { addDeck("Test Deck $it") }
+
+        deckPicker {
+            advanceRobolectricLooper()
+            val searchItem = menu().findItem(R.id.deck_picker_action_filter)
+            assertTrue(searchItem.isVisible)
+            assertTrue(searchItem.expandActionView())
+            val searchView = searchItem.actionView as AccessibleSearchView
+
+            for ((query, expectedCount) in listOf("s" to 10, "Test Deck 1" to 1, "missing" to 0, "" to 11)) {
+                searchView.setQuery(query, false)
+                advanceRobolectricLooper()
+
+                val currentSearchItem = menu().findItem(R.id.deck_picker_action_filter)
+                assertTrue(currentSearchItem.isActionViewExpanded, "Search should stay open for '$query'")
+                assertEquals(query, (currentSearchItem.actionView as AccessibleSearchView).query.toString())
+                advanceRobolectricLooperUntil { visibleDeckCount == expectedCount }
+            }
+        }
+    }
+
+    @Test
+    fun `study options follows the selected deck`() {
+        assumeTrue("We are running on a tablet", qualifiers!!.contains("xlarge"))
+        val deckId = addDeck("Another Deck")
+
+        deckPicker {
+            viewModel.selectDeck(deckId).join()
+            advanceRobolectricLooper()
+
+            assertEquals(deckId, assertNotNull(fragment).viewModel.selectedDeckId)
+            assertEquals("Another Deck", findViewById<TextView>(R.id.studyoptions_deck_name).text.toString())
+        }
+    }
+
+    @Test
+    fun `study options updates after reloading deck counts`() {
+        assumeTrue("We are running on a tablet", qualifiers!!.contains("xlarge"))
+        addBasicNote()
+
+        deckPicker {
+            val initialState = assertNotNull(fragment).viewModel.state
+            assertEquals(1, initialState.dataOrNull()?.numberOfCardsInDeck)
+
+            addBasicNote()
+            viewModel.reloadDeckCounts().join()
+            advanceRobolectricLooper()
+
+            val updatedState = assertNotNull(fragment).viewModel.state
+            assertEquals(2, updatedState.dataOrNull()?.numberOfCardsInDeck)
+        }
+    }
+
+    @Test
+    fun `study options menu items are only displayed in fragmented mode`() {
+        deckPickerEx {
+            val isTablet = fragmented
+            val menu = menu()
+            if (isTablet) {
+                // Ossifies the split-pane menu decision: the side panel fragment contributes
+                // its items to this activity's toolbar via its MenuProvider.
+                assertThat(
+                    "custom study should be displayed in fragmented mode",
+                    menu.findItem(R.id.action_custom_study),
+                    notNullValue(),
+                )
+                assertThat(
+                    "deck options should be displayed in fragmented mode",
+                    menu.findItem(R.id.action_deck_or_study_options),
+                    notNullValue(),
+                )
+            } else {
+                // No side panel fragment exists: its items must not appear.
+                assertThat(
+                    "custom study must not be displayed outside fragmented mode",
+                    menu.findItem(R.id.action_custom_study),
+                    nullValue(),
+                )
+                assertThat(
+                    "deck options must not be displayed outside fragmented mode",
+                    menu.findItem(R.id.action_deck_or_study_options),
+                    nullValue(),
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `restored study options fragment is pruned when recreated into single pane`() {
+        assumeTrue("We are running on a tablet", qualifiers!!.contains("xlarge"))
+        val scenario = ActivityScenario.launch(DeckPicker::class.java)
+        advanceRobolectricLooper()
+        scenario.onActivity { deckPicker ->
+            assertThat(
+                "side panel fragment should be displayed on tablet",
+                deckPicker.supportFragmentManager.findFragmentById(R.id.studyoptions_fragment),
+                notNullValue(),
+            )
+        }
+        // Fold the device: the activity recreates into the single-pane layout, while
+        // FragmentManager restores the saved side panel fragment into it.
+        RuntimeEnvironment.setQualifiers("sw320dp")
+        scenario.recreate()
+        advanceRobolectricLooper()
+        scenario.onActivity { deckPicker ->
+            assertThat(
+                "restored side panel fragment must be pruned in single-pane layout",
+                deckPicker.supportFragmentManager.findFragmentById(R.id.studyoptions_fragment),
+                nullValue(),
+            )
+            assertThat(
+                "study options menu items must not leak into the single-pane toolbar",
+                deckPicker.menu().findItem(R.id.action_custom_study),
+                nullValue(),
+            )
+        }
     }
 
     @Test
@@ -1028,6 +1163,14 @@ class DeckPickerTest : RobolectricTest() {
             assertThat(databaseErrorDialog, equalTo(DatabaseErrorDialogType.DIALOG_LOAD_FAILED))
         }
 
+    /** The backend may raise corruption directly, without conversion to a SQLite exception */
+    @Test
+    fun `BackendDbCorruptException in runCatching shows database error dialog`() =
+        deckPickerEx {
+            runCatching { throw BackendDbCorruptException(backendError {}) }
+            assertThat(databaseErrorDialog, equalTo(DatabaseErrorDialogType.DIALOG_LOAD_FAILED))
+        }
+
     @Test
     fun `when INTERNET is denied, PermissionsActivity is shown`() =
         runTest {
@@ -1040,7 +1183,7 @@ class DeckPickerTest : RobolectricTest() {
                         equalTo(PermissionsActivity::class.java.name),
                     )
 
-                    val extra = IntentCompat.getParcelableExtra(intent, EXTRA_PERMISSIONS_SET, StoragePermissionSet::class.java)
+                    val extra = intent.getParcelableExtraCompat<StoragePermissionSet>(EXTRA_PERMISSIONS_SET)
 
                     assertNotNull(extra)
                     assertThat(extra.permissions, equalTo(listOf(INTERNET)))
@@ -1109,6 +1252,26 @@ class DeckPickerTest : RobolectricTest() {
             return super.onPrepareOptionsMenu(menu)
         }
     }
+
+    @Test
+    fun draggingUnsupportedFileShowsSnackbarError() =
+        deckPicker {
+            val clipData = android.content.ClipData.newRawUri("unsupported", "file:///path/to/image.jpg".toUri())
+            val payload =
+                ContentInfoCompat
+                    .Builder(clipData, ContentInfoCompat.SOURCE_DRAG_AND_DROP)
+                    .build()
+            ViewCompat.performReceiveContent(findViewById(R.id.pull_to_sync_wrapper), payload)
+
+            val snackbar = showSnackbar(getString(R.string.import_log_no_apkg))
+            assertThat("snackbar must be shown for unsupported file drop", snackbar, notNullValue())
+
+            val snackbarText = snackbar?.text
+            assertThat(
+                snackbarText,
+                equalTo(getString(R.string.import_log_no_apkg)),
+            )
+        }
 }
 
 fun RobolectricTest.setIntroductionSlidesShown(shown: Boolean) {

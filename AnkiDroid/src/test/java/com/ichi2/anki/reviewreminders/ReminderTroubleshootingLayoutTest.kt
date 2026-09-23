@@ -2,15 +2,9 @@
 
 package com.ichi2.anki.reviewreminders
 
-import androidx.fragment.app.commit
 import androidx.recyclerview.widget.ListAdapter
-import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.ichi2.anki.R
 import com.ichi2.anki.RobolectricTest
-import com.ichi2.anki.databinding.FragmentReminderTroubleshootingBinding
-import com.ichi2.anki.reviewreminders.ScheduleRemindersFragment.FragmentHost
-import com.ichi2.anki.utils.ConfigAwareSingleFragmentActivity
 import com.ichi2.utils.dp
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.equalTo
@@ -42,7 +36,8 @@ class ReminderTroubleshootingLayoutTest : RobolectricTest() {
                 TroubleshootingCheck.ExactAlarmPermission(CheckResult.Warning),
             )
 
-        withReviewRemindersTroubleshooting {
+        withTroubleshootingFragment {
+            val checksList = binding.checksList
             @Suppress("UNCHECKED_CAST")
             (checksList.adapter as ListAdapter<TroubleshootingCheck, *>).submitList(checks)
             advanceRobolectricLooper()
@@ -63,34 +58,6 @@ class ReminderTroubleshootingLayoutTest : RobolectricTest() {
                 checksList.height,
                 greaterThanOrEqualTo(itemCount * checkItemMinHeight.toPx(targetContext)),
             )
-        }
-    }
-
-    /**
-     * Launches [ReminderTroubleshootingFragment] in a standalone activity and runs [block] on
-     * its binding
-     */
-    private fun withReviewRemindersTroubleshooting(block: FragmentReminderTroubleshootingBinding.() -> Unit) {
-        val intent = ScheduleRemindersFragment.getIntent(targetContext, ReviewReminderScope.Global)
-        ActivityScenario.launch<ConfigAwareSingleFragmentActivity>(intent).use { scenario ->
-            advanceRobolectricLooper()
-            scenario.onActivity { activity ->
-                activity.supportFragmentManager.commit {
-                    replace(
-                        R.id.fragment_container,
-                        ReminderTroubleshootingFragment.newInstance(FragmentHost.STANDALONE_ACTIVITY),
-                    )
-                }
-                advanceRobolectricLooper()
-
-                val binding =
-                    FragmentReminderTroubleshootingBinding.bind(
-                        activity.supportFragmentManager
-                            .findFragmentById(R.id.fragment_container)!!
-                            .requireView(),
-                    )
-                binding.block()
-            }
         }
     }
 }

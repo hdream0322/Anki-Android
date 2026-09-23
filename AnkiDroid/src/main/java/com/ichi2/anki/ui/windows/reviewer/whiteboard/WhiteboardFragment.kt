@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// SPDX-FileCopyrightText: Copyright (c) 2025 Brayan Oliveira <69634269+brayandso@users.noreply.github.com>
 
 package com.ichi2.anki.ui.windows.reviewer.whiteboard
 
@@ -182,8 +181,8 @@ class WhiteboardFragment :
             }
         }
 
-        viewModel.canUndo.onEach { toolbar.undoButton.isEnabled = it }.launchIn(lifecycleScope)
-        viewModel.canRedo.onEach { toolbar.redoButton.isEnabled = it }.launchIn(lifecycleScope)
+        viewModel.canUndo.onEach { toolbar.undoButton.isEnabled = it }.launchIn(viewLifecycleOwner.lifecycleScope)
+        viewModel.canRedo.onEach { toolbar.redoButton.isEnabled = it }.launchIn(viewLifecycleOwner.lifecycleScope)
 
         binding.whiteboardToolbar.onToolbarVisibilityChanged = { isShown ->
             viewModel.setIsToolbarShown(isShown)
@@ -221,14 +220,14 @@ class WhiteboardFragment :
     private fun observeViewModel(whiteboardView: WhiteboardView) {
         val toolbar = binding.whiteboardToolbar
 
-        viewModel.paths.onEach(whiteboardView::setHistory).launchIn(lifecycleScope)
+        viewModel.paths.onEach(whiteboardView::setHistory).launchIn(viewLifecycleOwner.lifecycleScope)
 
         combine(
             viewModel.brushColor,
             viewModel.activeStrokeWidth,
         ) { color, width ->
             whiteboardView.setCurrentBrush(color, width)
-        }.launchIn(lifecycleScope)
+        }.launchIn(viewLifecycleOwner.lifecycleScope)
 
         combine(
             viewModel.isEraserActive,
@@ -241,27 +240,27 @@ class WhiteboardFragment :
             if (!isActive) {
                 eraserPopup?.dismiss()
             }
-        }.launchIn(lifecycleScope)
+        }.launchIn(viewLifecycleOwner.lifecycleScope)
 
         viewModel.brushes
             .onEach { brushesInfo ->
                 toolbar.setBrushes(brushesInfo, viewModel.activeBrushIndex.value, viewModel.isEraserActive.value)
-            }.launchIn(lifecycleScope)
+            }.launchIn(viewLifecycleOwner.lifecycleScope)
 
         viewModel.activeBrushIndex
             .onEach {
                 toolbar.updateSelection(it, viewModel.isEraserActive.value)
-            }.launchIn(lifecycleScope)
+            }.launchIn(viewLifecycleOwner.lifecycleScope)
 
         viewModel.isEraserActive
             .onEach {
                 toolbar.updateSelection(viewModel.activeBrushIndex.value, it)
-            }.launchIn(lifecycleScope)
+            }.launchIn(viewLifecycleOwner.lifecycleScope)
 
         viewModel.isStylusOnlyMode
             .onEach { isEnabled ->
                 whiteboardView.isStylusOnlyMode = isEnabled
-            }.launchIn(lifecycleScope)
+            }.launchIn(viewLifecycleOwner.lifecycleScope)
 
         viewModel.isCardZoomSyncEnabled
             .onEach { isEnabled ->
@@ -272,16 +271,16 @@ class WhiteboardFragment :
             .onEach { alignment ->
                 toolbar.setAlignment(alignment)
                 updateToolbarPosition(alignment)
-            }.launchIn(lifecycleScope)
+            }.launchIn(viewLifecycleOwner.lifecycleScope)
 
         viewModel.isToolbarShown
             .onEach { isShown ->
                 if (isShown) {
-                    showToolbar()
+                    toolbar.show()
                 } else {
-                    hideToolbar()
+                    toolbar.hide()
                 }
-            }.launchIn(lifecycleScope)
+            }.launchIn(viewLifecycleOwner.lifecycleScope)
     }
 
     /**
@@ -446,18 +445,6 @@ class WhiteboardFragment :
                     ToolbarAlignment.LEFT -> Gravity.LEFT or Gravity.CENTER_VERTICAL
                     ToolbarAlignment.RIGHT -> Gravity.RIGHT or Gravity.CENTER_VERTICAL
                 }
-        }
-    }
-
-    private fun showToolbar() {
-        binding.whiteboardToolbar.post {
-            binding.whiteboardToolbar.show()
-        }
-    }
-
-    private fun hideToolbar() {
-        binding.whiteboardToolbar.post {
-            binding.whiteboardToolbar.hide()
         }
     }
 

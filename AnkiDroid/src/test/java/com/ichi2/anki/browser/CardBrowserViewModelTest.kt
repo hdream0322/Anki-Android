@@ -47,6 +47,7 @@ import com.ichi2.anki.browser.CardBrowserViewModel.ToggleSelectionState.SELECT_N
 import com.ichi2.anki.browser.RepositionCardsRequest.NoRepositionableCardsError
 import com.ichi2.anki.browser.RepositionCardsRequest.RepositionData
 import com.ichi2.anki.browser.search.SavedSearch
+import com.ichi2.anki.common.destinations.NoteEditorDestination
 import com.ichi2.anki.common.utils.ext.ifNotZero
 import com.ichi2.anki.export.ExportDialogFragment
 import com.ichi2.anki.flagCardForNote
@@ -65,7 +66,7 @@ import com.ichi2.anki.model.CardsOrNotes
 import com.ichi2.anki.model.SelectableDeck
 import com.ichi2.anki.model.SortType
 import com.ichi2.anki.model.cardBrowserNoSorting
-import com.ichi2.anki.noteeditor.NoteEditorLauncher
+import com.ichi2.anki.noteeditor.toIntent
 import com.ichi2.anki.servicelayer.NoteService
 import com.ichi2.anki.setFlagFilterSync
 import com.ichi2.anki.settings.Prefs
@@ -116,6 +117,7 @@ class CardBrowserViewModelTest : JvmTest() {
     override fun setUp() {
         super.setUp()
         Prefs.putString(com.ichi2.anki.R.string.pref_browser_no_sorting, null)
+        preventDayRolloverAlarmFromUnburyingCards()
     }
 
     @Test
@@ -282,7 +284,7 @@ class CardBrowserViewModelTest : JvmTest() {
             assertThat("All decks should be selected", hasSelectedAllDecks())
 
             val addIntent =
-                NoteEditorLauncher
+                NoteEditorDestination
                     .AddNoteFromCardBrowser(searchTerms = searchTerms, deckId = lastDeckId)
                     .toIntent(mockIt())
             IntentAssert.doesNotHaveExtra(addIntent.extras, NoteEditorFragment.EXTRA_DID)
@@ -318,6 +320,8 @@ class CardBrowserViewModelTest : JvmTest() {
                 assertThat("toggle bury initially buries", it.wasBuried)
                 assertThat("1 card is buried", it.count, equalTo(1))
             }
+            // without this, the test could pass because the background task never ran
+            simulateDayRolloverAlarmCutoffQuery()
             toggleBury().also {
                 assertNotNull(it)
                 assertThat("toggle bury unburied on second press", !it.wasBuried)

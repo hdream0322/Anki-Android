@@ -100,6 +100,7 @@ import com.ichi2.anki.browser.search.iconRes
 import com.ichi2.anki.browser.search.savedFilters
 import com.ichi2.anki.common.ALL_DECKS_ID
 import com.ichi2.anki.common.annotations.NeedsTest
+import com.ichi2.anki.common.destinations.NoteEditorDestination
 import com.ichi2.anki.common.destinations.navigate
 import com.ichi2.anki.common.utils.ext.ifNotZero
 import com.ichi2.anki.dialogs.BrowserOptionsDialog
@@ -125,7 +126,6 @@ import com.ichi2.anki.libanki.undoLabel
 import com.ichi2.anki.model.CardStateFilter
 import com.ichi2.anki.model.CardsOrNotes.CARDS
 import com.ichi2.anki.model.SelectableDeck
-import com.ichi2.anki.noteeditor.NoteEditorLauncher
 import com.ichi2.anki.observability.ChangeManager
 import com.ichi2.anki.observability.undoableOp
 import com.ichi2.anki.previewer.PreviewerFragment
@@ -1541,8 +1541,6 @@ class CardBrowserFragment :
     /**
      * @see CardBrowserViewModel.openNoteEditorForCurrentlySelectedRow
      */
-    @NeedsTest("note edits are saved")
-    @NeedsTest("I/O edits are saved")
     fun openNoteEditorForCurrentlySelectedRow() {
         if (!activityViewModel.openNoteEditorForCurrentlySelectedRow()) {
             showSnackbar(R.string.no_note_to_edit)
@@ -1606,7 +1604,7 @@ class CardBrowserFragment :
                 activityViewModel.selectedRows.size,
                 allCardIds.size,
             )
-            showDialogFragment(SetDueDateDialog.newInstance(this@CardBrowserFragment, allCardIds))
+            SetDueDateDialog.show(requireActivity(), allCardIds)
         }
     }
 
@@ -1764,34 +1762,25 @@ class CardBrowserFragment :
         tagsDialogListenerAction = TagsDialogListenerAction.EDIT_TAGS
         lifecycleScope.launch {
             val noteIds = activityViewModel.queryAllSelectedNoteIds()
-            val dialog =
-                tagsDialogFactory.newTagsDialog().withArguments(
-                    requireContext(),
-                    type = TagsDialog.DialogType.EDIT_TAGS,
-                    noteIds = noteIds,
-                )
-            showDialogFragment(dialog)
+            tagsDialogFactory.show(requireActivity(), noteIds = noteIds)
         }
     }
 
     fun showFilterByTagsDialog() {
         launchCatchingTask {
             tagsDialogListenerAction = TagsDialogListenerAction.FILTER
-            val dialog =
-                tagsDialogFactory.newTagsDialog().withArguments(
-                    context = requireContext(),
-                    type = TagsDialog.DialogType.FILTER_BY_TAG,
-                    noteIds = emptyList(),
-                    checkedTags =
-                        if (useNewTaggingLogic) {
-                            ArrayList(
-                                activityViewModel.searchRequestFlow.value.filters.tags,
-                            )
-                        } else {
-                            ArrayList()
-                        },
-                )
-            showDialogFragment(dialog)
+            tagsDialogFactory.show(
+                requireActivity(),
+                type = TagsDialog.DialogType.FILTER_BY_TAG,
+                checkedTags =
+                    if (useNewTaggingLogic) {
+                        ArrayList(
+                            activityViewModel.searchRequestFlow.value.filters.tags,
+                        )
+                    } else {
+                        ArrayList()
+                    },
+            )
         }
     }
 
@@ -1877,15 +1866,15 @@ class CardBrowserFragment :
         RowSelection(rowId = this, topOffset = calculateTopOffset(activityViewModel.getPositionOfId(this)!!))
 
     @VisibleForTesting
-    val addNoteLauncher: NoteEditorLauncher
+    val addNoteDestination: NoteEditorDestination
         get() =
-            NoteEditorLauncher.AddNoteFromCardBrowser(
+            NoteEditorDestination.AddNoteFromCardBrowser(
                 searchTerms = activityViewModel.searchTerms,
                 deckId = activityViewModel.lastDeckId,
             )
 
     private fun addNote() {
-        onAddNoteActivityResult.launch(addNoteLauncher.toIntent(requireContext()))
+        onAddNoteActivityResult.navigate(addNoteDestination)
     }
 
     /**

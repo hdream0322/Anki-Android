@@ -9,6 +9,7 @@ import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.os.Bundle
@@ -21,7 +22,6 @@ import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
-import androidx.core.content.IntentCompat
 import androidx.core.os.BundleCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
@@ -29,6 +29,7 @@ import com.ichi2.anki.CollectionManager.TR
 import com.ichi2.anki.DrawingFragment
 import com.ichi2.anki.R
 import com.ichi2.anki.common.annotations.NeedsTest
+import com.ichi2.anki.common.utils.ext.getParcelableExtraCompat
 import com.ichi2.anki.compat.CompatHelper.Companion.getSerializableCompat
 import com.ichi2.anki.databinding.FragmentMultimediaImageBinding
 import com.ichi2.anki.multimedia.MultimediaActivity.Companion.EXTRA_MEDIA_OPTIONS
@@ -72,7 +73,8 @@ private const val SVG_IMAGE = "image/svg+xml"
 class MultimediaImageFragment :
     MultimediaFragment(R.layout.fragment_multimedia_image),
     OnWebViewRecreatedListener {
-    private val binding by viewBinding(FragmentMultimediaImageBinding::bind)
+    @VisibleForTesting
+    internal val binding by viewBinding(FragmentMultimediaImageBinding::bind)
 
     /** The image on screen, re-rendered if the WebView's render process dies */
     private var previewedImage: Uri? = null
@@ -167,11 +169,7 @@ class MultimediaImageFragment :
                 Activity.RESULT_OK -> {
                     result.data?.let {
                         val cropResultData =
-                            IntentCompat.getParcelableExtra(
-                                it,
-                                CROP_IMAGE_RESULT,
-                                ImageCropper.CropResultData::class.java,
-                            )
+                            it.getParcelableExtraCompat<ImageCropper.CropResultData>(CROP_IMAGE_RESULT)
                         Timber.d("Cropped image data: $cropResultData")
 
                         if (cropResultData?.uriPath == null || cropResultData.uriContent == null) return@registerForActivityResult
@@ -268,8 +266,10 @@ class MultimediaImageFragment :
         setupDoneButton()
     }
 
+    @NeedsTest("Verify the webview background color is transparent and matches the app theme")
     private fun setupWebView() {
         binding.multimediaWebView.setWebViewClient(SafeWebViewClient())
+        binding.multimediaWebView.setBackgroundColor(Color.TRANSPARENT)
     }
 
     /**

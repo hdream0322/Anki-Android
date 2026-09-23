@@ -46,7 +46,6 @@ import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.AppCompatButton
 import androidx.core.content.FileProvider
-import androidx.core.content.IntentCompat
 import androidx.core.content.edit
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.graphics.Insets
@@ -86,14 +85,17 @@ import com.ichi2.anki.common.android.animationEnabled
 import com.ichi2.anki.common.android.appContext
 import com.ichi2.anki.common.annotations.NeedsTest
 import com.ichi2.anki.common.crashreporting.CrashReportService
+import com.ichi2.anki.common.destinations.DeferredNavigation
 import com.ichi2.anki.common.destinations.NoteEditorDestination
 import com.ichi2.anki.common.destinations.navigate
+import com.ichi2.anki.common.destinations.toBundle
 import com.ichi2.anki.common.preferences.sharedPrefs
 import com.ichi2.anki.common.ui.TransitionDirection
 import com.ichi2.anki.common.utils.HashUtil
 import com.ichi2.anki.common.utils.android.digit
 import com.ichi2.anki.common.utils.android.showThemedToast
 import com.ichi2.anki.common.utils.annotation.KotlinCleanup
+import com.ichi2.anki.common.utils.ext.getParcelableExtraCompat
 import com.ichi2.anki.common.utils.ext.ifZero
 import com.ichi2.anki.compat.CompatHelper.Companion.getSerializableCompat
 import com.ichi2.anki.compat.setTooltipTextCompat
@@ -103,7 +105,6 @@ import com.ichi2.anki.dialogs.DiscardChangesDialog
 import com.ichi2.anki.dialogs.IntegerDialog
 import com.ichi2.anki.dialogs.registerDeckSelectedHandler
 import com.ichi2.anki.dialogs.startDeckSelection
-import com.ichi2.anki.dialogs.tags.TagsDialog
 import com.ichi2.anki.dialogs.tags.TagsDialogFactory
 import com.ichi2.anki.dialogs.tags.TagsDialogListener
 import com.ichi2.anki.exception.toBytesShortString
@@ -136,7 +137,6 @@ import com.ichi2.anki.noteeditor.FieldState
 import com.ichi2.anki.noteeditor.FieldState.FieldChangeType
 import com.ichi2.anki.noteeditor.FieldState.Type
 import com.ichi2.anki.noteeditor.NoteEditorFragmentDelegate
-import com.ichi2.anki.noteeditor.NoteEditorLauncher
 import com.ichi2.anki.noteeditor.NoteEditorMultimediaController
 import com.ichi2.anki.noteeditor.Toolbar
 import com.ichi2.anki.noteeditor.Toolbar.TextFormatListener
@@ -217,7 +217,8 @@ class NoteEditorFragment :
     DispatchKeyEventListener,
     MenuProvider,
     ShortcutGroupProvider {
-    private val binding by viewBinding(FragmentNoteEditorBinding::bind)
+    @VisibleForTesting
+    internal val binding by viewBinding(FragmentNoteEditorBinding::bind)
 
     private var bottomInsetPx = 0
 
@@ -591,17 +592,6 @@ class NoteEditorFragment :
         )
     }
 
-    /**
-     * Handles an intent containing an image from the user's gallery or the internet by opening
-     * MultimediaActivity specifically for creating a new card.
-     *
-     * It extracts the image URI from the intent data based on the intent's action.
-     * If the action is `Intent.ACTION_SEND`, the method uses `IntentCompat.getParcelableExtra` to retrieve
-     * the image URI from the `Intent.EXTRA_STREAM` extra. Otherwise, it assumes the image URI is directly
-     * available in the intent's data field.
-     *
-     * @param data the Intent containing the image information from the user's share action
-     */
     override fun onSaveInstanceState(outState: Bundle) {
         addInstanceStateToBundle(outState)
         super.onSaveInstanceState(outState)
@@ -919,11 +909,7 @@ class NoteEditorFragment :
 
                     result.data?.let {
                         val cropResultData =
-                            IntentCompat.getParcelableExtra(
-                                it,
-                                CROP_IMAGE_RESULT,
-                                ImageCropper.CropResultData::class.java,
-                            )
+                            it.getParcelableExtraCompat<ImageCropper.CropResultData>(CROP_IMAGE_RESULT)
                         Timber.d("Cropped image data: $cropResultData")
                         if (cropResultData?.uriPath == null) return@registerForActivityResult
                         setupImageOcclusionEditor(cropResultData.uriPath)
@@ -1555,7 +1541,7 @@ class NoteEditorFragment :
     }
 
     fun copyNote() {
-        requestAddLauncher.navigate(NoteEditorDestination.CopyNote(deckId, fieldsText, selectedTags))
+        requestAddLauncher.navigate(NoteEditorDestination.CopyNote(deckId, fieldsText, selectedTags.orEmpty()))
     }
 
     // ----------------------------------------------------------------------------
@@ -1700,15 +1686,7 @@ class NoteEditorFragment :
 
     private fun showTagsDialog() {
         val selTags = selectedTags?.let { ArrayList(it) } ?: arrayListOf()
-        val dialog =
-            with(requireContext()) {
-                tagsDialogFactory!!.newTagsDialog().withArguments(
-                    context = this,
-                    type = TagsDialog.DialogType.EDIT_TAGS,
-                    checkedTags = selTags,
-                )
-            }
-        showDialogFragment(dialog)
+        tagsDialogFactory!!.show(requireActivity(), checkedTags = selTags)
     }
 
     override fun onSelectedTags(
@@ -2761,7 +2739,8 @@ class NoteEditorFragment :
                 this.arguments = args
             }
 
-        fun newInstance(launcher: NoteEditorLauncher): NoteEditorFragment = newInstance(launcher.toBundle())
+        fun newInstance(destination: NoteEditorDestination): NoteEditorFragment =
+            newInstance(with(DeferredNavigation) { destination.toBundle() })
 
         /** Default fragment arguments for "add a new note from the deck picker." */
         fun addNoteArgs(): Bundle = Bundle().apply { putInt(EXTRA_CALLER, NoteEditorCaller.DECKPICKER.value) }

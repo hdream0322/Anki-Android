@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// SPDX-FileCopyrightText: Copyright (c) 2023 Brayan Oliveira <brayandso.dev@gmail.com>
 
 package com.ichi2.anki.pages
 
@@ -41,7 +40,7 @@ import com.ichi2.anki.observability.ChangeManager
 import com.ichi2.anki.observability.undoableOp
 import com.ichi2.anki.snackbar.showSnackbar
 import com.ichi2.anki.ui.internationalization.sentenceCase
-import com.ichi2.utils.listItemsAndMessage
+import com.ichi2.utils.listItems
 import com.ichi2.utils.negativeButton
 import com.ichi2.utils.show
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -103,9 +102,9 @@ class CongratsPage :
                                 TR.studyingAllBuriedCards(),
                             )
                         AlertDialog.Builder(requireContext()).show {
+                            setTitle(TR.studyingWhatWouldYouLikeToUnbury())
                             negativeButton(R.string.dialog_cancel)
-                            listItemsAndMessage(
-                                TR.studyingWhatWouldYouLikeToUnbury(),
+                            listItems(
                                 unburyOptions,
                             ) { _, position ->
                                 val mode =

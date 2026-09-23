@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// SPDX-FileCopyrightText: Copyright (c) 2024 Brayan Oliveira <brayandso.dev@gmail.com>
 
 package com.ichi2.anki.ui.windows.reviewer
 
@@ -173,7 +172,17 @@ class ReviewerViewModel(
         if (isAfterRecreation) {
             launchCatchingIO {
                 // TODO handle "Don't keep activities"
-                if (showingAnswer.value) showAnswer() else showQuestion()
+                if (showingAnswer.value) {
+                    showAnswer()
+                    // on configuration change: mutationSignal & queueState are retained
+                    // on process death: a new queueState/mutationSignal exist. Call
+                    // `runStateMutationHook` to ensure mutationSignal completes.
+                    if (!mutationSignal.isCompleted) {
+                        runStateMutationHook()
+                    }
+                } else {
+                    showQuestion()
+                }
             }
         } else {
             launchCatchingIO {

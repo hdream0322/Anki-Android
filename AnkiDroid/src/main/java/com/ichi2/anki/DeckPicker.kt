@@ -1385,6 +1385,7 @@ open class DeckPicker :
             SyncIconState.PendingChanges -> {
                 BadgeDrawableBuilder(this)
                     .withColorAttr(R.attr.badgeWarningColor)
+                    .withRingColorAttr(CommonR.attr.appBarColor)
                     .replaceBadge(provider)
             }
             SyncIconState.OneWay, SyncIconState.NotLoggedIn -> {

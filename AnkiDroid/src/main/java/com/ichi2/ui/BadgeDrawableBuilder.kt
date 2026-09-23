@@ -15,6 +15,7 @@ class BadgeDrawableBuilder(
 ) {
     private var char = '\u0000'
     private var color: Int? = null
+    private var ringColor: Int? = null
 
     fun withText(c: Char): BadgeDrawableBuilder {
         char = c
@@ -23,6 +24,11 @@ class BadgeDrawableBuilder(
 
     fun withColorAttr(attr: Int): BadgeDrawableBuilder {
         this.color = ThemeUtils.getThemeAttrColor(context, attr)
+        return this
+    }
+
+    fun withRingColorAttr(attr: Int): BadgeDrawableBuilder {
+        this.ringColor = ThemeUtils.getThemeAttrColor(context, attr)
         return this
     }
 
@@ -36,6 +42,7 @@ class BadgeDrawableBuilder(
         if (char != '\u0000') {
             badge.setText(char)
         }
+        ringColor?.let { badge.setRingColor(it) }
         if (color != null) {
             val badgeDrawable: Drawable? = ContextCompat.getDrawable(context, R.drawable.badge_drawable)
             if (badgeDrawable == null) {

@@ -135,12 +135,11 @@ class StandardSearchFragment :
                 ContextCompat.getDrawable(requireContext(), it.cardStates.firstOrNull().iconRes)?.also { drawable ->
                     if (it.cardStates.isEmpty()) {
                         DrawableCompat.setTint(
-                            drawable,
+                            drawable.mutate(),
                             MaterialColors.getColor(requireContext(), androidx.appcompat.R.attr.colorPrimary, 0),
                         )
                     }
                 }
-            binding.cardStateChip.chipIcon = ContextCompat.getDrawable(requireContext(), it.cardStates.firstOrNull().iconRes)
 
             binding.flagsChip.text =
                 formatChipDescription(
@@ -152,7 +151,7 @@ class StandardSearchFragment :
                 ContextCompat.getDrawable(requireContext(), it.flags.firstOrNull().iconRes)?.also { drawable ->
                     if (it.flags.isEmpty()) {
                         DrawableCompat.setTint(
-                            drawable,
+                            drawable.mutate(),
                             MaterialColors.getColor(requireContext(), androidx.appcompat.R.attr.colorPrimary, 0),
                         )
                     }

@@ -95,6 +95,8 @@ import com.ichi2.anki.common.utils.HashUtil
 import com.ichi2.anki.common.utils.android.digit
 import com.ichi2.anki.common.utils.android.showThemedToast
 import com.ichi2.anki.common.utils.annotation.KotlinCleanup
+import com.ichi2.anki.common.utils.ext.AddingDefaultsMode
+import com.ichi2.anki.common.utils.ext.addingDefaultsMode
 import com.ichi2.anki.common.utils.ext.getParcelableExtraCompat
 import com.ichi2.anki.common.utils.ext.ifZero
 import com.ichi2.anki.compat.CompatHelper.Companion.getSerializableCompat
@@ -350,39 +352,45 @@ class NoteEditorFragment :
     private val requestTemplateEditLauncher =
         registerForActivityResult(
             ActivityResultContracts.StartActivityForResult(),
-            NoteEditorActivityResultCallback {
-                // Note type can change regardless of exit type - update ourselves and CardBrowser
-                reloadRequired = true
-                editorNote!!.notetype = getColUnsafe.notetypes.get(editorNote!!.noteTypeId)!!
-                if (currentEditedCard == null ||
-                    !editorNote!!
-                        .cardIds(getColUnsafe)
-                        .contains(currentEditedCard!!.id)
-                ) {
-                    if (!addNote) {
-                    /* This can occur, for example, if the
-                     * card type was deleted or if the note
-                     * type was changed without moving this
-                     * card to another type. */
-                        Timber.d("onActivityResult() template edit return - current card is gone, close note editor")
-                        showSnackbar(getString(R.string.template_for_current_card_deleted))
-                        closeNoteEditor()
-                    } else {
-                        Timber.d("onActivityResult() template edit return, in add mode, just re-display")
-                        updateCards(editorNote!!.notetype)
-                    }
-                } else {
-                    Timber.d("onActivityResult() template edit return - current card exists")
-                    // reload current card - the template ordinals are possibly different post-edit
-                    currentEditedCard = getColUnsafe.getCard(currentEditedCard!!.id)
-                    @NeedsTest("#17282 returning from template editor saves further made changes")
-                    // make sure the card's note is available going forward
-                    currentEditedCard!!.note(getColUnsafe)
-                    editorNote = currentEditedCard!!.note // update the NoteEditor's working note reference
-                    updateCards(editorNote!!.notetype)
-                }
-            },
+            NoteEditorActivityResultCallback { onTemplateEditorResult() },
         )
+
+    /** Handles a return from the [CardTemplateEditor] */
+    @VisibleForTesting
+    internal fun onTemplateEditorResult() {
+        // Note type can change regardless of exit type - update ourselves and CardBrowser
+        reloadRequired = true
+        editorNote!!.notetype = getColUnsafe.notetypes.get(editorNote!!.noteTypeId)!!
+        if (currentEditedCard == null ||
+            !editorNote!!
+                .cardIds(getColUnsafe)
+                .contains(currentEditedCard!!.id)
+        ) {
+            if (!addNote) {
+            /* This can occur, for example, if the
+             * card type was deleted or if the note
+             * type was changed without moving this
+             * card to another type. */
+                Timber.d("onActivityResult() template edit return - current card is gone, close note editor")
+                showSnackbar(getString(R.string.template_for_current_card_deleted))
+                closeNoteEditor()
+            } else {
+                Timber.d("onActivityResult() template edit return, in add mode, just re-display")
+                // the fields may have changed, so rebuild them
+                refreshNoteData(FieldChangeType.changeFieldCount(shouldReplaceNewlines()))
+            }
+        } else {
+            Timber.d("onActivityResult() template edit return - current card exists")
+            // reload current card - the template ordinals are possibly different post-edit
+            currentEditedCard = getColUnsafe.getCard(currentEditedCard!!.id)
+            @NeedsTest("#17282 returning from template editor saves further made changes")
+            // make sure the card's note is available going forward
+            currentEditedCard!!.note(getColUnsafe)
+            editorNote = currentEditedCard!!.note // update the NoteEditor's working note reference
+            // the fields may have changed, so rebuild them
+            setNote(editorNote, FieldChangeType.changeFieldCount(shouldReplaceNewlines()))
+        }
+    }
 
     private val ioEditorLauncher =
         registerForActivityResult(
@@ -816,7 +824,7 @@ class NoteEditorFragment :
             contents?.let { setEditFieldTexts(it) }
             tags?.let { setTags(it) }
             // If the activity was called to handle an image addition, launch a coroutine to process the image intent.
-            if (caller == NoteEditorCaller.ADD_IMAGE) lifecycleScope.launch { multimediaController.handleImageIntent(intent) }
+            if (caller == NoteEditorCaller.ADD_IMAGE) launchCatchingTask { multimediaController.handleImageIntent(intent) }
         } else {
             // Intercept spinner clicks to launch ChangeNoteTypeDialog instead of spinner dropdown
             noteTypeSpinner!!.setOnTouchListener { _, event ->
@@ -946,7 +954,12 @@ class NoteEditorFragment :
                     requireActivity().packageName + ".apkgfileprovider",
                     it,
                 )
-            cameraLauncher.launch(photoURI)
+            try {
+                cameraLauncher.launch(photoURI)
+            } catch (_: ActivityNotFoundException) {
+                Timber.w("No app found to handle image capture")
+                activity?.showSnackbar(R.string.activity_start_failed)
+            }
         }
     }
 
@@ -1190,6 +1203,30 @@ class NoteEditorFragment :
     }
 
     private fun collectionHasLoaded(): Boolean = allNoteTypeIds != null
+
+    /**
+     * Whether this fragment is editing the cards which [destination] targets.
+     */
+    fun isEditingSameCards(destination: NoteEditorDestination): Boolean {
+        if (destination !is NoteEditorDestination.EditSelection) return false
+        if (arguments?.getInt(EXTRA_CALLER) != NoteEditorCaller.EDIT.value) return false
+        return cardIdsFromArguments?.asList() == destination.cardIds
+    }
+
+    /**
+     * Reloads the current note from the collection and rebuilds the fields, e.g. after the
+     * note was updated by another component (find & replace in the Card Browser).
+     *
+     * Unsaved edits are discarded: check [hasUnsavedChanges] before calling.
+     */
+    fun reloadNoteFromCollection() {
+        Timber.i("reloadNoteFromCollection()")
+        val cardId = currentEditedCard?.id ?: return
+        currentEditedCard = getColUnsafe.getCard(cardId)
+        // reset so setNote() reloads the tags of the note
+        selectedTags = null
+        setNote(currentEditedCard!!.note(getColUnsafe), FieldChangeType.refresh(shouldReplaceNewlines()))
+    }
 
     // ----------------------------------------------------------------------------
     // SAVE NOTE METHODS
@@ -2098,7 +2135,7 @@ class NoteEditorFragment :
                 return currentEditedCard!!.currentDeckId()
             }
 
-            if (!getColUnsafe.config.getBool(ConfigKey.Bool.ADDING_DEFAULTS_TO_CURRENT_DECK)) {
+            if (getColUnsafe.config.addingDefaultsMode == AddingDefaultsMode.DECIDE_BY_NOTE_TYPE) {
                 return getColUnsafe.notetypes.current().let {
                     Timber.d("Adding to deck of note type, noteType: %s", it.name)
                     return@let it.did
@@ -2550,7 +2587,7 @@ class NoteEditorFragment :
         getColUnsafe.decks.save(currentDeck)
 
         // Update deck
-        if (!getColUnsafe.config.getBool(ConfigKey.Bool.ADDING_DEFAULTS_TO_CURRENT_DECK)) {
+        if (getColUnsafe.config.addingDefaultsMode == AddingDefaultsMode.DECIDE_BY_NOTE_TYPE) {
             deckId = getColUnsafe.defaultsForAdding().deckId
         }
 

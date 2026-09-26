@@ -24,6 +24,11 @@
 # -dontobfuscate
 
 # Used through Reflection
+# Prevent R8 static class merging from pulling in unrelated holders with primitive array fields.
+# ACRA crashes handling these int[] arrays, leaving BuildConfig as 'N/A'
+-keep class com.ichi2.anki.BuildConfig {
+    public static <fields>;
+}
 -keep class com.ichi2.anki.**.*Fragment { *; }
 -keep class * extends com.google.protobuf.GeneratedMessageLite { *; }
 -keep class androidx.core.app.ActivityCompat$* { *; }

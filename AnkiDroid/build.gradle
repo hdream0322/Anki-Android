@@ -92,13 +92,14 @@ def forkReleaseDate = providers.gradleProperty("forkReleaseDate")
     .orElse(providers.environmentVariable("FORK_RELEASE_DATE"))
     .orElse("0")
 
-def upstreamVersionCode = 22500201
-def upstreamVersionName = "2.25.0beta1"
+def upstreamVersionCode = 22500202
+def upstreamVersionName = "2.25.0beta2"
 
 android {
     namespace = "com.ichi2.anki"
 
     compileSdk = libs.versions.compileSdk.get().toInteger()
+    compileSdkMinor = libs.versions.compileSdkMinor.get().toInteger()
 
     buildFeatures {
         buildConfig = true
@@ -185,7 +186,8 @@ android {
         }
 
         def apiKey = properties.getProperty("ANALYTICS_API_KEY") ?: System.getenv("ANALYTICS_API_KEY") ?: "DUMMY_API_XXX"
-        buildConfigField "String", "ANALYTICS_API_KEY", "\"${apiKey}\""
+        // Keep credentials out of BuildConfig: ACRA collects its fields through reflection.
+        resValue "string", "ga_api_secret", apiKey
     }
     signingConfigs {
         release {
@@ -807,6 +809,7 @@ dependencies {
     testImplementation testFixtures(project(":common:android"))
     testImplementation testFixtures(project(":compat"))
     testImplementation testFixtures(project(":anki-common"))
+    androidTestImplementation testFixtures(project(":anki-common"))
 
     // A path for a testing library which provide Parameterized Test
     testImplementation libs.junit.jupiter
@@ -844,6 +847,8 @@ dependencies {
     // for testing flows
     testImplementation libs.cashapp.turbine
     testImplementation libs.okhttp.mockwebserver
+
+    androidTestImplementation testFixtures(project(":anki-common"))
 
     // May need a resolution strategy for support libs to our versions
     androidTestImplementation libs.androidx.espresso.core

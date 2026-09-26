@@ -7,7 +7,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import anki.collection.OpChangesWithId
-import anki.decks.Deck
+import anki.decks.Deck.Filtered.SearchTerm.Order
 import anki.decks.DeckKt.FilteredKt.searchTerm
 import anki.decks.DeckKt.filtered
 import anki.decks.FilteredDeckForUpdate
@@ -136,6 +136,7 @@ class FilteredDeckOptionsViewModel(
         cardOptionIndex: Int,
     ) {
         Timber.i("Filtered deck filter($filterIndex) cards options index changing to $cardOptionIndex")
+        if (cardOptionIndex !in currentState().cardOptions.indices) return
         if (currentFilterState(filterIndex)?.index == cardOptionIndex) return
         updateCurrentFilterState(filterIndex) { copy(index = cardOptionIndex) }
         hasUnsavedChanges.update { wasStateModified() }
@@ -380,10 +381,15 @@ class FilteredDeckOptionsViewModel(
         }
 
     /** Queries the backend for cards search options and [FilteredDeckForUpdate] guarding against any exception. */
-    private fun Collection.safeBackendDataQuery(did: DeckId): Result<Pair<FilteredDeckForUpdate, List<String>>> =
+    private fun Collection.safeBackendDataQuery(did: DeckId): Result<Pair<FilteredDeckForUpdate, List<FilteredDeckOrder>>> =
         try {
             val filteredDeckForUpdate = sched.getOrCreateFilteredDeck(did)
-            val cardsOptions = sched.filteredDeckOrderLabels()
+            val fsrsEnabled = config.get<Boolean>("fsrs") ?: false
+            val cardsOptions =
+                sched
+                    .filteredDeckOrderLabels()
+                    .mapIndexed { index, label -> FilteredDeckOrder(Order.forNumber(index), label) }
+                    .filter { fsrsEnabled || it.order !in FSRS_ONLY_ORDERS }
             Result.success(Pair(filteredDeckForUpdate, cardsOptions))
         } catch (ex: Exception) {
             Result.failure(ex)
@@ -411,10 +417,14 @@ class FilteredDeckOptionsViewModel(
      * with other pieces of data.
      */
     private fun FilteredDeckForUpdate.asInitialState(
-        cardsOptions: List<String> = emptyList(),
+        cardsOptions: List<FilteredDeckOrder>,
         defaultSearch1: String? = null,
         defaultSearch2: String? = null,
     ): FilteredDeckOptions {
+        fun indexOf(order: Order): Int =
+            cardsOptions.indexOfFirst { it.order == order }.takeIf { it >= 0 }
+                ?: cardsOptions.indexOfFirst { it.order == Order.RANDOM }
+
         val firstFilter = config.getSearchTerms(0)
         val secondFilter = if (config.searchTermsCount > 1) config.getSearchTerms(1) else null
         return FilteredDeckOptions(
@@ -429,7 +439,7 @@ class FilteredDeckOptionsViewModel(
                 SearchTermState(
                     search = defaultSearch1 ?: firstFilter.search,
                     limit = firstFilter.limit.toString(),
-                    index = firstFilter.order.number,
+                    index = indexOf(firstFilter.order),
                 ),
             isSecondFilterEnabled = if (secondFilter != null) id != 0L else false,
             filter2State =
@@ -437,7 +447,7 @@ class FilteredDeckOptionsViewModel(
                     SearchTermState(
                         search = defaultSearch2 ?: it.search,
                         limit = it.limit.toString(),
-                        index = it.order.number,
+                        index = indexOf(it.order),
                     )
                 },
             delayAgain = config.previewAgainSecs.toString(),
@@ -464,9 +474,7 @@ class FilteredDeckOptionsViewModel(
                         searchTerm {
                             search = current.filter1State.search
                             limit = current.filter1State.limit.toIntOrNull() ?: 0
-                            order =
-                                Deck.Filtered.SearchTerm.Order
-                                    .forNumber(current.filter1State.index)
+                            order = current.cardOptions[current.filter1State.index].order
                         },
                     )
                     val filter2State = current.filter2State
@@ -475,9 +483,7 @@ class FilteredDeckOptionsViewModel(
                             searchTerm {
                                 search = filter2State.search
                                 limit = filter2State.limit.toIntOrNull() ?: 0
-                                order =
-                                    Deck.Filtered.SearchTerm.Order
-                                        .forNumber(filter2State.index)
+                                order = current.cardOptions[filter2State.index].order
                             },
                         )
                     }
@@ -485,6 +491,8 @@ class FilteredDeckOptionsViewModel(
         }
 
     companion object {
+        private val FSRS_ONLY_ORDERS = setOf(Order.RETRIEVABILITY_ASCENDING, Order.RETRIEVABILITY_DESCENDING)
+
         /** Key used to store/retrieve our state in [SavedStateHandle]. */
         private const val ARG_DATA = "arg_data"
 

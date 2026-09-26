@@ -6,7 +6,6 @@ import android.os.Bundle
 import android.os.Parcel
 import android.os.Parcelable
 import androidx.annotation.CheckResult
-import androidx.core.content.edit
 import androidx.core.os.BundleCompat
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -64,8 +63,8 @@ import com.ichi2.anki.model.SortType
 import com.ichi2.anki.observability.ChangeManager
 import com.ichi2.anki.observability.undoableOp
 import com.ichi2.anki.preferences.SharedPreferencesProvider
+import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.utils.ext.getCardOrNull
-import com.ichi2.anki.utils.ext.ignoreAccentsInSearch
 import com.ichi2.anki.utils.ext.setUserFlagForCards
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
@@ -128,6 +127,8 @@ class CardBrowserViewModel(
     preferences: SharedPreferencesProvider,
     val isFragmented: Boolean,
     val savedStateHandle: SavedStateHandle,
+    private val browserOptionsRepository: BrowserOptionsRepository =
+        BrowserOptionsRepository(preferences.sharedPrefs()),
     private val manualInit: Boolean = false,
 ) : ViewModel(),
     SharedPreferencesProvider by preferences {
@@ -191,8 +192,8 @@ class CardBrowserViewModel(
      * Whether the browser is working in Cards mode or Notes mode.
      * default: [CARDS]
      * */
-    private val flowOfCardsOrNotes = MutableStateFlow(CARDS)
-    val cardsOrNotes get() = flowOfCardsOrNotes.value
+    val flowOfCardsOrNotes: StateFlow<CardsOrNotes> = browserOptionsRepository.cardsOrNotes
+    val cardsOrNotes: CardsOrNotes get() = flowOfCardsOrNotes.value
 
     /**
      * Ensures [paneRow] points to a row in the current [cards] list, falling back to the
@@ -262,11 +263,12 @@ class CardBrowserViewModel(
             .map { it?.isNotEmpty() == true }
             .stateIn(viewModelScope, SharingStarted.Eagerly, initialValue = false)
 
-    val flowOfIsTruncated: MutableStateFlow<Boolean> =
-        MutableStateFlow(sharedPrefs().getBoolean("isTruncated", false))
-    val isTruncated get() = flowOfIsTruncated.value
+    val flowOfIsTruncated: StateFlow<Boolean> = browserOptionsRepository.isTruncated
+    val isTruncated: Boolean get() = flowOfIsTruncated.value
 
-    var shouldIgnoreAccents: Boolean = false
+    val shouldIgnoreAccents: Boolean get() = browserOptionsRepository.ignoreAccentsInSearch.value
+
+    val defaultBrowserSearch: String get() = browserOptionsRepository.defaultBrowserSearch.value
 
     private val _selectedRows: MutableSet<CardOrNoteId> = Collections.synchronizedSet(LinkedHashSet())
 
@@ -476,9 +478,12 @@ class CardBrowserViewModel(
     val flowOfInitCompleted = MutableStateFlow(false)
 
     /**
-     * Cards/notes to be selected on the next search after init completes.
+     * Cards/notes to select when the next search completes, restored from [STATE_MULTISELECT_VALUES].
+     *
+     * While non-empty, the rows do not yet reflect the saved selection, so
+     * [generateExpensiveSavedState] saves this instead of [selectedRows]
      */
-    private var pendingSelectionRestore: List<CardOrNoteId> = emptyList()
+    private var pendingSelectionRestore: List<CardOrNoteId>
 
     val flowOfColumnHeadings: StateFlow<List<ColumnHeading>> =
         combine(flowOfActiveColumns, flowOfCardsOrNotes, flowOfAllColumns) { activeColumns, cardsOrNotes, allColumns ->
@@ -524,6 +529,26 @@ class CardBrowserViewModel(
     init {
         Timber.d("CardBrowserViewModel::init, launchOptions: '${options?.javaClass?.simpleName}'")
 
+        // restore selection state
+        val idsFile =
+            savedStateHandle.get<Bundle>(STATE_MULTISELECT_VALUES)?.let { bundle ->
+                BundleCompat.getParcelable(bundle, STATE_MULTISELECT_VALUES, IdsFile::class.java)
+            }
+        pendingSelectionRestore =
+            try {
+                idsFile?.getIds()?.map { CardOrNoteId(it) }
+            } catch (e: Exception) {
+                // #19572: I suspect we have a startup bug here, so continue reporting the exception
+                Timber.w(e, "failed to read STATE_MULTISELECT_VALUES")
+                CrashReportService.sendExceptionReport(
+                    e = e,
+                    origin = "19572: STATE_MULTISELECT_VALUES",
+                    onlyIfSilent = true,
+                )
+                // fallback to no selections, but still in multiselect mode
+                null
+            } ?: emptyList()
+
         var selectAllDecks = false
         when (options) {
             is CardBrowserLaunchOptions.SystemContextMenu -> {
@@ -545,8 +570,7 @@ class CardBrowserViewModel(
         performSearchFlow
             .onEach {
                 Timber.d("performSearchFlow -> launching search")
-                val ids = pendingSelectionRestore.also { pendingSelectionRestore = emptyList() }
-                launchSearchForCards(cardOrNoteIdsToSelect = ids)
+                launchSearchForCards()
             }.launchIn(viewModelScope)
 
         flowOfCardsOrNotes
@@ -556,41 +580,23 @@ class CardBrowserViewModel(
             }.launchIn(viewModelScope)
 
         viewModelScope.launch {
-            shouldIgnoreAccents = withCol { config.ignoreAccentsInSearch }
+            browserOptionsRepository.load()
+
+            // Apply the default search (if available)
+            if (Prefs.devUsingCardBrowserSearchView) {
+                searchTerms = searchTerms.ifEmpty { defaultBrowserSearch }
+            }
 
             val initialDeckId = if (selectAllDecks) SelectableDeck.AllDecks else getInitialDeck()
             // PERF: slightly inefficient if the source was lastDeckId
             setSelectedDeck(initialDeckId)
             refreshBackendColumns()
 
-            val cardsOrNotes = withCol { CardsOrNotes.fromCollection(this@withCol) }
-            flowOfCardsOrNotes.update { cardsOrNotes }
-
             flowOfReverseDirection.update { (SortType.build(cardsOrNotes) as? SortType.CollectionOrdering)?.reverse }
 
             Timber.i("initCompleted")
 
             if (!manualInit) {
-                // restore selection state
-                val idsFile =
-                    savedStateHandle.get<Bundle>(STATE_MULTISELECT_VALUES)?.let { bundle ->
-                        BundleCompat.getParcelable(bundle, STATE_MULTISELECT_VALUES, IdsFile::class.java)
-                    }
-                pendingSelectionRestore =
-                    try {
-                        idsFile?.getIds()?.map { CardOrNoteId(it) }
-                    } catch (e: Exception) {
-                        // #19572: I suspect we have a startup bug here, so continue reporting the exception
-                        Timber.w(e, "failed to read STATE_MULTISELECT_VALUES")
-                        CrashReportService.sendExceptionReport(
-                            e = e,
-                            origin = "19572: STATE_MULTISELECT_VALUES",
-                            onlyIfSilent = true,
-                        )
-                        // fallback to no selections, but still in multiselect mode
-                        null
-                    } ?: emptyList()
-
                 flowOfInitCompleted.update { true }
             }
         }
@@ -605,8 +611,10 @@ class CardBrowserViewModel(
     @VisibleForTesting // far too complicated to mock setSavedStateProvider
     fun generateExpensiveSavedState() =
         Bundle().apply {
-            if (selectedRows.isEmpty()) return@apply
-            putParcelable(STATE_MULTISELECT_VALUES, IdsFile(cacheDir, selectedRows.map { it.cardOrNoteId }, "multiselect-values"))
+            // a restored selection not yet applied to the rows is still the selection to save
+            val selection = pendingSelectionRestore.ifEmpty { selectedRows.toList() }
+            if (selection.isEmpty()) return@apply
+            putParcelable(STATE_MULTISELECT_VALUES, IdsFile(cacheDir, selection.map { it.cardOrNoteId }, "multiselect-values"))
         }
 
     /**
@@ -797,32 +805,17 @@ class CardBrowserViewModel(
             }
     }
 
-    fun setCardsOrNotes(newValue: CardsOrNotes) =
-        viewModelScope.launch {
-            Timber.i("setting mode to %s", newValue)
-            withCol {
-                // Change this to only change the preference on a state change
-                newValue.saveToCollection(this@withCol)
-            }
-            flowOfCardsOrNotes.update { newValue }
-        }
+    fun setCardsOrNotes(newValue: CardsOrNotes) = viewModelScope.launch { browserOptionsRepository.setCardsOrNotes(newValue) }
 
-    fun setTruncated(value: Boolean) {
-        viewModelScope.launch {
-            flowOfIsTruncated.emit(value)
-        }
-        sharedPrefs().edit {
-            putBoolean("isTruncated", value)
-        }
-    }
+    fun setTruncated(value: Boolean) = viewModelScope.launch { browserOptionsRepository.setIsTruncated(value) }
 
-    fun setIgnoreAccents(value: Boolean) {
-        Timber.d("Setting ignore accent in search to: $value")
+    fun setIgnoreAccents(value: Boolean) = viewModelScope.launch { browserOptionsRepository.setIgnoreAccentsInSearch(value) }
+
+    fun setDefaultSearchText(text: String) =
         viewModelScope.launch {
-            shouldIgnoreAccents = value
-            withCol { config.ignoreAccentsInSearch = value }
+            if (!Prefs.devUsingCardBrowserSearchView) return@launch
+            browserOptionsRepository.setDefaultBrowserSearch(text)
         }
-    }
 
     fun selectAll(): Job? {
         if (!_selectedRows.addAll(cards)) return null
@@ -1386,16 +1379,12 @@ class CardBrowserViewModel(
     }
 
     /**
-     * @param cardOrNoteIdsToSelect if the screen is reinitialized after destruction
-     * restore these rows after the search is completed
+     * Once the search completes, [pendingSelectionRestore] is applied to the rows
      *
      * @see com.ichi2.anki.searchForRows
      */
     @NeedsTest("Invalid searches are handled. For instance: 'and'")
-    fun launchSearchForCards(
-        cardOrNoteIdsToSelect: List<CardOrNoteId> = emptyList(),
-        fromUserSearch: Boolean = false,
-    ) {
+    fun launchSearchForCards(fromUserSearch: Boolean = false) {
         if (!initCompleted) return
 
         viewModelScope.launch {
@@ -1419,7 +1408,8 @@ class CardBrowserViewModel(
                     ensurePaneRowValid()
                     if (isFragmented) flowOfNoteEditorCommand.emit(NoteEditorCommand.fromCurrentSearchState())
                     flowOfSearchState.emit(SearchState.Completed.fromCurrentState(fromUserSearch))
-                    selectUnvalidatedRowIds(cardOrNoteIdsToSelect)
+                    selectUnvalidatedRowIds(pendingSelectionRestore)
+                    pendingSelectionRestore = emptyList()
                 }
 
             viewModelScope.launch {

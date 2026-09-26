@@ -20,6 +20,7 @@ import com.ichi2.anki.CollectionManager.withQueue
 import com.ichi2.anki.backend.createDatabaseUsingRustBackend
 import com.ichi2.anki.common.android.ApplicationContextInitializer
 import com.ichi2.anki.common.android.appContext
+import com.ichi2.anki.common.coroutines.recordCoroutineCaller
 import com.ichi2.anki.common.preferences.sharedPrefs
 import com.ichi2.anki.common.storage.CollectionHelper
 import com.ichi2.anki.common.storage.StorageDecision
@@ -35,6 +36,7 @@ import com.ichi2.anki.libanki.Storage.collection
 import com.ichi2.anki.libanki.importCollectionPackage
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import net.ankiweb.rsdroid.Backend
@@ -76,6 +78,8 @@ object CollectionManager {
 
     private var queue: CoroutineDispatcher = Dispatchers.IO.limitedParallelism(1)
 
+    private val leases = CollectionLeaseManager()
+
     /**
      * Test-only: emulates a number of failure cases when opening the collection
      *
@@ -85,6 +89,8 @@ object CollectionManager {
     var emulatedOpenFailure: CollectionOpenFailure? = null
 
     private val testMutex = ReentrantLock()
+
+    private var useTestMutex = true
 
     private var currentSyncCertificate: String = ""
 
@@ -113,7 +119,7 @@ object CollectionManager {
     private suspend fun <T> withQueue(
         @WorkerThread block: CollectionManager.() -> T,
     ): T {
-        if (isRobolectric) {
+        if (isRobolectric && useTestMutex) {
             // #16253 Robolectric Windows: `withContext(queue)` is insufficient for serial execution
             return testMutex.withLock {
                 this@CollectionManager.block()
@@ -138,12 +144,88 @@ object CollectionManager {
      * @throws SystemStorageException if startup failed to choose a default collection path
      * ([CollectionHelper.systemStorageFailure])
      */
-    suspend fun <T> withCol(
+    suspend inline fun <T> withCol(
+        @WorkerThread noinline block: Collection.() -> T,
+    ): T =
+        // this method must be inline for recordCoroutineCaller
+        recordCoroutineCaller {
+            @Suppress("DEPRECATION_ERROR")
+            withColInternal(block)
+        }
+
+    /** Published only for inlined [withCol] calls; direct calls would bypass caller tracing. */
+    @PublishedApi
+    @Deprecated(
+        message = "Call withCol instead.",
+        level = DeprecationLevel.ERROR,
+    )
+    internal suspend fun <T> withColInternal(
         @WorkerThread block: Collection.() -> T,
     ): T =
         withQueue {
             ensureOpenInner()
             block(collection!!)
+        }
+
+    /**
+     * The in-flight long-running collection operation, if any.
+     *
+     * Observe this to:
+     * * React to the collection becoming unavailable for an extended period
+     * * Skip work which is not worth queueing behind a long operation
+     * * Offer cancellation via [CollectionLease.cancel]
+     * * Show progress for the operation
+     *
+     * @see withColExclusive
+     * @see tryWithCol
+     */
+    val flowOfCollectionLease: StateFlow<CollectionLease?> = leases.flowOfLease
+
+    /** @see flowOfCollectionLease */
+    val collectionLease: CollectionLease? get() = leases.lease
+
+    /**
+     * [withCol], publishing a [CollectionLease] on [flowOfCollectionLease] for the duration.
+     *
+     * Previously admitted [tryWithCol] calls finish before this operation enters the queue.
+     * New [tryWithCol] calls are skipped while this operation waits or runs.
+     *
+     * @param onCancel cancels [operation], must return promptly
+     */
+    suspend fun <T> withColExclusive(
+        operation: CollectionOperation,
+        onCancel: (Backend) -> Unit = {},
+        @WorkerThread block: Collection.() -> T,
+    ): T =
+        leases.withLease(operation, onCancel) { lease ->
+            withQueue {
+                ensureOpenInner()
+                // non-null after ensureOpenInner: passed on so `onCancel` never enters the queue
+                lease.run(backend!!) { block(collection!!) }
+            }
+        }
+
+    /** Holds a lease for [operation] without occupying the queue, which a real operation would. */
+    @VisibleForTesting
+    suspend fun <T> withLeaseForTest(
+        operation: CollectionOperation,
+        block: suspend () -> T,
+    ): T =
+        leases.withLease(operation) {
+            block()
+        }
+
+    /**
+     * Use this for quick, disposable work. [block] is not executed and `null` is returned if
+     * [CollectionLease] is held.
+     *
+     * Example usage: obtaining deck counts while a sync may be ongoing.
+     */
+    suspend fun <T> tryWithCol(
+        @WorkerThread block: Collection.() -> T,
+    ): T? =
+        leases.tryWithoutLease {
+            withCol(block)
         }
 
     /**
@@ -335,7 +417,7 @@ object CollectionManager {
      * under Robolectric, this uses a mutex
      */
     private fun <T> blockForQueue(block: CollectionManager.() -> T): T =
-        if (isRobolectric) {
+        if (isRobolectric && useTestMutex) {
             testMutex.withLock {
                 block(this)
             }
@@ -445,10 +527,22 @@ object CollectionManager {
         }
     }
 
-    fun setTestDispatcher(dispatcher: CoroutineDispatcher) {
+    /**
+     * Set [useReentrantLock] to false to exercise the dispatcher queue in concurrency tests.
+     * Join test work and restore the default before teardown; concurrent overrides are unsupported.
+     *
+     * @return the previous dispatcher, so a test can restore it
+     */
+    fun setTestDispatcher(
+        dispatcher: CoroutineDispatcher,
+        useReentrantLock: Boolean = true,
+    ): CoroutineDispatcher {
         // note: we avoid the call to .limitedParallelism() here,
         // as it does not seem to be compatible with the test scheduler
+        val previous = queue
         queue = dispatcher
+        useTestMutex = useReentrantLock
+        return previous
     }
 
     /**

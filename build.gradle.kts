@@ -3,6 +3,7 @@ import com.android.build.api.dsl.CommonExtension
 import com.android.build.api.extension.impl.AndroidComponentsExtensionImpl
 import com.ichi2.anki.gradle.GitHubActionsTestListener
 import com.ichi2.anki.gradle.TestSummaryService
+import com.ichi2.anki.gradle.configureRobolectricJvm
 import com.slack.keeper.optInToKeeper
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.buildconfiguration.tasks.UpdateDaemonJvm
@@ -80,6 +81,8 @@ subprojects {
                 it.maxHeapSize = "${unitTestForkMaxHeapGb}g"
                 it.minHeapSize = "1g"
 
+                it.configureRobolectricJvm()
+
                 it.useJUnitPlatform()
                 it.testLogging {
                     events("failed", "skipped")
@@ -138,7 +141,7 @@ subprojects {
                     compilerArgs += "-XXLanguage:+ExplicitBackingFields"
                 }
 
-                if (project.path !in listOf(":anki-common", ":api", ":common", ":common:android")) {
+                if (project.path !in listOf(":api", ":common", ":common:android")) {
                     compilerArgs += "-opt-in=kotlinx.coroutines.ExperimentalCoroutinesApi"
                 }
                 if (project.path != ":api") {

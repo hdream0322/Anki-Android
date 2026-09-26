@@ -46,7 +46,7 @@ import anki.import_export.ImportAnkiPackageOptions
 import anki.import_export.ImportCsvRequest
 import anki.import_export.ImportResponse
 import anki.import_export.csvMetadataRequest
-import anki.notes.AddNoteRequest
+import anki.notes.addNoteRequest
 import anki.scheduler.stateOrNull
 import anki.search.BrowserColumns
 import anki.search.BrowserRow
@@ -76,9 +76,12 @@ import com.ichi2.anki.libanki.sched.DummyScheduler
 import com.ichi2.anki.libanki.sched.Scheduler
 import com.ichi2.anki.libanki.utils.LibAnkiAlias
 import com.ichi2.anki.libanki.utils.NotInPyLib
+import com.ichi2.anki.libanki.utils.capitalizePy
 import net.ankiweb.rsdroid.Backend
+import net.ankiweb.rsdroid.BackendException.BackendFatalError
 import net.ankiweb.rsdroid.BackendException.BackendSearchException
 import net.ankiweb.rsdroid.RustCleanup
+import net.ankiweb.rsdroid.exceptions.BackendInvalidInputException
 import net.ankiweb.rsdroid.exceptions.BackendNotFoundException
 import timber.log.Timber
 import java.io.File
@@ -100,6 +103,17 @@ data class ComputedMemoryState(
     val stability: Float? = null,
     val difficulty: Float? = null,
     val decay: Float? = null,
+)
+
+/**
+ * [Upstream Python definition](https://github.com/ankitects/anki/blob/754ce3a25f608010c0249e074e5d7fe95bda035f/pylib/anki/collection.py#L132-L135).
+ *
+ * Converted to the generated protobuf [anki.notes.AddNoteRequest] for backend calls.
+ */
+@LibAnkiAlias("AddNoteRequest")
+data class AddNoteRequest(
+    val note: Note,
+    val deckId: DeckId,
 )
 
 // Anki maintains a cache of used tags so it can quickly present a list of tags
@@ -640,12 +654,17 @@ class Collection(
 
     @CheckResult
     @LibAnkiAlias("nextID")
-    @RustCleanup("Python returns 'Any' - may fail for Double?")
-    @Deprecated("not implemented", level = DeprecationLevel.HIDDEN)
     fun nextId(
         type: String,
         inc: Boolean = true,
-    ): Long = TODO()
+    ): Long {
+        val cType = "next" + type.capitalizePy()
+        val id = config.get(cType) ?: 1L
+        if (inc) {
+            config.set(cType, id + 1L)
+        }
+        return id
+    }
 
     /*
      * Notes
@@ -660,6 +679,21 @@ class Collection(
     @LibAnkiAlias("new_note")
     fun newNote(notetype: NotetypeJson): Note = Note.fromNotetypeId(this, notetype.id)
 
+    /**
+     * Adds the provided note to deck: [deckId].
+     *
+     * Updates:
+     * - [defaultDeckForNoteType] if 'Decide by Note Type' is set.
+     * - [defaultsForAdding] for [deckId], OR if 'Decide by Note Type' is set.
+     *
+     * Unchanged:
+     * - [Decks.selected]
+     *
+     * @return An [OpChangesWithCount], where the count is the number of generated **cards**.
+     * @throws BackendInvalidInputException if the note type is missing, the number of fields does
+     * not match the note type, or card generation needs a fallback and Default is missing or filtered.
+     * @throws BackendFatalError if [Note.id] is nonzero.
+     */
     @LibAnkiAlias("add_note")
     fun addNote(
         note: Note,
@@ -670,17 +704,31 @@ class Collection(
         return out.changes
     }
 
+    /**
+     * Add notes in a single undoable operation, updating their IDs on success.
+     *
+     * - [`pylib` implementation](https://github.com/ankitects/anki/blob/754ce3a25f608010c0249e074e5d7fe95bda035f/pylib/anki/collection.py#L544-L558)
+     *
+     * @throws net.ankiweb.rsdroid.exceptions.BackendInvalidInputException if any notes are invalid.
+     * The batch is rolled back if this occurs.
+     */
     @LibAnkiAlias("add_notes")
-    @RustCleanup("Implement")
-    @Deprecated("Needs implementation", level = DeprecationLevel.HIDDEN)
-    fun addNotes(requests: List<AddNoteRequest>): OpChanges? = TODO()
-//    {
-//        val out = backend.addNotes(requests = requests)
-//        for ((idx, request) in requests.withIndex()) {
-//            request.note!!.id = out.getNids(idx)
-//        }
-//        return out.changes
-//    }
+    fun addNotes(requests: List<AddNoteRequest>): OpChanges {
+        val out =
+            backend.addNotes(
+                requests =
+                    requests.map { request ->
+                        addNoteRequest {
+                            note = request.note.toBackendNote()
+                            deckId = request.deckId
+                        }
+                    },
+            )
+        for ((idx, request) in requests.withIndex()) {
+            request.note.id = out.getNids(idx)
+        }
+        return out.changes
+    }
 
     @LibAnkiAlias("remove_notes")
     @RustCleanup("remove cids and pass in []")
@@ -1184,14 +1232,26 @@ class Collection(
      * directly mutating the database).
      */
     @LibAnkiAlias("undo")
-    fun undo(): OpChangesAfterUndo = backend.undo()
+    fun undo(): OpChangesAfterUndo {
+        val out = backend.undo()
+        if (out.changes.notetype) {
+            notetypes.clearCache()
+        }
+        return out
+    }
 
     /**
      * Returns result of backend redo operation, or throws UndoEmpty.
      */
     @RustCleanup("document exception")
     @LibAnkiAlias("redo")
-    fun redo(): OpChangesAfterUndo = backend.redo()
+    fun redo(): OpChangesAfterUndo {
+        val out = backend.redo()
+        if (out.changes.notetype) {
+            notetypes.clearCache()
+        }
+        return out
+    }
 
     @Deprecated("Not implemented")
     @LibAnkiAlias("op_made_changes")

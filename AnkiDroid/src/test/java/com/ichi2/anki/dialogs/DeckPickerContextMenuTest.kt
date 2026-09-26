@@ -165,6 +165,15 @@ class DeckPickerContextMenuTest : JvmTest() {
         }
     }
 
+    @Test
+    fun `Shows option to set deck color`() {
+        for (isDynamic in listOf(false, true)) {
+            launch(withArguments(isDynamic = isDynamic)).onFragment { fragment ->
+                fragment.assertOptionPresent(R.string.deck_color)
+            }
+        }
+    }
+
     private fun launch(arguments: Bundle) =
         launch(DeckPickerContextMenu::class.java, arguments, R.style.Theme_Light).also {
             scenariosForCleanup.add(it)

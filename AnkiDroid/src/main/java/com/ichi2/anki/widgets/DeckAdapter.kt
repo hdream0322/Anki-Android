@@ -5,12 +5,14 @@ package com.ichi2.anki.widgets
 
 import android.content.Context
 import android.graphics.drawable.Drawable
+import android.graphics.drawable.LayerDrawable
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
 import androidx.core.content.res.getDrawableOrThrow
 import androidx.core.content.withStyledAttributes
+import androidx.core.graphics.drawable.toDrawable
 import androidx.core.view.isGone
 import androidx.core.view.isInvisible
 import androidx.core.view.isVisible
@@ -23,6 +25,7 @@ import com.ichi2.anki.databinding.ItemDeckBinding
 import com.ichi2.anki.deckpicker.DisplayDeckNode
 import com.ichi2.anki.deckpicker.formatLastStudied
 import com.ichi2.anki.libanki.DeckId
+import com.ichi2.themes.Themes
 import com.ichi2.utils.dp
 import kotlinx.coroutines.runBlocking
 import net.ankiweb.rsdroid.RustCleanup
@@ -169,6 +172,18 @@ class DeckAdapter(
         } else {
             holder.binding.deckLayout.setBackgroundResource(selectableItemBackground)
         }
+        // Paint the user's deck color underneath the selection/ripple background
+        // (the selected-deck highlight is opaque, so it's made see-through to keep the color visible)
+        node.color?.let { color ->
+            val deckLayout = holder.binding.deckLayout
+            val overlay =
+                if (node.isSelected) {
+                    deckLayout.background.mutate().apply { alpha = (255 * SELECTED_DECK_ALPHA_AGAINST_BACKGROUND).toInt() }
+                } else {
+                    deckLayout.background
+                }
+            deckLayout.background = LayerDrawable(arrayOf(color.color(Themes.isNightTheme).toDrawable(), overlay))
+        }
         // Set deck name and colour. Filtered decks have their own colour
         binding.deckName.text = node.lastDeckNameComponent
         binding.deckName.setTextColor(if (node.filtered) deckNameDynColor else deckNameDefaultColor)
@@ -291,9 +306,9 @@ private val deckNodeDiffCallback =
         ): Boolean = oldItem == newItem
 
         // Reuse rows for expand/collapse updates to avoid cross-fading different chevrons.
-        // Selection changes need a new row: replacing the background of a pressed row restarts its ripple.
+        // Selection and color changes need a new row: replacing the background of a pressed row restarts its ripple.
         override fun getChangePayload(
             oldItem: DisplayDeckNode,
             newItem: DisplayDeckNode,
-        ): Any? = if (oldItem.isSelected != newItem.isSelected) null else true
+        ): Any? = if (oldItem.isSelected != newItem.isSelected || oldItem.color != newItem.color) null else true
     }

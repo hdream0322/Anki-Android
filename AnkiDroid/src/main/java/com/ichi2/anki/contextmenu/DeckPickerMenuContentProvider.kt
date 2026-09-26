@@ -112,6 +112,7 @@ class DeckPickerMenuContentProvider(
                     add(DeckPickerContextMenu.DeckPickerContextMenuOption.UNBURY)
                 }
                 add(DeckPickerContextMenu.DeckPickerContextMenuOption.CREATE_SHORTCUT)
+                add(DeckPickerContextMenu.DeckPickerContextMenuOption.SET_COLOR)
                 if (!isDynamic) {
                     add(DeckPickerContextMenu.DeckPickerContextMenuOption.EDIT_DESCRIPTION)
                 }

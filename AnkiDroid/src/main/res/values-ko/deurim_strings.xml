@@ -12,6 +12,15 @@
     <string name="deck_sort_order_least_recent">오래된 순</string>
     <string name="deck_sort_order_most_recent">최근 순</string>
 
+    <!-- Deck row color (deck picker context menu) -->
+    <string name="deck_color">덱 색상</string>
+    <string name="deck_color_none">색 없음</string>
+    <string name="deck_color_pink">분홍</string>
+    <string name="deck_color_peach">복숭아</string>
+    <string name="deck_color_lemon">레몬</string>
+    <string name="deck_color_mint">민트</string>
+    <string name="deck_color_sky">하늘</string>
+
     <!-- In-app updater -->
     <string name="pref_auto_update_check_title">앱 업데이트 자동 확인</string>
     <string name="pref_auto_update_check_summ">GitHub 릴리스에서 새 버전을 자동으로 확인합니다</string>

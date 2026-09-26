@@ -127,6 +127,8 @@ import com.ichi2.anki.deckpicker.EmptyCardsResult
 import com.ichi2.anki.deckpicker.OptionsMenuState
 import com.ichi2.anki.deckpicker.ShortcutData
 import com.ichi2.anki.deckpicker.SyncIconState
+import com.ichi2.anki.deckpicker.deckColors
+import com.ichi2.anki.deckpicker.showDeckColorPicker
 import com.ichi2.anki.dialogs.AsyncDialogFragment
 import com.ichi2.anki.dialogs.BackupPromptDialog
 import com.ichi2.anki.dialogs.CreateDeckDialog
@@ -1093,6 +1095,13 @@ open class DeckPicker :
                 Timber.i("Scheduling review reminders for deck '%d'", deckId)
                 dismissAllDialogFragments()
                 openScheduleReminders(deckId)
+            }
+            DeckPickerContextMenuOption.SET_COLOR -> {
+                Timber.i("ContextMenu: Set deck color selected")
+                dismissAllDialogFragments()
+                showDeckColorPicker(current = sharedPrefs().deckColors()[deckId]) { color ->
+                    viewModel.setDeckColor(deckId, color)
+                }
             }
         }
     }

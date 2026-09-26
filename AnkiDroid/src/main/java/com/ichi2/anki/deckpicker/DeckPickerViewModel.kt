@@ -127,8 +127,14 @@ class DeckPickerViewModel :
 
             val data =
                 tree
-                    .filterAndFlattenDisplay(filter, currentDeckId, lastStudiedByDeck, sortOrder, dayStartMillis)
-                    .sortedByStudyOrder(sortOrder, dayStartMillis)
+                    .filterAndFlattenDisplay(
+                        filter,
+                        currentDeckId,
+                        lastStudiedByDeck,
+                        sortOrder,
+                        dayStartMillis,
+                        Prefs.sharedPrefs.deckColors(),
+                    ).sortedByStudyOrder(sortOrder, dayStartMillis)
 
             FlattenedDeckList(
                 data = data,
@@ -299,6 +305,15 @@ class DeckPickerViewModel :
             focusedDeck = deckId
             flowOfRefreshDeckList.emit(Unit)
         }
+
+    /** Sets or clears ([color] = `null`) the row highlight of [deckId] in the deck list. */
+    fun setDeckColor(
+        deckId: DeckId,
+        color: DeckColor?,
+    ) = viewModelScope.launch {
+        Prefs.sharedPrefs.setDeckColor(deckId, color)
+        flowOfRefreshDeckList.emit(Unit)
+    }
 
     fun browseCards(deckId: DeckId) =
         launchCatchingIO {

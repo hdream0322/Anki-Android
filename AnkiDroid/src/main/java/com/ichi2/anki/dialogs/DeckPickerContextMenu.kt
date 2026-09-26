@@ -78,6 +78,7 @@ class DeckPickerContextMenu : AnalyticsDialogFragment() {
         EDIT_DESCRIPTION,
         ADD_CARD,
         SCHEDULE_REMINDERS,
+        SET_COLOR,
         ;
 
         fun label(context: Context): String =
@@ -97,6 +98,7 @@ class DeckPickerContextMenu : AnalyticsDialogFragment() {
                     EDIT_DESCRIPTION -> getString(R.string.edit_deck_description)
                     ADD_CARD -> TR.actionsAdd()
                     SCHEDULE_REMINDERS -> getString(R.string.schedule_reminders_do_not_translate)
+                    SET_COLOR -> getString(R.string.deck_color)
                 }
             }
     }

@@ -41,9 +41,8 @@ object UpdateDownloader {
         onProgress: (DownloadProgress) -> Unit = {},
     ): Uri =
         withContext(Dispatchers.IO) {
-            val targetDir = File(context.cacheDir, "updates").apply { mkdirs() }
-            // 같은 태그를 다시 받으면 덮어쓰도록 파일명에 태그 포함
-            val targetFile = File(targetDir, "${release.tag}-${release.apkName}")
+            val targetFile = apkFileFor(context, release)
+            val targetDir = requireNotNull(targetFile.parentFile).apply { mkdirs() }
             // 이전에 받아둔 APK들이 캐시에 쌓이지 않도록 정리
             targetDir.listFiles()?.forEach { stale ->
                 if (stale != targetFile && !stale.delete()) {
@@ -87,12 +86,25 @@ object UpdateDownloader {
                 Timber.i("Verified SHA-256 checksum for %s", targetFile.name)
             }
 
-            FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.apkgfileprovider",
-                targetFile,
-            )
+            contentUriFor(context, targetFile)
         }
+
+    /** Cache location of the APK for [release]; the tag is in the name so re-downloading the same tag overwrites it. */
+    fun apkFileFor(
+        context: Context,
+        release: GitHubRelease,
+    ): File = File(File(context.cacheDir, "updates"), "${release.tag}-${release.apkName}")
+
+    /** FileProvider URI for a downloaded APK, suitable for handing to the system installer. */
+    fun contentUriFor(
+        context: Context,
+        apkFile: File,
+    ): Uri =
+        FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.apkgfileprovider",
+            apkFile,
+        )
 
     @VisibleForTesting
     internal fun computeSha256(file: File): String {

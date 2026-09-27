@@ -51,6 +51,7 @@ import com.ichi2.anki.databinding.DialogUpdateProgressBinding
 import com.ichi2.anki.launchCatchingTask
 import com.ichi2.anki.snackbar.canProperlyShowSnackbars
 import com.ichi2.anki.snackbar.showSnackbar
+import com.ichi2.utils.checkBoxPrompt
 import com.ichi2.utils.customView
 import com.ichi2.utils.message
 import com.ichi2.utils.negativeButton
@@ -59,6 +60,7 @@ import com.ichi2.utils.positiveButton
 import com.ichi2.utils.show
 import com.ichi2.utils.title
 import timber.log.Timber
+import java.io.File
 
 object UpdateManager {
     private const val CHECK_INTERVAL_MS = 24L * 60 * 60 * 1000
@@ -67,9 +69,24 @@ object UpdateManager {
     /** 다이얼로그 갱신 간격 — 매 read(64KB)마다 메인 스레드를 깨우지 않도록 제한한다. */
     private const val UI_UPDATE_INTERVAL_MS = 250L
 
+    /** 설치 대기 스낵바 표시 시간 — 기본 LONG(약 3초)은 놓치기 쉬워 늘린다. */
+    private const val PENDING_INSTALL_SNACKBAR_MS = 10_000
+
     /** 진행 중인 다운로드가 있으면 "지금 설치" 재실행이 새 다운로드를 시작하지 않도록 막는다. */
     @Volatile
     private var isDownloading = false
+
+    /**
+     * 설치 프로그램이나 '알 수 없는 앱 설치' 설정으로 나갔다가 돌아오면
+     * (= 설치 취소, 또는 권한 허용 후 복귀) 설치 대기 스낵바를 다시 보여 준다.
+     */
+    private var leftAppToInstall = false
+
+    /** 설치 대기 스낵바는 프로세스당 한 번만 저절로 뜬다 — 화면 복귀마다 반복되지 않게. */
+    private var pendingInstallOffered = false
+
+    @VisibleForTesting
+    internal enum class PendingInstallAction { NONE, CLEAR, OFFER }
 
     /**
      * Auto-check entry point called from [com.ichi2.anki.DeckPicker] startup.
@@ -263,21 +280,16 @@ object UpdateManager {
                         }
                     }
                 progressDialog.dismiss()
+                // 설치를 취소하거나 권한 설정에서 돌아와도 다시 설치할 수 있도록 기억해 둔다.
+                savePendingInstall(activity, release)
                 if (!UpdateInstaller.canRequestInstall(activity)) {
                     nm.cancel(NOTIFICATION_ID)
-                    AlertDialog.Builder(activity).show {
-                        title(R.string.update_available_title)
-                        message(R.string.update_need_install_permission)
-                        positiveButton(R.string.open_settings) {
-                            UpdateInstaller.openUnknownAppSourcesSettings(activity)
-                        }
-                        negativeButton(R.string.update_later)
-                    }
+                    showInstallPermissionDialog(activity)
                     return@launchCatchingTask
                 }
                 showCompleteNotification(appCtx, nm, uri, release)
                 // 포그라운드면 바로 설치 prompt까지 띄움 — 백그라운드일 땐 알림 탭으로 진입
-                if (!activity.isFinishing) UpdateInstaller.launchInstall(activity, uri)
+                if (!activity.isFinishing) installWithGuide(activity, uri)
             } catch (e: Exception) {
                 Timber.w(e, "Update download failed")
                 progressDialog.dismiss()
@@ -288,6 +300,132 @@ object UpdateManager {
             }
         }
     }
+
+    private fun showInstallPermissionDialog(activity: FragmentActivity) {
+        AlertDialog.Builder(activity).show {
+            title(R.string.update_available_title)
+            message(R.string.update_need_install_permission)
+            positiveButton(R.string.open_settings) {
+                leftAppToInstall = true
+                UpdateInstaller.openUnknownAppSourcesSettings(activity)
+            }
+            negativeButton(R.string.update_later)
+        }
+    }
+
+    /**
+     * 설치 도중 뜰 수 있는 Play 프로텍트 '앱 검사 권장' 화면을 미리 안내한 뒤 설치 프로그램을 띄운다.
+     * 이 화면은 시스템이 띄우므로 앱에서 끌 수 없다 — 사용자가 '앱 검사'를 누르도록 안내한다.
+     */
+    private fun installWithGuide(
+        activity: FragmentActivity,
+        apkUri: Uri,
+    ) {
+        val prefs = activity.sharedPrefs()
+        val hideKey = activity.getString(R.string.pref_hide_play_protect_guide_key)
+        val launch = {
+            leftAppToInstall = true
+            UpdateInstaller.launchInstall(activity, apkUri)
+        }
+        if (prefs.getBoolean(hideKey, false)) {
+            launch()
+            return
+        }
+        var dontShowAgain = false
+        AlertDialog.Builder(activity).show {
+            title(R.string.update_play_protect_guide_title)
+            message(R.string.update_play_protect_guide_message)
+            checkBoxPrompt(R.string.button_do_not_show_again) { dontShowAgain = it }
+            positiveButton(R.string.dialog_continue) {
+                if (dontShowAgain) prefs.edit { putBoolean(hideKey, true) }
+                launch()
+            }
+            negativeButton(R.string.update_later)
+        }
+    }
+
+    private fun savePendingInstall(
+        activity: FragmentActivity,
+        release: GitHubRelease,
+    ) {
+        activity.sharedPrefs().edit {
+            putString(activity.getString(R.string.pref_pending_install_tag_key), release.tag)
+            putString(
+                activity.getString(R.string.pref_pending_install_file_key),
+                UpdateDownloader.apkFileFor(activity, release).absolutePath,
+            )
+        }
+    }
+
+    /**
+     * 다운로드는 끝났지만 설치되지 않은 업데이트가 있으면 스낵바로 다시 설치를 제안한다.
+     * Play 프로텍트 화면에서 '앱 설치 안함'을 눌렀거나 권한 설정에서 돌아온 경우를 복구한다.
+     * [com.ichi2.anki.DeckPicker.onResume] 에서 호출.
+     */
+    fun offerPendingInstallIfAny(activity: FragmentActivity) {
+        if (isDownloading) return
+        val prefs = activity.sharedPrefs()
+        val tagKey = activity.getString(R.string.pref_pending_install_tag_key)
+        val fileKey = activity.getString(R.string.pref_pending_install_file_key)
+        val tag = prefs.getString(tagKey, null)
+        val apkFile = prefs.getString(fileKey, null)?.let(::File)
+        val action =
+            pendingInstallAction(
+                pendingTag = tag,
+                currentTag = BuildConfig.FORK_VERSION,
+                apkExists = apkFile?.exists() == true,
+                returnedFromInstaller = leftAppToInstall,
+                alreadyOffered = pendingInstallOffered,
+            )
+        when (action) {
+            PendingInstallAction.NONE -> return
+            PendingInstallAction.CLEAR -> {
+                // 이미 설치됐거나 파일이 사라졌다 — 기록과 남은 APK를 정리한다.
+                prefs.edit {
+                    remove(tagKey)
+                    remove(fileKey)
+                }
+                if (apkFile != null && apkFile.exists() && !apkFile.delete()) {
+                    Timber.w("Failed to delete installed update file: %s", apkFile.name)
+                }
+            }
+            PendingInstallAction.OFFER -> {
+                if (!activity.canProperlyShowSnackbars()) return
+                leftAppToInstall = false
+                pendingInstallOffered = true
+                val file = requireNotNull(apkFile)
+                activity.showSnackbar(
+                    activity.getString(R.string.update_pending_install, tag),
+                    PENDING_INSTALL_SNACKBAR_MS,
+                ) {
+                    setAction(R.string.update_install_action) {
+                        if (!UpdateInstaller.canRequestInstall(activity)) {
+                            showInstallPermissionDialog(activity)
+                        } else {
+                            installWithGuide(activity, UpdateDownloader.contentUriFor(activity, file))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @VisibleForTesting
+    internal fun pendingInstallAction(
+        pendingTag: String?,
+        currentTag: String,
+        apkExists: Boolean,
+        returnedFromInstaller: Boolean,
+        alreadyOffered: Boolean,
+    ): PendingInstallAction =
+        when {
+            pendingTag == null -> PendingInstallAction.NONE
+            // 개발 빌드는 버전 비교가 불가능하다 — 설치 여부를 모르므로 기록을 건드리지 않는다.
+            currentTag.isEmpty() -> PendingInstallAction.NONE
+            !UpdateChecker.isNewer(pendingTag, currentTag) || !apkExists -> PendingInstallAction.CLEAR
+            returnedFromInstaller || !alreadyOffered -> PendingInstallAction.OFFER
+            else -> PendingInstallAction.NONE
+        }
 
     /** 다이얼로그와 알림이 함께 쓰는 진행 상황 문구. 값이 없는 줄은 `null`. */
     private data class ProgressText(

@@ -1543,6 +1543,8 @@ open class DeckPicker :
             refreshState()
         }
         message?.let { dialogHandler.sendStoredMessage(it) }
+        com.ichi2.anki.update.UpdateManager
+            .offerPendingInstallIfAny(this)
     }
 
     fun refreshState() {

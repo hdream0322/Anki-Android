@@ -15,6 +15,8 @@
  */
 package com.ichi2.anki.update
 
+import com.ichi2.anki.update.UpdateManager.PendingInstallAction
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -34,4 +36,43 @@ class UpdateManagerTest {
     fun `download is allowed when Wi-Fi-only is disabled regardless of network`() {
         assertFalse(UpdateManager.shouldBlockForWifiOnly(wifiOnlyEnabled = false, wifiConnected = false))
     }
+
+    @Test
+    fun `no pending install means nothing to do`() {
+        assertEquals(PendingInstallAction.NONE, pendingAction(pendingTag = null))
+    }
+
+    @Test
+    fun `pending install is cleared once that version is installed`() {
+        assertEquals(PendingInstallAction.CLEAR, pendingAction(pendingTag = "v0.1.8", currentTag = "v0.1.8"))
+    }
+
+    @Test
+    fun `pending install is cleared when the downloaded APK is gone`() {
+        assertEquals(PendingInstallAction.CLEAR, pendingAction(apkExists = false))
+    }
+
+    @Test
+    fun `pending install is kept on dev builds where versions cannot be compared`() {
+        assertEquals(PendingInstallAction.NONE, pendingAction(currentTag = ""))
+    }
+
+    @Test
+    fun `pending install is offered once per session`() {
+        assertEquals(PendingInstallAction.OFFER, pendingAction(alreadyOffered = false))
+        assertEquals(PendingInstallAction.NONE, pendingAction(alreadyOffered = true))
+    }
+
+    @Test
+    fun `pending install is offered again after returning from the installer`() {
+        assertEquals(PendingInstallAction.OFFER, pendingAction(returnedFromInstaller = true, alreadyOffered = true))
+    }
+
+    private fun pendingAction(
+        pendingTag: String? = "v0.1.8",
+        currentTag: String = "v0.1.7",
+        apkExists: Boolean = true,
+        returnedFromInstaller: Boolean = false,
+        alreadyOffered: Boolean = false,
+    ) = UpdateManager.pendingInstallAction(pendingTag, currentTag, apkExists, returnedFromInstaller, alreadyOffered)
 }

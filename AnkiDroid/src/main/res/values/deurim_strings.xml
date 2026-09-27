@@ -122,6 +122,13 @@
     <string name="update_eta_seconds">About %d s left</string>
     <string name="update_eta_minutes">About %d min left</string>
     <string name="update_need_install_permission">Permission to install unknown apps is required. Please allow it in Settings.</string>
+    <string name="pref_hide_play_protect_guide_key">deurim_hide_play_protect_guide</string>
+    <string name="pref_pending_install_tag_key">deurim_pending_install_tag</string>
+    <string name="pref_pending_install_file_key">deurim_pending_install_file</string>
+    <string name="update_play_protect_guide_title">Before you install</string>
+    <string name="update_play_protect_guide_message">Google Play Protect may show an \"App scan recommended\" screen during installation.\n\nTap \"Scan app\". When the scan finishes, you can continue installing.\n\nTapping \"Don\'t install\" cancels the update.\n\nThis check appears because this app is distributed outside Google Play.</string>
+    <!-- %s = version tag, e.g. "v0.1.8" -->
+    <string name="update_pending_install">Update %s is downloaded but not installed yet</string>
 
     <!-- AI card chat -->
     <string name="pref_cat_ai" maxLength="41">AI</string>

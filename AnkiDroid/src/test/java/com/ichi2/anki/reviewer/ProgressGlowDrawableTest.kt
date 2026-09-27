@@ -19,10 +19,10 @@ import com.ichi2.anki.reviewer.ProgressGlowDrawable.Companion.glowOffset
 import com.ichi2.anki.reviewer.ProgressGlowDrawable.Companion.sweepFraction
 import com.ichi2.anki.settings.enums.ProgressGlowSpeed
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 
 class ProgressGlowDrawableTest {
     @Test
@@ -37,9 +37,9 @@ class ProgressGlowDrawableTest {
         val late = sweepFraction(0.5f)
         assertNotNull(early)
         assertNotNull(late)
-        assertTrue(early!! < late!!)
+        assertTrue(early < late)
         assertEquals(0f, sweepFraction(0f)!!, 0.001f)
-        assertNull("no glow during the pause", sweepFraction(0.8f))
+        assertNull(sweepFraction(0.8f), "no glow during the pause")
     }
 
     @Test

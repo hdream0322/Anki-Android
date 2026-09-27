@@ -10,10 +10,10 @@ import mockwebserver3.SocketEffect
 import okhttp3.Request
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import kotlin.test.assertNull
 
 private class FakeProvider(
     private val url: String,

@@ -19,13 +19,13 @@ package com.ichi2.anki.heatmap
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ichi2.anki.RobolectricTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import kotlin.test.assertNull
 
 @RunWith(AndroidJUnit4::class)
 class ReviewHeatmapDataTest : RobolectricTest() {

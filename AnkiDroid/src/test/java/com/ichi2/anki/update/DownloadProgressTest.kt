@@ -16,8 +16,8 @@
 package com.ichi2.anki.update
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
+import kotlin.test.assertNull
 
 class DownloadProgressTest {
     @Test

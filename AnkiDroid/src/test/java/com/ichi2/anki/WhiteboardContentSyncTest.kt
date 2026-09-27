@@ -9,6 +9,7 @@ import android.graphics.Path
 import android.os.SystemClock
 import android.view.MotionEvent
 import androidx.core.content.edit
+import androidx.core.graphics.createBitmap
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ichi2.anki.common.preferences.sharedPrefs
 import org.hamcrest.MatcherAssert.assertThat
@@ -67,7 +68,7 @@ class WhiteboardContentSyncTest : RobolectricTest() {
     }
 
     private fun renderAndRecordStrokeWidths(whiteboard: Whiteboard): List<Float> {
-        val canvas = RecordingCanvas(Bitmap.createBitmap(whiteboard.width, whiteboard.height, Bitmap.Config.ARGB_8888))
+        val canvas = RecordingCanvas(createBitmap(whiteboard.width, whiteboard.height))
         whiteboard.draw(canvas)
         return canvas.recordedStrokeWidths
     }

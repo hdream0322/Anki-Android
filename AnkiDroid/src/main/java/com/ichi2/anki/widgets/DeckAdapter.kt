@@ -6,6 +6,9 @@ package com.ichi2.anki.widgets
 import android.content.Context
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.LayerDrawable
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.ImageSpan
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -24,6 +27,7 @@ import com.ichi2.anki.common.time.TimeManager
 import com.ichi2.anki.databinding.ItemDeckBinding
 import com.ichi2.anki.deckpicker.DisplayDeckNode
 import com.ichi2.anki.deckpicker.formatLastStudied
+import com.ichi2.anki.deckpicker.swatch
 import com.ichi2.anki.libanki.DeckId
 import com.ichi2.themes.Themes
 import com.ichi2.utils.dp
@@ -185,7 +189,7 @@ class DeckAdapter(
             deckLayout.background = LayerDrawable(arrayOf(color.color(Themes.isNightTheme).toDrawable(), overlay))
         }
         // Set deck name and colour. Filtered decks have their own colour
-        binding.deckName.text = node.lastDeckNameComponent
+        binding.deckName.text = deckNameWithSubdeckColors(binding.deckName.context, node)
         binding.deckName.setTextColor(if (node.filtered) deckNameDynColor else deckNameDefaultColor)
 
         // Set the compact "last studied" indicator shown left of the counts
@@ -289,6 +293,28 @@ class DeckAdapter(
         ta.recycle()
         context.withStyledAttributes(attrs = intArrayOf(android.R.attr.selectableItemBackground)) {
             selectableItemBackground = ta.getResourceId(0, 0)
+        }
+    }
+}
+
+/**
+ * The deck name, followed by a small dot per color of the subdecks hidden under a collapsed deck.
+ * "\u00A0" is a placeholder each dot is drawn over.
+ */
+private fun deckNameWithSubdeckColors(
+    context: Context,
+    node: DisplayDeckNode,
+): CharSequence {
+    if (node.collapsedSubdeckColors.isEmpty()) return node.lastDeckNameComponent
+    return SpannableStringBuilder(node.lastDeckNameComponent).apply {
+        append(" ")
+        for (color in node.collapsedSubdeckColors) {
+            append(
+                "\u00A0",
+                ImageSpan(context.swatch(color.color(Themes.isNightTheme), sizeDp = 8), ImageSpan.ALIGN_BASELINE),
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+            )
+            append("\u00A0")
         }
     }
 }

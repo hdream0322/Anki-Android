@@ -118,10 +118,11 @@ fun Context.showDeckColorPicker(
 }
 
 /** A filled circle with a faint outline, so pale day-theme swatches stay visible on white. */
-private fun Context.swatch(
+internal fun Context.swatch(
     @ColorInt color: Int,
+    sizeDp: Int = 20,
 ): GradientDrawable {
-    val size = 20.dp.toPx(this)
+    val size = sizeDp.dp.toPx(this)
     return GradientDrawable().apply {
         shape = GradientDrawable.OVAL
         setColor(color)

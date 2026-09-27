@@ -21,6 +21,7 @@ import android.content.SharedPreferences
 import androidx.core.content.edit
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import anki.decks.DeckTreeNode
 import anki.decks.deckTreeNode
 import com.ichi2.anki.libanki.sched.DeckNode
 import org.junit.Assert.assertEquals
@@ -109,4 +110,87 @@ class DeckColorTest {
         assertEquals(DeckColor.LEMON, list.single { it.did == 10L }.color)
         assertNull(list.single { it.did == 11L }.color)
     }
+
+    @Test
+    fun `collapsed parent lists distinct subdeck colors in tree order, at most three`() {
+        val root =
+            tree(
+                collapsed = true,
+                children =
+                    listOf(
+                        deck(11, grandchildren = listOf(deck(111))),
+                        deck(12),
+                        deck(13),
+                        deck(14),
+                    ),
+            )
+        val colors =
+            mapOf(
+                10L to DeckColor.LEMON,
+                11L to DeckColor.PINK,
+                111L to DeckColor.MINT,
+                12L to DeckColor.PINK,
+                13L to DeckColor.SKY,
+                14L to DeckColor.PEACH,
+            )
+
+        val parent = root.flatten(colors).single { it.did == 10L }
+
+        assertEquals(listOf(DeckColor.PINK, DeckColor.MINT, DeckColor.SKY), parent.collapsedSubdeckColors)
+    }
+
+    @Test
+    fun `expanded parent lists no subdeck colors`() {
+        val root = tree(collapsed = false, children = listOf(deck(11)))
+
+        val parent = root.flatten(mapOf(11L to DeckColor.PINK)).single { it.did == 10L }
+
+        assertEquals(emptyList<DeckColor>(), parent.collapsedSubdeckColors)
+    }
+
+    @Test
+    fun `collapsed parent excludes its own color`() {
+        val root = tree(collapsed = true, children = listOf(deck(11)))
+
+        val parent = root.flatten(mapOf(10L to DeckColor.LEMON)).single { it.did == 10L }
+
+        assertEquals(emptyList<DeckColor>(), parent.collapsedSubdeckColors)
+    }
+
+    private fun deck(
+        id: Long,
+        grandchildren: List<DeckTreeNode> = emptyList(),
+    ) = deckTreeNode {
+        name = "Deck$id"
+        deckId = id
+        level = 2
+        children.addAll(grandchildren)
+    }
+
+    /** Root > "Parent" (id 10) > [children] */
+    private fun tree(
+        collapsed: Boolean,
+        children: List<DeckTreeNode>,
+    ): DeckNode {
+        val parent =
+            deckTreeNode {
+                name = "Parent"
+                deckId = 10
+                level = 1
+                this.collapsed = collapsed
+                this.children.addAll(children)
+            }
+        return DeckNode(
+            deckTreeNode {
+                name = ""
+                deckId = 0
+                level = 0
+                this.children.add(parent)
+            },
+            "",
+        )
+    }
+
+    private fun DeckNode.flatten(colors: Map<Long, DeckColor>) =
+        filterAndFlattenDisplay(DeckFilters.create(""), selectedDeckId = -1, colorByDeck = colors)
 }

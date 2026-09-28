@@ -10,20 +10,28 @@ import android.os.Bundle
 import androidx.core.net.toUri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SdkSuppress
+import com.ichi2.anki.EmptyApplicationCategory
 import com.ichi2.anki.NavigationDrawerActivity.Companion.EXTRA_STARTED_WITH_SHORTCUT
 import com.ichi2.anki.SingleFragmentActivity.Companion.EXTRA_FRAGMENT_ARGS
 import com.ichi2.anki.SingleFragmentActivity.Companion.EXTRA_FRAGMENT_NAME
+import com.ichi2.testutils.EmptyApplication
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
+import org.junit.experimental.categories.Category
 import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 import timber.log.Timber
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 @RunWith(AndroidJUnit4::class)
+// Application startup logs can race with the launch diagnostics captured by these tests.
+@Config(application = EmptyApplication::class)
+@Category(EmptyApplicationCategory::class)
 class ActivityLaunchLoggerTest {
     private val messages = mutableListOf<String>()
     private val tree =
@@ -69,7 +77,7 @@ class ActivityLaunchLoggerTest {
 
         activity.logActivityCreation(Bundle().apply { putString(privateText, privateText) })
 
-        val message = messages.single()
+        val message = assertNotNull(messages.singleOrNull(), "Expected one log message; captured: $messages")
         for (privateValue in listOf(privateText, "private-referrer", "private.caller.package", "1234567")) {
             assertFalse(message.contains(privateValue), "Launch diagnostics leaked $privateValue")
         }
@@ -89,7 +97,7 @@ class ActivityLaunchLoggerTest {
 
         mockActivity(intent).logActivityCreation(null)
 
-        val message = messages.single()
+        val message = assertNotNull(messages.singleOrNull(), "Expected one log message; captured: $messages")
         assertTrue(message.contains(Intent.ACTION_VIEW))
         assertTrue(message.contains(Intent.CATEGORY_LAUNCHER))
         assertTrue(message.contains(EXTRA_FRAGMENT_NAME))

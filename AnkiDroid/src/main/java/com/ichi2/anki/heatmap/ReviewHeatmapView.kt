@@ -116,6 +116,18 @@ class ReviewHeatmapView
         /** Resolved cell edge length, recomputed in [onMeasure] from the available width. */
         private var cellSize = minCell
 
+        /**
+         * Number of week columns drawn, recomputed in [onMeasure]. When even [minCell] cells
+         * do not fit (e.g. a narrow split-screen pane), the oldest weeks are dropped so the
+         * newest history and the forecast stay visible instead of being clipped on the right.
+         */
+        internal var visibleWeeks = DEFAULT_HEATMAP_WEEKS
+            private set
+
+        /** Index of the first (leftmost) drawn week column; columns before it are hidden. */
+        internal val firstVisibleWeek: Int
+            get() = max(0, (data?.weekCount ?: DEFAULT_HEATMAP_WEEKS) - visibleWeeks)
+
         private val labelHeight = labelPaint.fontMetrics.let { it.descent - it.ascent }
 
         /** Space reserved above the grid for month labels. */
@@ -175,9 +187,11 @@ class ReviewHeatmapView
         ) {
             val width = MeasureSpec.getSize(widthMeasureSpec)
             val weeks = data?.weekCount ?: DEFAULT_HEATMAP_WEEKS
-            val usableWidth =
-                width - paddingLeft - paddingRight - weekdayLabelInset - cellGap * (weeks - 1)
-            cellSize = (usableWidth / weeks).coerceIn(minCell, maxCell)
+            val availableWidth = width - paddingLeft - paddingRight - weekdayLabelInset
+            val fittingWeeks = floor((availableWidth + cellGap) / (minCell + cellGap)).toInt()
+            visibleWeeks = fittingWeeks.coerceIn(1, weeks)
+            val usableWidth = availableWidth - cellGap * (visibleWeeks - 1)
+            cellSize = (usableWidth / visibleWeeks).coerceIn(minCell, maxCell)
 
             val gridHeight = ROWS * cellSize + (ROWS - 1) * cellGap
             // Extra room so the selection ring on the bottom (Saturday) row is not clipped.
@@ -188,9 +202,8 @@ class ReviewHeatmapView
         }
 
         /** Total width of weekday gutter + grid, used to centre the whole thing horizontally. */
-        private fun contentWidth(): Float {
-            val weeks = data?.weekCount ?: DEFAULT_HEATMAP_WEEKS
-            val gridWidth = weeks * cellSize + (weeks - 1) * cellGap
+        internal fun contentWidth(): Float {
+            val gridWidth = visibleWeeks * cellSize + (visibleWeeks - 1) * cellGap
             return weekdayLabelInset + gridWidth
         }
 
@@ -212,6 +225,7 @@ class ReviewHeatmapView
             val data = this.data ?: return
 
             val weeks = data.weekCount
+            val firstWeek = firstVisibleWeek
             val offsetX = gridLeft()
             val offsetY = gridTop()
             val step = cellSize + cellGap
@@ -224,19 +238,28 @@ class ReviewHeatmapView
             }
 
             var lastLabelledMonth = -1
-            for (column in 0 until weeks) {
+            for (column in firstWeek until weeks) {
+                val x = offsetX + (column - firstWeek) * step
                 // Month label whenever a column's first day starts a not-yet-labelled month.
                 val weekStart = data.startDate.plusDays(column * 7L)
                 if (weekStart.monthValue != lastLabelledMonth) {
                     lastLabelledMonth = weekStart.monthValue
+                    // Skip a trailing month cut off at the left edge: its label would overlap
+                    // the next month's label.
+                    val isCutOffMonth =
+                        column == firstWeek && weekStart.plusWeeks(2).monthValue != weekStart.monthValue
                     val name =
                         weekStart.month.getDisplayName(TextStyle.SHORT, Locale.getDefault())
-                    canvas.drawText(
-                        name,
-                        offsetX + column * step,
-                        paddingTop - labelPaint.ascent(),
-                        labelPaint,
-                    )
+                    if (!isCutOffMonth) {
+                        // Keep a label that starts near the right edge inside the view.
+                        val labelX = min(x, width - paddingRight - labelPaint.measureText(name))
+                        canvas.drawText(
+                            name,
+                            labelX,
+                            paddingTop - labelPaint.ascent(),
+                            labelPaint,
+                        )
+                    }
                 }
 
                 for (row in 0 until ROWS) {
@@ -252,7 +275,7 @@ class ReviewHeatmapView
                             colorFor(data.countsByDate[date] ?: 0, data.maxCount, levelColors)
                         }
 
-                    val left = offsetX + column * step
+                    val left = x
                     val top = offsetY + row * step
                     rect.set(left, top, left + cellSize, top + cellSize)
                     canvas.drawRoundRect(rect, cornerRadius, cornerRadius, cellPaint)
@@ -283,9 +306,9 @@ class ReviewHeatmapView
             }
             val data = this.data ?: return super.onTouchEvent(event)
             val step = cellSize + cellGap
-            val column = floor((event.x - gridLeft()) / step).toInt()
+            val column = floor((event.x - gridLeft()) / step).toInt() + firstVisibleWeek
             val row = floor((event.y - gridTop()) / step).toInt()
-            if (column < 0 || column >= data.weekCount || row < 0 || row >= ROWS) {
+            if (column < firstVisibleWeek || column >= data.weekCount || row < 0 || row >= ROWS) {
                 return super.onTouchEvent(event)
             }
             val date = data.startDate.plusDays((column * 7L) + row)

@@ -41,6 +41,7 @@ private fun DisplayDeckNode.sortGroup(
 ): Int {
     val ms = lastStudiedMillis ?: return GROUP_PINNED
     return when {
+        order == DeckSortOrder.LEAST_RECENT && isExpandedParent -> GROUP_PINNED
         order == DeckSortOrder.MOST_RECENT ->
             if ((dayStartMillis - ms) >= staleThresholdMs) GROUP_PINNED else GROUP_ACTIVE
         !hasCardsReadyToStudy -> GROUP_NOTHING_DUE
@@ -58,7 +59,10 @@ private fun DisplayDeckNode.sortGroup(
  *   a deck with nothing due needs no work no matter how long it has been idle, so it drops below
  *   them (still oldest-first among its peers). Each deck's [DisplayDeckNode.lastStudiedMillis] was
  *   already computed excluding subdecks idle 100+ days (see [aggregatedLastStudiedMillis]), so only
- *   a `null` value (nothing eligible) is pinned to the bottom.
+ *   a `null` value (nothing eligible) is pinned to the bottom. An expanded parent is pinned too:
+ *   its date comes from a subdeck that already sorts on its own row, so ranking the parent by it
+ *   would only put a duplicate at the top. A collapsed parent keeps its place, since it is the only
+ *   row that can surface its hidden subdecks.
  * - [DeckSortOrder.MOST_RECENT]: most-recently-studied first; decks idle for ≥30 days (or never
  *   studied) are pinned to the bottom.
  */

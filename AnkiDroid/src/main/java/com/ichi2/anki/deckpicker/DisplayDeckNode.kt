@@ -95,6 +95,9 @@ data class DisplayDeckNode private constructor(
      */
     val hasCardsReadyToStudy: Boolean get() = newCount > 0 || lrnCount > 0 || revCount > 0
 
+    /** Whether this deck has subdecks that are shown on their own rows in the deck list. */
+    val isExpandedParent: Boolean get() = !collapsed && deckNode.children.any()
+
     fun withUpdatedDeckId(deckId: DeckId): DisplayDeckNode =
         this.copy(isSelected = this.did == deckId).also { updated ->
             updated.deckNode = this.deckNode

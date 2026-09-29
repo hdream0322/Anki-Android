@@ -67,6 +67,10 @@ private object AcraCrashReporter : CrashReporter {
     private const val MIN_INTERVAL_MS = 60000
     private const val EXCEPTION_MESSAGE = "Exception report sent by user manually. See: 'Comment/USER_COMMENT'"
 
+    /** Deurim: false while [BuildConfig.ACRA_URL] is empty, so no report leaves the device */
+    val isSendingAvailable: Boolean
+        get() = BuildConfig.ACRA_URL.isNotEmpty()
+
     private enum class ToastType(
         @StringRes private val toastMessageRes: Int,
     ) {
@@ -124,7 +128,7 @@ private object AcraCrashReporter : CrashReporter {
                     HttpSenderConfigurationBuilder()
                         .withHttpMethod(HttpSender.Method.PUT)
                         .withUri(BuildConfig.ACRA_URL)
-                        .withEnabled(true)
+                        .withEnabled(isSendingAvailable)
                         .build(),
                     ToastConfigurationBuilder()
                         .withText(toastText)
@@ -182,17 +186,19 @@ private object AcraCrashReporter : CrashReporter {
      * @param value value of FEEDBACK_REPORT_KEY preference
      */
     override fun setReportingMode(value: String) {
+        // Deurim: without an endpoint, every mode behaves as 'never'
+        val mode = if (isSendingAvailable) value else FEEDBACK_REPORT_NEVER
         application.sharedPrefs().edit {
             // Set the ACRA disable value
-            if (value == FEEDBACK_REPORT_NEVER) {
+            if (mode == FEEDBACK_REPORT_NEVER) {
                 putBoolean(ACRA.PREF_DISABLE_ACRA, true)
             } else {
                 putBoolean(ACRA.PREF_DISABLE_ACRA, false)
                 // Switch between auto-report via toast and manual report via dialog
-                if (value == FEEDBACK_REPORT_ALWAYS) {
+                if (mode == FEEDBACK_REPORT_ALWAYS) {
                     dialogEnabled = false
                     toastText = ToastType.AUTO_TOAST.getToastMessage(application)
-                } else if (value == FEEDBACK_REPORT_ASK) {
+                } else if (mode == FEEDBACK_REPORT_ASK) {
                     createAcraCoreConfigBuilder()
                     dialogEnabled = true
                     toastText = ToastType.MANUAL_TOAST.getToastMessage(application)
@@ -225,6 +231,10 @@ private object AcraCrashReporter : CrashReporter {
      */
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     fun setProductionACRAConfig(prefs: SharedPreferences) {
+        if (!isSendingAvailable) {
+            // Deurim: persist 'never' so the (disabled) setting shows the real state
+            prefs.edit { putString(FEEDBACK_REPORT_KEY, FEEDBACK_REPORT_NEVER) }
+        }
         // Enable or disable crash reporting based on user setting
         setReportingMode(prefs.getString(FEEDBACK_REPORT_KEY, FEEDBACK_REPORT_ASK)!!)
     }
@@ -336,6 +346,7 @@ private object AcraCrashReporter : CrashReporter {
      *  submitted
      */
     override fun sendReport(activity: android.app.Activity): Boolean {
+        if (!isSendingAvailable) return false
         val ankiActivity = activity as AnkiActivity
         val preferences = ankiActivity.sharedPrefs()
         val reportMode = preferences.getString(FEEDBACK_REPORT_KEY, "")

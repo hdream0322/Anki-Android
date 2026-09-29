@@ -31,6 +31,7 @@ import anki.scheduler.CardAnswer.Rating
 import app.cash.turbine.test
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.ichi2.anki.CollectionManager.TR
+import com.ichi2.anki.analytics.AnkiDroidUsageAnalytics
 import com.ichi2.anki.browser.CardBrowserFragment
 import com.ichi2.anki.browser.CardBrowserViewModel.RowSelection
 import com.ichi2.anki.common.preferences.sharedPrefs
@@ -394,10 +395,11 @@ class DeckPickerTest : RobolectricTest() {
                     DeckPickerEx::class.java,
                     Intent(),
                 )
+            // Deurim: analytics sending is blocked, so the opt-in is not offered
             assertThat(
-                "Analytics opt-in should be displayed",
+                "Analytics opt-in should be displayed only when sending is available",
                 d.displayedAnalyticsOptIn,
-                equalTo(true),
+                equalTo(AnkiDroidUsageAnalytics.IS_SENDING_AVAILABLE),
             )
         } finally {
             revokeWritePermissions()

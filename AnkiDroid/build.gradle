@@ -120,7 +120,9 @@ android {
     defaultConfig {
         applicationId = "com.deurim.anki"
         buildConfigField "Boolean", "CI", (System.getenv("CI") == "true").toString()
-        buildConfigField "String", "ACRA_URL", '"https://ankidroid.org/acra/report"'
+        // Deurim: crash reports must not reach AnkiDroid's server. Empty disables sending
+        // until the fork has its own endpoint (see AcraCrashReporter.isSendingAvailable)
+        buildConfigField "String", "ACRA_URL", '""'
         buildConfigField "String", "BACKEND_VERSION", "\"${libs.versions.ankiBackend.get()}\""
         buildConfigField "Boolean", "ENABLE_LEAK_CANARY", "false"
         buildConfigField "String", "GIT_COMMIT_HASH", "\"${gitCommitHash.get()}\""

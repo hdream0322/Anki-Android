@@ -36,6 +36,12 @@ import java.util.UUID
 @NeedsTest("Add coverage for opt-in handling, client id persistence and event/exception sending")
 internal object AnkiDroidUsageAnalytics : UsageAnalytics {
     const val ANALYTICS_OPTIN_KEY = UsageAnalytics.ANALYTICS_OPTIN_KEY
+
+    /**
+     * Deurim: the configured property is AnkiDroid's, so fork usage must never reach it.
+     * Keeps the client disabled regardless of opt-in until the fork has its own property.
+     */
+    const val IS_SENDING_AVAILABLE = false
     private const val ANALYTICS_CLIENT_ID = "googleAnalyticsClientId"
 
     /**
@@ -134,7 +140,7 @@ internal object AnkiDroidUsageAnalytics : UsageAnalytics {
                     apiSecret = analyticsContext.getString(R.string.ga_api_secret)
                     appName = analyticsContext.getString(R.string.app_name)
                     appVersion = BuildConfig.VERSION_NAME
-                    enabled = optIn
+                    enabled = optIn && IS_SENDING_AVAILABLE
                     samplePercentage = getAnalyticsSamplePercentage(analyticsContext)
                     // debug builds hit GA's validation endpoint, which checks the payload
                     // but records nothing, keeping development traffic out of the property
@@ -147,6 +153,10 @@ internal object AnkiDroidUsageAnalytics : UsageAnalytics {
 
     private fun handlePreferences(context: Context) {
         val userPrefs = context.sharedPrefs()
+        if (!IS_SENDING_AVAILABLE) {
+            // Deurim: clear a stale opt-in so the (disabled) setting shows the real state
+            userPrefs.edit { putBoolean(ANALYTICS_OPTIN_KEY, false) }
+        }
         optIn = userPrefs.getBoolean(ANALYTICS_OPTIN_KEY, false)
         userPrefs.registerOnSharedPreferenceChangeListener(sharedPrefsListener)
     }

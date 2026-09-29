@@ -106,14 +106,14 @@
     <string name="link_translation">https://crowdin.net/project/ankidroid</string>
     <string name="link_contribution">https://github.com/ankidroid/Anki-Android/wiki/Contributing</string>
     <string name="link_contributors">https://github.com/ankidroid/Anki-Android#credits</string>
-    <string name="link_help">https://docs.ankidroid.org/help.html</string>
+    <string name="link_help" tools:ignore="UnusedResources">https://docs.ankidroid.org/help.html</string>
     <string name="link_tts">https://docs.ankiweb.net/templates/fields.html#text-to-speech-for-individual-fields</string>
     <string name="link_manual">https://docs.ankidroid.org/manual.html</string>
-    <string name="link_help_ja">https://docs.ankidroid.org/help-ja.html</string>
+    <string name="link_help_ja" tools:ignore="UnusedResources">https://docs.ankidroid.org/help-ja.html</string>
     <string name="link_manual_ja">https://docs.ankidroid.org/manual-ja.html</string>
-    <string name="link_help_zh">https://docs.ankidroid.org/help-zh.html</string>
+    <string name="link_help_zh" tools:ignore="UnusedResources">https://docs.ankidroid.org/help-zh.html</string>
     <string name="link_manual_zh">https://docs.ankidroid.org/manual-zh.html</string>
-    <string name="link_help_ar">https://docs.ankidroid.org/help-ar.html</string>
+    <string name="link_help_ar" tools:ignore="UnusedResources">https://docs.ankidroid.org/help-ar.html</string>
     <string name="link_manual_ar">https://docs.ankidroid.org/manual-ar.html</string>
     <string name="link_manual_note_format_toolbar">https://docs.ankidroid.org/manual.html#noteFormattingToolbar</string>
     <string name="link_manual_browser_find_replace">https://docs.ankiweb.net/browsing.html#find-and-replace</string>

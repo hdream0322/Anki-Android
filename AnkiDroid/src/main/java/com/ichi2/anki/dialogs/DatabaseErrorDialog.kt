@@ -590,7 +590,8 @@ class DatabaseErrorDialog : AsyncDialogFragment() {
                         res().getString(CommonString.corrupt_db_message, res().getString(R.string.repair_deck))
                     } else {
                         // Generic message shown when a libanki task failed
-                        res().getString(CommonString.access_collection_failed_message, res().getString(R.string.link_help))
+                        // Deurim: point to the fork's feedback page instead of AnkiDroid's help page
+                        res().getString(CommonString.access_collection_failed_message, res().getString(R.string.link_deurim_feedback))
                     }
                 DIALOG_DB_ERROR -> res().getString(CommonString.answering_error_message)
                 DIALOG_DISK_FULL -> res().getString(CommonString.storage_full_message)

@@ -108,4 +108,5 @@
     <string name="ai_chat_clear_history">채팅 기록 삭제</string>
     <string name="ai_chat_clear_history_confirm">이 카드의 AI 채팅 기록을 모두 삭제할까요? 되돌릴 수 없어요.</string>
     <string name="ai_chat_history_cleared">채팅 기록을 삭제했어요</string>
+    <string name="deurim_disabled_in_build">%s (이 빌드에서 비활성화됨)</string>
 </resources>

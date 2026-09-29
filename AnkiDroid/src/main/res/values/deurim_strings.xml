@@ -172,4 +172,8 @@
     <string name="ai_chat_clear_history_confirm">Delete all AI chat messages for this note? This can\'t be undone.</string>
     <string name="ai_chat_history_cleared">Chat history cleared</string>
     <string name="custom_button_ai_chat_key">customButtonAiChat</string>
+    <!-- Bug report / feedback page opened from Help and More (replaces AnkiDroid's help page) -->
+    <string name="link_deurim_feedback" translatable="false">https://imgo2.deurim.com/feedback</string>
+    <!-- Label for a menu entry disabled in this fork because it would reach AnkiDroid's services -->
+    <string name="deurim_disabled_in_build">%s (disabled in this build)</string>
 </resources>

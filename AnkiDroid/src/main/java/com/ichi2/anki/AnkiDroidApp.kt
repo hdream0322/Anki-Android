@@ -692,14 +692,8 @@ open class AnkiDroidApp :
          * @return
          */
         val feedbackUrl: String
-            get() = // TODO actually this can be done by translating "link_help" string for each language when the App is
-                // properly translated
-                when (getCurrentLocaleTag()) {
-                    "ja" -> appResources.getString(R.string.link_help_ja)
-                    "zh" -> appResources.getString(R.string.link_help_zh)
-                    "ar" -> appResources.getString(R.string.link_help_ar)
-                    else -> appResources.getString(R.string.link_help)
-                } // TODO actually this can be done by translating "link_manual" string for each language when the App is
+            // Deurim: bug reports and feedback go to the fork's page, not AnkiDroid's help page
+            get() = appResources.getString(R.string.link_deurim_feedback)
 
         /**
          * Get the url for the properly translated manual

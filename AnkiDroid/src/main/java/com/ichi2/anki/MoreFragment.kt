@@ -16,6 +16,7 @@ import com.ichi2.anki.common.destinations.PreferencesDestination
 import com.ichi2.anki.common.destinations.navigate
 import com.ichi2.anki.databinding.FragmentMoreBinding
 import com.ichi2.anki.dialogs.help.ARG_MENU_ITEMS
+import com.ichi2.anki.dialogs.help.DISABLED_ITEM_ALPHA
 import com.ichi2.anki.dialogs.help.HelpDialog
 import com.ichi2.anki.dialogs.help.childHelpMenuItems
 import com.ichi2.anki.dialogs.help.mainHelpMenuItems
@@ -95,6 +96,11 @@ class MoreFragment : Fragment(R.layout.fragment_more) {
         if (!IntentUtil.canOpenIntent(requireContext(), marketIntent)) {
             binding.moreSupportRate.visibility = View.GONE
         }
+        // Deurim: the market link reviews the official app, so keep the row but disable it
+        binding.moreSupportRate.isEnabled = false
+        binding.moreSupportRate.alpha = DISABLED_ITEM_ALPHA
+        binding.moreSupportRateTitle.text =
+            getString(R.string.deurim_disabled_in_build, getString(CommonString.help_item_support_rate_ankidroid))
 
         if (!BuildConfig.SHOW_DONATE_LINKS) {
             binding.moreSupportDonate.isVisible = false

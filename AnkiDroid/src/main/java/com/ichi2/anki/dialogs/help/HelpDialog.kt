@@ -172,6 +172,9 @@ internal fun Fragment.requireArgsHelpEntries(): Array<HelpItem> {
 }
 
 internal const val ARG_MENU_ITEMS = "arg_menu_items"
+
+/** Deurim: Material's disabled-content opacity, used for [isDisabledInFork] entries */
+internal const val DISABLED_ITEM_ALPHA = 0.38f
 internal const val REQUEST_HELP_PAGE = "request_help_page"
 internal const val ARG_SELECTED_MENU_ITEM = " selected_menu_item"
 
@@ -192,6 +195,11 @@ class HelpPageFragment : Fragment(R.layout.fragment_help_page) {
                 setText(menuItem.titleResId)
                 setCompoundDrawablesRelativeWithIntrinsicBoundsKt(start = menuItem.iconResId)
                 compoundDrawablePadding = 16.dp.toPx(requireContext())
+                if (menuItem.isDisabledInFork) {
+                    text = getString(R.string.deurim_disabled_in_build, getString(menuItem.titleResId))
+                    isEnabled = false
+                    alpha = DISABLED_ITEM_ALPHA
+                }
                 setOnClickListener {
                     Analytics.send(LinkClicked(menuItem.analyticsId))
                     parentFragmentManager.setFragmentResult(

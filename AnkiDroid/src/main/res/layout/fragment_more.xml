@@ -283,6 +283,7 @@
                     app:tint="?attr/colorOnSurfaceVariant" />
 
                 <com.ichi2.ui.FixedTextView
+                    android:id="@+id/more_support_rate_title"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/help_item_support_rate_ankidroid"

@@ -2,15 +2,18 @@
 
 package com.ichi2.anki.dialogs.help
 
+import android.content.Context
 import androidx.fragment.app.testing.FragmentScenario
 import androidx.fragment.app.testing.launchFragment
 import androidx.lifecycle.Lifecycle
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.Espresso.pressBackUnconditionally
 import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.matcher.RootMatchers.isDialog
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
+import androidx.test.espresso.matcher.ViewMatchers.isEnabled
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ichi2.anki.AnkiDroidApp
@@ -20,6 +23,7 @@ import com.ichi2.anki.R
 import com.ichi2.anki.dialogs.help.HelpItem.Action.Rate
 import io.mockk.mockk
 import io.mockk.verify
+import org.hamcrest.Matchers.not
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -201,11 +205,15 @@ class HelpDialogTest {
             // the feedback url is being shown
             onView(withText(CommonString.help_item_report_bug)).inRoot(isDialog()).perform(click())
             verify(exactly = 1) { mockActionDispatcher.onOpenUrl(AnkiDroidApp.feedbackUrl) }
-            // a report is sent
-            onView(withText(CommonString.help_title_send_exception))
+            // Deurim: the report entry is shown disabled and sends nothing
+            val context = ApplicationProvider.getApplicationContext<Context>()
+            val disabledTitle =
+                context.getString(R.string.deurim_disabled_in_build, context.getString(CommonString.help_title_send_exception))
+            onView(withText(disabledTitle))
                 .inRoot(isDialog())
+                .check(matches(not(isEnabled())))
                 .perform(click())
-            verify(exactly = 1) { mockActionDispatcher.onSendReport() }
+            verify(exactly = 0) { mockActionDispatcher.onSendReport() }
         }
     }
 

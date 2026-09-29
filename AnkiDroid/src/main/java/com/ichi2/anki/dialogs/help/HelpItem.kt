@@ -70,3 +70,10 @@ data class HelpItem(
         data object Rate : Action()
     }
 }
+
+/**
+ * Deurim: actions that would leave something on AnkiDroid's side (a Play Store review of the
+ * official app, a crash report). Their entries stay visible but are shown disabled.
+ */
+internal val HelpItem.isDisabledInFork: Boolean
+    get() = action is HelpItem.Action.Rate || action is HelpItem.Action.SendReport

@@ -16,6 +16,7 @@ import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import com.ichi2.anki.BuildConfig
 import com.ichi2.anki.CollectionManager.TR
+import com.ichi2.anki.CommonString
 import com.ichi2.anki.R
 import com.ichi2.anki.common.utils.android.showThemedToast
 import com.ichi2.anki.databinding.FragmentAboutBinding
@@ -74,7 +75,7 @@ class AboutFragment : Fragment(R.layout.fragment_about) {
         val contributorsLink = getString(R.string.link_contributors)
         val contributingGuideLink = getString(R.string.link_contribution)
         binding.contributorsDescription.apply {
-            text = getString(R.string.about_contributors_description, contributorsLink, contributingGuideLink).parseAsHtml()
+            text = getString(CommonString.about_contributors_description, contributorsLink, contributingGuideLink).parseAsHtml()
             movementMethod = LinkMovementMethod.getInstance()
         }
 
@@ -86,8 +87,8 @@ class AboutFragment : Fragment(R.layout.fragment_about) {
         binding.licenseDescription.apply {
             text =
                 (
-                    getString(R.string.license_description, gplLicenseLink, agplLicenseLink, sourceCodeLink) + "<br>" +
-                        getString(R.string.other_licenses, dependencyLicenseLink)
+                    getString(CommonString.license_description, gplLicenseLink, agplLicenseLink, sourceCodeLink) + "<br>" +
+                        getString(CommonString.other_licenses, dependencyLicenseLink)
                 ).parseAsHtml()
             movementMethod = LinkMovementMethod.getInstance()
         }
@@ -96,7 +97,7 @@ class AboutFragment : Fragment(R.layout.fragment_about) {
         if (BuildConfig.SHOW_DONATE_LINKS) {
             val donateLink = getString(R.string.link_opencollective_donate)
             binding.donateDescription.apply {
-                text = getString(R.string.donate_description, donateLink).parseAsHtml()
+                text = getString(CommonString.donate_description, donateLink).parseAsHtml()
                 movementMethod = LinkMovementMethod.getInstance()
             }
         } else {
@@ -142,7 +143,7 @@ class AboutFragment : Fragment(R.layout.fragment_about) {
                 }
             requireContext().copyToClipboard(
                 TruncatedString.from(debugInfo),
-                failureMessageId = R.string.about_ankidroid_error_copy_debug_info,
+                failureMessageId = CommonString.about_ankidroid_error_copy_debug_info,
             )
         }
     }
@@ -171,11 +172,11 @@ class AboutFragment : Fragment(R.layout.fragment_about) {
          */
         fun showEnableDeveloperOptionsDialog(context: Context) {
             AlertDialog.Builder(context).show {
-                setTitle(R.string.dev_options_enabled_pref)
+                setTitle(CommonString.dev_options_enabled_pref)
                 setIcon(R.drawable.ic_warning)
-                setMessage(R.string.dev_options_warning)
-                setPositiveButton(R.string.dialog_ok) { _, _ -> enableDeveloperOptions(context) }
-                setNegativeButton(R.string.dialog_cancel) { _, _ -> clickCount = 0 }
+                setMessage(CommonString.dev_options_warning)
+                setPositiveButton(CommonString.dialog_ok) { _, _ -> enableDeveloperOptions(context) }
+                setNegativeButton(CommonString.dialog_cancel) { _, _ -> clickCount = 0 }
                 setCancelable(false)
             }
         }

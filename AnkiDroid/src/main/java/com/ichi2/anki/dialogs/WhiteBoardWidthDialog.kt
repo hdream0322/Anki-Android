@@ -23,7 +23,7 @@ import android.widget.SeekBar
 import android.widget.SeekBar.OnSeekBarChangeListener
 import androidx.appcompat.app.AlertDialog
 import com.google.android.material.color.MaterialColors
-import com.ichi2.anki.R
+import com.ichi2.anki.CommonString
 import com.ichi2.ui.FixedTextView
 import com.ichi2.utils.negativeButton
 import com.ichi2.utils.positiveButton
@@ -108,11 +108,11 @@ class WhiteBoardWidthDialog(
             ),
         )
         AlertDialog.Builder(context).show {
-            title(R.string.whiteboard_stroke_width)
-            positiveButton(R.string.save) {
+            title(CommonString.whiteboard_stroke_width)
+            positiveButton(CommonString.save) {
                 onStrokeWidthChanged?.accept(wbStrokeWidth)
             }
-            negativeButton(R.string.dialog_cancel)
+            negativeButton(CommonString.dialog_cancel)
             setView(layout)
         }
     }

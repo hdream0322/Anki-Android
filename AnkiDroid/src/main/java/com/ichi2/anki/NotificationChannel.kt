@@ -68,9 +68,9 @@ enum class NotificationChannel(
     val importance: Int,
 ) {
     GENERAL("General Notifications", R.string.app_name, NotificationManagerCompat.IMPORTANCE_DEFAULT),
-    SYNC("Synchronization", R.string.sync_title, NotificationManagerCompat.IMPORTANCE_LOW),
-    REVIEW_REMINDERS("Review Reminders", R.string.review_reminders_title, NotificationManagerCompat.IMPORTANCE_DEFAULT),
-    APP_UPDATE("AppUpdate", R.string.deurim_update_channel_name, NotificationManagerCompat.IMPORTANCE_LOW),
+    SYNC("Synchronization", CommonString.sync_title, NotificationManagerCompat.IMPORTANCE_LOW),
+    REVIEW_REMINDERS("Review Reminders", CommonString.review_reminders_title, NotificationManagerCompat.IMPORTANCE_DEFAULT),
+    APP_UPDATE("AppUpdate", CommonString.deurim_update_channel_name, NotificationManagerCompat.IMPORTANCE_LOW),
     ;
 
     fun getName(res: Resources) = res.getString(nameId)

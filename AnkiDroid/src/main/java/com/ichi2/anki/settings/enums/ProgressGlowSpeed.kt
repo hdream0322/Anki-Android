@@ -13,9 +13,9 @@ enum class ProgressGlowSpeed(
     override val entryResId: Int,
     val cycleMs: Long,
 ) : PrefEnum {
-    SLOTH(R.string.review_progress_bar_glow_speed_sloth_value, 6000L),
-    SLOW(R.string.review_progress_bar_glow_speed_slow_value, 4000L),
-    MEDIUM(R.string.review_progress_bar_glow_speed_medium_value, 2600L),
-    FAST(R.string.review_progress_bar_glow_speed_fast_value, 1600L),
-    ULTRA(R.string.review_progress_bar_glow_speed_ultra_value, 900L),
+    SLOTH(R.string.review_progress_bar_glow_speed_sloth_value, 7200L),
+    SLOW(R.string.review_progress_bar_glow_speed_slow_value, 4800L),
+    MEDIUM(R.string.review_progress_bar_glow_speed_medium_value, 3100L),
+    FAST(R.string.review_progress_bar_glow_speed_fast_value, 1900L),
+    ULTRA(R.string.review_progress_bar_glow_speed_ultra_value, 1100L),
 }

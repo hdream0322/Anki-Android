@@ -43,10 +43,10 @@ class ProgressGlowDrawableTest {
     }
 
     @Test
-    fun `speeds go from sloth to ultra and medium keeps the original pace`() {
+    fun `speeds go from sloth to ultra and medium has the default pace`() {
         val cycles = ProgressGlowSpeed.entries.map { it.cycleMs }
         assertEquals(cycles.sortedDescending(), cycles)
         assertEquals(cycles.size, cycles.toSet().size)
-        assertEquals(2600L, ProgressGlowSpeed.MEDIUM.cycleMs)
+        assertEquals(3100L, ProgressGlowSpeed.MEDIUM.cycleMs)
     }
 }

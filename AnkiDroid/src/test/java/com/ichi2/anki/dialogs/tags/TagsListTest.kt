@@ -506,6 +506,82 @@ class TagsListTest {
         )
     }
 
+    @Test
+    fun `sort keeps selected branches first and compares hierarchy parts ignoring case`() {
+        val tags =
+            TagsList(
+                listOf("Zoo", "alpha!", "ALPHA::bbbz", "Alpha::bbb::leaf", "alpha::BBB", "Beta::z", "beta::A"),
+                listOf("BETA::a", "Zoo"),
+            )
+
+        tags.sort()
+
+        assertEquals(
+            listOf("Beta", "beta::A", "Beta::z", "Zoo", "ALPHA", "alpha::BBB", "Alpha::bbb::leaf", "ALPHA::bbbz", "alpha!"),
+            tags.copyOfAllTagList(),
+        )
+    }
+
+    @Test
+    fun `sort updates ordering after checking and unchecking tags`() {
+        val tags = TagsList(listOf("c", "b", "a"), emptyList())
+        tags.sort()
+
+        tags.check("C")
+        tags.sort()
+        assertEquals(listOf("c", "a", "b"), tags.copyOfAllTagList())
+
+        tags.uncheck("c")
+        tags.sort()
+        assertEquals(listOf("a", "b", "c"), tags.copyOfAllTagList())
+    }
+
+    @Test
+    fun `sort updates ordering when a branch becomes indeterminate`() {
+        val tags = TagsList(listOf("a", "b::child"), emptyList())
+        tags.sort()
+
+        tags.check("B::child")
+        tags.sort()
+        assertEquals(listOf("b", "b::child", "a"), tags.copyOfAllTagList())
+
+        tags.uncheck("b::child")
+        tags.uncheck("b")
+        tags.sort()
+        assertEquals(listOf("a", "b", "b::child"), tags.copyOfAllTagList())
+
+        tags.setIndeterminate("B")
+        tags.sort()
+        assertEquals(listOf("b", "b::child", "a"), tags.copyOfAllTagList())
+    }
+
+    @Test
+    fun `sort updates ordering after selecting all tags`() {
+        val tags = TagsList(listOf("c", "b", "a"), listOf("c"))
+        tags.sort()
+        assertEquals(listOf("c", "a", "b"), tags.copyOfAllTagList())
+
+        tags.toggleAllCheckedStatuses()
+        tags.sort()
+        assertEquals(listOf("a", "b", "c"), tags.copyOfAllTagList())
+    }
+
+    @Test
+    fun `sort includes newly added ancestors and preserves case insensitive uniqueness`() {
+        val tags = TagsList(listOf("z", "a"), listOf("z"))
+        tags.sort()
+
+        assertTrue(tags.add("B::child"))
+        tags.sort()
+        assertEquals(listOf("z", "a", "B", "B::child"), tags.copyOfAllTagList())
+        assertFalse("Sorting must preserve case insensitive uniqueness", tags.add("b::CHILD"))
+
+        assertTrue(tags.check("b::CHILD"))
+        tags.sort()
+        assertEquals(listOf("B", "B::child", "z", "a"), tags.copyOfAllTagList())
+        assertFalse("Sorting must preserve case insensitive uniqueness", tags.add("Z"))
+    }
+
     @Test // #8807
     @Ignore(
         "Collections.singletonList() triggers infinite recursion. " +

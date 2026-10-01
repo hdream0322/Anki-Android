@@ -1,18 +1,5 @@
-/*
- *  Copyright (c) 2026 AnkiDroid Open Source Team
- *
- *  This program is free software; you can redistribute it and/or modify it under
- *  the terms of the GNU General Public License as published by the Free Software
- *  Foundation; either version 3 of the License, or (at your option) any later
- *  version.
- *
- *  This program is distributed in the hope that it will be useful, but WITHOUT ANY
- *  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- *  PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along with
- *  this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 package com.ichi2.anki
 
 import android.content.Intent
@@ -22,25 +9,75 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ichi2.anki.cardviewer.SilentStartupGate
+import com.ichi2.widget.WidgetStatus
+import io.mockk.coEvery
+import io.mockk.every
+import io.mockk.just
+import io.mockk.mockkObject
+import io.mockk.runs
+import io.mockk.unmockkObject
+import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.equalTo
 import org.hamcrest.Matchers.nullValue
 import org.junit.After
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.shadows.ShadowToast
-
-/** 실제 화면 없이 [AppLifecycleObserver]를 붙일 수 있는 최소 [LifecycleOwner]. */
-private class FakeLifecycleOwner : LifecycleOwner {
-    override val lifecycle: Lifecycle = LifecycleRegistry(this)
-}
+import kotlin.test.assertFalse
 
 @RunWith(AndroidJUnit4::class)
 class AppLifecycleObserverTest : RobolectricTest() {
+    private val owner = TestLifecycleOwner()
+
+    @Before
+    fun mockWidgetUpdates() {
+        mockkObject(WidgetStatus)
+        every { WidgetStatus.updateInBackground(any()) } just runs
+    }
+
     @After
-    fun resetGate() {
+    fun cleanUp() {
+        owner.registry.currentState = Lifecycle.State.DESTROYED
+        unmockkObject(CollectionManager, WidgetStatus)
         SilentStartupGate.resetForTest()
     }
+
+    /** Issue 19749: blocking on a sync here prevents WorkManager's service timeout callback. */
+    @Test
+    fun `backgrounding during sync does not wait for the collection queue`() =
+        runTest {
+            CollectionManager.ensureOpen()
+            val syncFinished = CompletableDeferred<Unit>()
+            mockkObject(CollectionManager)
+            coEvery { CollectionManager.withOpenColOrNull<Boolean>(any()) } coAnswers {
+                syncFinished.await()
+                true
+            }
+
+            AppLifecycleObserver(targetContext).onStop(owner)
+            runCurrent()
+            verify(exactly = 0) { WidgetStatus.updateInBackground(any()) }
+
+            syncFinished.complete(Unit)
+            advanceUntilIdle()
+            verify(exactly = 1) { WidgetStatus.updateInBackground(targetContext) }
+        }
+
+    @Test
+    fun `backgrounding with a closed collection does not open it or update widgets`() =
+        runTest {
+            CollectionManager.ensureClosed()
+            AppLifecycleObserver(targetContext).onStop(owner)
+            advanceUntilIdle()
+
+            verify(exactly = 0) { WidgetStatus.updateInBackground(any()) }
+            assertFalse(CollectionManager.isOpenUnsafe())
+        }
 
     private fun volumeChangedIntent(streamType: Int) =
         Intent(AppLifecycleObserver.ACTION_VOLUME_CHANGED).apply {
@@ -50,7 +87,7 @@ class AppLifecycleObserverTest : RobolectricTest() {
     @Test
     fun `music volume change releases the silent-startup gate`() {
         val observer = AppLifecycleObserver(targetContext)
-        observer.onStart(FakeLifecycleOwner())
+        observer.onStart(owner)
 
         targetContext.sendBroadcast(volumeChangedIntent(AudioManager.STREAM_MUSIC))
         advanceRobolectricLooper()
@@ -64,7 +101,7 @@ class AppLifecycleObserverTest : RobolectricTest() {
         // 직접 띄우지 않는다. 해제 안내는 SilentStartupGate에 등록된 리스너(Reviewer의 Snackbar)를
         // 통해서만 표시된다.
         val observer = AppLifecycleObserver(targetContext)
-        observer.onStart(FakeLifecycleOwner())
+        observer.onStart(owner)
 
         targetContext.sendBroadcast(volumeChangedIntent(AudioManager.STREAM_MUSIC))
         advanceRobolectricLooper()
@@ -78,7 +115,7 @@ class AppLifecycleObserverTest : RobolectricTest() {
         SilentStartupGate.setReleaseListener { listenerInvoked = true }
 
         val observer = AppLifecycleObserver(targetContext)
-        observer.onStart(FakeLifecycleOwner())
+        observer.onStart(owner)
 
         targetContext.sendBroadcast(volumeChangedIntent(AudioManager.STREAM_MUSIC))
         advanceRobolectricLooper()
@@ -89,7 +126,7 @@ class AppLifecycleObserverTest : RobolectricTest() {
     @Test
     fun `non-music volume change does not release the gate`() {
         val observer = AppLifecycleObserver(targetContext)
-        observer.onStart(FakeLifecycleOwner())
+        observer.onStart(owner)
 
         targetContext.sendBroadcast(volumeChangedIntent(AudioManager.STREAM_RING))
         advanceRobolectricLooper()
@@ -99,7 +136,6 @@ class AppLifecycleObserverTest : RobolectricTest() {
 
     @Test
     fun `volume changes are ignored after the observer stops`() {
-        val owner = FakeLifecycleOwner()
         val observer = AppLifecycleObserver(targetContext)
         observer.onStart(owner)
         observer.onStop(owner)
@@ -108,5 +144,11 @@ class AppLifecycleObserverTest : RobolectricTest() {
         advanceRobolectricLooper()
 
         assertThat("리시버가 해제된 뒤에는 게이트가 유지돼야 한다", SilentStartupGate.isSilenced, equalTo(true))
+    }
+
+    private class TestLifecycleOwner : LifecycleOwner {
+        val registry = LifecycleRegistry(this).apply { currentState = Lifecycle.State.STARTED }
+
+        override val lifecycle: Lifecycle get() = registry
     }
 }

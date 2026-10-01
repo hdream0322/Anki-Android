@@ -6,7 +6,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PorterDuff
@@ -16,7 +15,6 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import androidx.core.graphics.createBitmap
-import androidx.core.graphics.withMatrix
 import com.ichi2.anki.R
 import com.ichi2.anki.ui.windows.reviewer.whiteboard.SmoothPath.Companion.drawPath
 import timber.log.Timber
@@ -32,28 +30,34 @@ class WhiteboardView : View {
     var onEraseGestureStart: ((Float, Float) -> Unit)? = null
     var onEraseGestureMove: ((Float, Float) -> Unit)? = null
     var onEraseGestureEnd: (() -> Unit)? = null
-    var isEraserActive: Boolean = false
-    var eraserMode: EraserMode = EraserMode.INK
+    var onStylusButtonStateChanged: ((Boolean) -> Unit)? = null
+
+    var activeTool: WhiteboardTool = WhiteboardTool.Brush(Color.BLACK, WhiteboardRepository.DEFAULT_STROKE_WIDTH)
+        set(value) {
+            field = value
+            if (value is WhiteboardTool.Brush) {
+                isStylusButtonOverriding = false
+            }
+            when (value) {
+                is WhiteboardTool.Brush -> {
+                    currentPaint.color = value.color
+                    currentPaint.strokeWidth = value.width
+                }
+                is WhiteboardTool.Eraser -> {
+                    eraserPreviewPaint.strokeWidth = value.width
+                }
+            }
+            invalidate()
+        }
+
     var isStylusOnlyMode: Boolean = false
 
     /**
-     * Whether the drawing should scale and pan together with the card's own zoom/scroll.
-     * When enabled, [setContentTransform] drives what's drawn, and new strokes are recorded
-     * in the card's content space (via [inverseContentMatrix]) instead of raw screen pixels.
+     * Whether the stylus button is currently overriding the active [WhiteboardTool.Brush]
+     * with the eraser tool.
      */
-    var isContentSyncEnabled: Boolean = false
-        set(value) {
-            if (field == value) return
-            field = value
-            if (!value) {
-                contentMatrix.reset()
-                inverseContentMatrix.reset()
-            }
-            redrawHistory()
-        }
-
-    private val contentMatrix = Matrix()
-    private val inverseContentMatrix = Matrix()
+    var isStylusButtonOverriding = false
+        internal set
 
     private val currentPath = SmoothPath()
     private val currentPaint =
@@ -72,14 +76,6 @@ class WhiteboardView : View {
     private lateinit var bufferCanvas: Canvas
     private lateinit var bufferBitmap: Bitmap
     private val canvasPaint = Paint(Paint.DITHER_FLAG)
-    private val historyPaint =
-        Paint().apply {
-            isAntiAlias = true
-            isDither = true
-            style = Paint.Style.STROKE
-            strokeJoin = Paint.Join.ROUND
-            strokeCap = Paint.Cap.ROUND
-        }
 
     private var hasMoved = false
     private var isDrawing = false
@@ -94,25 +90,6 @@ class WhiteboardView : View {
 
     fun setOnScrollByListener(listener: OnScrollByListener) {
         multiTouchDetector.setOnScrollByListener(listener)
-    }
-
-    /**
-     * Mirrors the card's current zoom [scale] and scroll offset ([scrollX], [scrollY]) so the
-     * whiteboard's ink stays visually attached to the card content. No-op unless
-     * [isContentSyncEnabled] is set.
-     */
-    fun setContentTransform(
-        scale: Float,
-        scrollX: Float,
-        scrollY: Float,
-    ) {
-        if (!isContentSyncEnabled) return
-        contentMatrix.setScale(scale, scale)
-        contentMatrix.postTranslate(-scrollX, -scrollY)
-        if (!contentMatrix.invert(inverseContentMatrix)) {
-            inverseContentMatrix.reset()
-        }
-        invalidate()
     }
 
     /**
@@ -142,23 +119,13 @@ class WhiteboardView : View {
      */
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        canvas.withMatrix(contentMatrix) {
-            if (isContentSyncEnabled) {
-                // The card's zoom/scroll can move content outside the buffer's fixed bounds,
-                // so paths are drawn straight from history instead of a screen-space buffer.
-                drawActions(this, history)
-            } else {
-                // Draw the committed history
-                drawBitmap(bufferBitmap, 0f, 0f, canvasPaint)
-            }
+        // Draw the committed history
+        canvas.drawBitmap(bufferBitmap, 0f, 0f, canvasPaint)
 
-            // Draw the live preview path for the current gesture
-            if (isEraserActive) {
-                drawPath(currentPath, eraserPreviewPaint)
-            } else {
-                // Draw the normal brush or pixel eraser preview
-                drawPath(currentPath, currentPaint)
-            }
+        if (activeTool is WhiteboardTool.Eraser) {
+            canvas.drawPath(currentPath, eraserPreviewPaint)
+        } else {
+            canvas.drawPath(currentPath, currentPaint)
         }
     }
 
@@ -175,62 +142,153 @@ class WhiteboardView : View {
             return multiTouchDetector.onTouchEvent(event)
         }
 
-        if (isStylusOnlyMode && event.getToolType(0) != MotionEvent.TOOL_TYPE_STYLUS) {
+        if (isStylusOnlyMode && !event.isStylus) {
             return false
         }
 
-        // Map screen coordinates into the card's content space so strokes stay put when
-        // isContentSyncEnabled later re-projects them via a different contentMatrix.
-        // A no-op copy when content sync is disabled, since inverseContentMatrix is then identity.
-        val contentEvent = MotionEvent.obtain(event).apply { transform(inverseContentMatrix) }
-        try {
-            val touchX = contentEvent.x
-            val touchY = contentEvent.y
-            val isPathEraser = isEraserActive && eraserMode == EraserMode.STROKE
+        val touchX = event.x
+        val touchY = event.y
 
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    isDrawing = true
-                    hasMoved = false
-                    currentPath.moveTo(touchX, touchY)
-                    if (isPathEraser) {
-                        onEraseGestureStart?.invoke(touchX, touchY)
-                    }
-                    invalidate()
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                updateStylusButtonState(event)
+                isDrawing = true
+                hasMoved = false
+                currentPath.moveTo(touchX, touchY)
+                if (isStrokeEraser) {
+                    onEraseGestureStart?.invoke(touchX, touchY)
                 }
-                MotionEvent.ACTION_MOVE -> {
-                    if (!isDrawing) return false
+                invalidate()
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (!isDrawing) return false
 
+                val isButtonPressed = event.hasStylusButtonPressed()
+                if (isButtonPressed != isStylusButtonOverriding && isToolChange(isButtonPressed)) {
                     hasMoved = true
-                    currentPath.drawAlong(contentEvent)
-                    if (isPathEraser) {
+                    currentPath.drawAlong(event)
+                    if (isStrokeEraser) {
+                        onEraseGestureMove?.invoke(touchX, touchY)
+                    }
+                    handleMidStrokeToolChange(touchX, touchY, isButtonPressed)
+                } else {
+                    hasMoved = true
+                    currentPath.drawAlong(event)
+                    if (isStrokeEraser) {
                         onEraseGestureMove?.invoke(touchX, touchY)
                     }
                     invalidate()
                 }
-                MotionEvent.ACTION_UP -> {
-                    if (!isDrawing) return false
-
-                    if (isPathEraser) {
-                        onEraseGestureEnd?.invoke()
-                    } else {
-                        if (!hasMoved) {
-                            // A single tap. Add a tiny line segment to ensure it has a non-zero length,
-                            // which makes it more robust for path operations.
-                            currentPath.lineTo(touchX + 0.2f, touchY + 0.2f)
-                        }
-                        onNewPath?.invoke(currentPath.clone())
-                    }
-                    // Reset the path for the next gesture
-                    currentPath.reset()
-                    isDrawing = false
-                    invalidate()
-                }
-                else -> return false
             }
-            return true
-        } finally {
-            contentEvent.recycle()
+            MotionEvent.ACTION_BUTTON_PRESS,
+            MotionEvent.ACTION_BUTTON_RELEASE,
+            -> {
+                if (!isDrawing) {
+                    updateStylusButtonState(event)
+                    return true
+                }
+                val isButtonPressed = event.hasStylusButtonPressed()
+                if (isButtonPressed != isStylusButtonOverriding && isToolChange(isButtonPressed)) {
+                    handleMidStrokeToolChange(touchX, touchY, isButtonPressed)
+                }
+            }
+            MotionEvent.ACTION_UP -> {
+                if (!isDrawing) return false
+
+                commitCurrentStroke(touchX, touchY)
+                currentPath.reset()
+                isDrawing = false
+                updateStylusButtonState(event)
+                invalidate()
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                currentPath.reset()
+                isDrawing = false
+                updateStylusButtonState(event)
+                invalidate()
+            }
+            else -> return false
+        }
+        return true
+    }
+
+    override fun onHoverEvent(event: MotionEvent): Boolean {
+        updateStylusButtonState(event)
+        return super.onHoverEvent(event)
+    }
+
+    private val isStrokeEraser: Boolean
+        get() = activeTool is WhiteboardTool.Eraser && (activeTool as WhiteboardTool.Eraser).mode == EraserMode.STROKE
+
+    /**
+     * Determines whether [isButtonPressed] represents a tool change.
+     *
+     * A button press is a tool change only if the active tool is a [WhiteboardTool.Brush].
+     * A button release is a tool change only if the button was actively overriding a brush.
+     */
+    private fun isToolChange(isButtonPressed: Boolean): Boolean =
+        if (isButtonPressed) {
+            activeTool is WhiteboardTool.Brush
+        } else {
+            isStylusButtonOverriding
+        }
+
+    private fun commitCurrentStroke(
+        touchX: Float,
+        touchY: Float,
+    ) {
+        if (isStrokeEraser) {
+            onEraseGestureEnd?.invoke()
+        } else {
+            if (!hasMoved) {
+                // A single tap. Add a tiny line segment to ensure it has a non-zero length,
+                // which makes it more robust for path operations.
+                currentPath.lineTo(touchX + 0.2f, touchY + 0.2f)
+            }
+            onNewPath?.invoke(currentPath.clone())
+        }
+    }
+
+    private fun handleMidStrokeToolChange(
+        touchX: Float,
+        touchY: Float,
+        isButtonPressed: Boolean,
+    ) {
+        commitCurrentStroke(touchX, touchY)
+        currentPath.reset()
+        hasMoved = false
+        currentPath.moveTo(touchX, touchY)
+
+        isStylusButtonOverriding = isButtonPressed
+        onStylusButtonStateChanged?.invoke(isButtonPressed)
+
+        if (isStrokeEraser) {
+            onEraseGestureStart?.invoke(touchX, touchY)
+        }
+        invalidate()
+    }
+
+    private val MotionEvent.isStylus: Boolean
+        get() =
+            (0 until pointerCount).any {
+                val toolType = getToolType(it)
+                toolType == MotionEvent.TOOL_TYPE_STYLUS || toolType == MotionEvent.TOOL_TYPE_ERASER
+            }
+
+    private fun MotionEvent.hasStylusButtonPressed(): Boolean {
+        if (!isStylus) return false
+        val stylusButtons =
+            MotionEvent.BUTTON_STYLUS_PRIMARY or
+                MotionEvent.BUTTON_STYLUS_SECONDARY or
+                MotionEvent.BUTTON_SECONDARY
+        return (buttonState and stylusButtons) != 0
+    }
+
+    private fun updateStylusButtonState(event: MotionEvent) {
+        val isButtonPressed = event.hasStylusButtonPressed()
+        if (isButtonPressed != isStylusButtonOverriding && isToolChange(isButtonPressed)) {
+            isStylusButtonOverriding = isButtonPressed
+            onStylusButtonStateChanged?.invoke(isButtonPressed)
         }
     }
 
@@ -243,50 +301,30 @@ class WhiteboardView : View {
     }
 
     /**
-     * Configures the paint for the live drawing preview based on the current tool.
-     */
-    fun setCurrentBrush(
-        color: Int,
-        strokeWidth: Float,
-    ) {
-        currentPaint.strokeWidth = strokeWidth
-        currentPaint.xfermode = null
-        currentPaint.color = color
-
-        // Configure the stroke eraser's preview paint separately
-        eraserPreviewPaint.strokeWidth = strokeWidth
-    }
-
-    /**
-     * Redraws all historical paths onto the offscreen buffer, or just triggers a direct
-     * redraw when [isContentSyncEnabled] (see [onDraw]).
+     * Redraws all historical paths onto the offscreen buffer.
      */
     private fun redrawHistory() {
-        if (isContentSyncEnabled) {
-            invalidate()
-            return
-        }
         if (!::bufferCanvas.isInitialized) return
         bufferCanvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
-        drawActions(bufferCanvas, history)
-        invalidate()
-    }
-
-    /** Draws a list of [DrawingAction]s onto [canvas], in order. */
-    private fun drawActions(
-        canvas: Canvas,
-        actions: List<DrawingAction>,
-    ) {
-        for (action in actions) {
-            historyPaint.strokeWidth = action.strokeWidth
-            if (action.isEraser) {
-                historyPaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
-            } else {
-                historyPaint.xfermode = null
-                historyPaint.color = action.color
+        val tempPaint =
+            Paint().apply {
+                isAntiAlias = true
+                isDither = true
+                style = Paint.Style.STROKE
+                strokeJoin = Paint.Join.ROUND
+                strokeCap = Paint.Cap.ROUND
             }
-            canvas.drawPath(action.path, historyPaint)
+        for (action in history) {
+            tempPaint.strokeWidth = action.strokeWidth
+            if (action.isEraser) {
+                tempPaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
+            } else {
+                tempPaint.xfermode = null
+                tempPaint.color = action.color
+            }
+            bufferCanvas.drawPath(action.path, tempPaint)
         }
+        invalidate()
     }
 }
 

@@ -5,6 +5,7 @@ package com.ichi2.anki.dialogs.tags
 import android.app.Dialog
 import android.content.Context
 import android.content.DialogInterface
+import android.content.res.Configuration
 import android.os.Bundle
 import android.os.Parcelable
 import android.text.InputFilter
@@ -12,6 +13,7 @@ import android.text.InputType
 import android.text.Spanned
 import android.view.MenuItem
 import android.view.View
+import android.view.Window
 import android.view.WindowManager
 import android.widget.EditText
 import android.widget.RadioGroup
@@ -83,7 +85,10 @@ class TagsDialog : AnalyticsDialogFragment {
         CUSTOM_STUDY,
     }
 
-    private lateinit var binding: DialogTagsBinding
+    @VisibleForTesting
+    internal lateinit var binding: DialogTagsBinding
+        private set
+
     private var type: DialogType? = null
     internal val isEditingTags: Boolean get() = type == DialogType.EDIT_TAGS
     private var tagsArrayAdapter: TagsArrayAdapter? = null
@@ -95,16 +100,16 @@ class TagsDialog : AnalyticsDialogFragment {
 
     @VisibleForTesting
     val viewModel: TagsDialogViewModel by viewModels {
-        val idsFile = requireArguments().requireParcelable<IdsFile>(ARG_TAGS_FILE)
-        val noteIds = idsFile.getIds()
-        val checkedTags =
-            requireNotNull(requireArguments().getStringArrayList(ARG_CHECKED_TAGS)) {
-                "$ARG_CHECKED_TAGS is required"
-            }
-        val type = BundleCompat.getParcelable(requireArguments(), ARG_DIALOG_TYPE, DialogType::class.java)
-        val isCustomStudying = type != null && type == DialogType.CUSTOM_STUDY
         viewModelFactory {
             initializer {
+                val idsFile = requireArguments().requireParcelable<IdsFile>(ARG_TAGS_FILE)
+                val noteIds = idsFile.getIds()
+                val checkedTags =
+                    requireNotNull(requireArguments().getStringArrayList(ARG_CHECKED_TAGS)) {
+                        "$ARG_CHECKED_TAGS is required"
+                    }
+                val type = BundleCompat.getParcelable(requireArguments(), ARG_DIALOG_TYPE, DialogType::class.java)
+                val isCustomStudying = type != null && type == DialogType.CUSTOM_STUDY
                 TagsDialogViewModel(
                     noteIds = noteIds,
                     checkedTags = checkedTags,
@@ -250,9 +255,7 @@ class TagsDialog : AnalyticsDialogFragment {
             positiveButton?.isEnabled = true
         }
 
-        dialog.window?.let {
-            resizeWhenSoftInputShown(it)
-        }
+        dialog.window?.updateSoftInputMode(resources.configuration)
 
         return dialog
     }
@@ -289,6 +292,19 @@ class TagsDialog : AnalyticsDialogFragment {
     override fun onResume() {
         super.onResume()
         dialog?.window?.clearFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM)
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        dialog?.window?.updateSoftInputMode(newConfig)
+    }
+
+    private fun Window.updateSoftInputMode(configuration: Configuration) {
+        if (configuration.screenHeightDp < COMPACT_HEIGHT_DP) {
+            setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN)
+        } else {
+            resizeWhenSoftInputShown(this)
+        }
     }
 
     private fun radioButtonIdToCardState(id: Int) =
@@ -347,7 +363,7 @@ class TagsDialog : AnalyticsDialogFragment {
                 val tags = viewModel.tags.await()
                 val didChange = tags.toggleAllCheckedStatuses()
                 if (didChange) {
-                    tagsArrayAdapter?.notifyDataSetChanged()
+                    tagsArrayAdapter?.notifyCheckedStatusesChanged()
                     view?.showMaxTagSelectedNotice(tags)
                 }
             }
@@ -464,13 +480,11 @@ class TagsDialog : AnalyticsDialogFragment {
         }
     }
 
-    @VisibleForTesting(otherwise = VisibleForTesting.NONE)
-    internal fun getSearchView(): AccessibleSearchView? = toolbarSearchView
-
     companion object {
         const val ARG_TAGS_FILE = "tagsFile"
         private const val ARG_DIALOG_TYPE = "dialogType"
         private const val ARG_CHECKED_TAGS = "checkedTags"
+        private const val COMPACT_HEIGHT_DP = 480
 
         /**
          * The filter that constrains the inputted tag.

@@ -12,12 +12,13 @@ import com.ichi2.anki.tags.ManageTagsState.Error
 import com.ichi2.anki.tags.UserMessage.ClearedUnusedTags
 import com.ichi2.anki.tags.UserMessage.TagRemoved
 import com.ichi2.anki.tags.UserMessage.TagRenamed
+import com.ichi2.anki.utils.MessageQueue
+import com.ichi2.anki.utils.MessageQueue.MessageId
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -34,17 +35,25 @@ import anki.tags.TagTreeNode as BackendTagTreeNode
  * @see Tags for backend functions.
  * @see TagListItemState for display.
  * @see ManageTagsState for UI state.
- * @see events for one-shot events.
+ * @see pendingMessages for messages awaiting display.
  */
 class ManageTagsViewModel : ViewModel() {
     val state: StateFlow<ManageTagsState>
         field = MutableStateFlow<ManageTagsState>(ManageTagsState.Loading)
 
-    private val _events = Channel<DisplayMessage>(Channel.BUFFERED)
-    val events = _events.receiveAsFlow()
+    /** Search field contents, available even while tags are loading or failed to load. */
+    val searchQuery: StateFlow<String>
+        field = MutableStateFlow("")
+
+    private val messageQueue = MessageQueue<UserMessage>()
+
+    /** Messages in display order. Collecting does not consume them; acknowledge with [messageShown]. */
+    val pendingMessages = messageQueue.messages
 
     /** Cached flat list of all tags, rebuilt when the backend tree changes */
     private var tagList: List<TagListItemState> = emptyList()
+
+    private var tagOperation: Job? = null
 
     init {
         refreshTags()
@@ -63,14 +72,16 @@ class ManageTagsViewModel : ViewModel() {
      * of having a filtered tag selected.
      */
     fun filter(query: String) {
-        if (tagList.isEmpty()) return
+        searchQuery.value = query
         updateState { loaded ->
             loaded.copy(
-                searchQuery = query,
                 visibleNodes = computeVisibleNodes(query),
             )
         }
     }
+
+    /** Acknowledges that the UI has finished displaying a message. */
+    fun messageShown(id: MessageId) = messageQueue.acknowledge(id)
 
     /** Returns the visible node for [tag], or null with a warning if not found or not loaded */
     private fun findVisibleNode(tag: TagName): TagListItemState? {
@@ -95,27 +106,20 @@ class ManageTagsViewModel : ViewModel() {
      * @see Tags.setCollapsed
      */
     fun toggleCollapsed(tag: TagName) =
-        viewModelScope.launch {
-            try {
-                val node =
-                    findVisibleNode(tag) ?: run {
-                        _events.send(DisplayMessage(UserMessage.UnexpectedError))
-                        return@launch
-                    }
-                val newCollapsed = !node.collapsed
-                withCol { tags.setCollapsed(tag, newCollapsed) }
-                // Update the in-memory list with the new collapsed state
-                tagList =
-                    tagList.map {
-                        if (it.fullTag == tag) it.copy(collapsed = newCollapsed) else it
-                    }
-                updateState { it.copy(visibleNodes = computeVisibleNodes(it.searchQuery)) }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Timber.w(e, "Failed to toggle collapsed state")
-                state.value = Error(e)
-            }
+        launchTagOperation {
+            val node =
+                findVisibleNode(tag) ?: run {
+                    messageQueue.enqueue(UserMessage.UnexpectedError)
+                    return@launchTagOperation
+                }
+            val newCollapsed = !node.collapsed
+            withCol { tags.setCollapsed(tag, newCollapsed) }
+            // Update the in-memory list with the new collapsed state
+            tagList =
+                tagList.map {
+                    if (it.fullTag == tag) it.copy(collapsed = newCollapsed) else it
+                }
+            updateState { it.copy(visibleNodes = computeVisibleNodes(searchQuery.value)) }
         }
 
     /**
@@ -125,7 +129,7 @@ class ManageTagsViewModel : ViewModel() {
     fun removeTag(tag: TagName) =
         launchTagOpAndRefresh {
             val result = undoableOp { tags.remove(tag) }
-            _events.send(DisplayMessage(TagRemoved(result.count)))
+            messageQueue.enqueue(TagRemoved(result.count))
         }
 
     /**
@@ -137,47 +141,78 @@ class ManageTagsViewModel : ViewModel() {
         newName: TagName,
     ) = launchTagOpAndRefresh {
         val result = undoableOp { tags.rename(oldName, newName) }
-        _events.send(DisplayMessage(TagRenamed(result.count)))
+        messageQueue.enqueue(TagRenamed(result.count))
     }
 
     /**
-     * Removes tags not present on any note. Emits a [ClearedUnusedTags] event with the count.
+     * Removes tags not present on any note. Queues a [ClearedUnusedTags] message with the count.
      * @see Tags.clearUnusedTags
      */
     fun clearUnusedTags() =
         launchTagOpAndRefresh {
             val result = undoableOp { tags.clearUnusedTags() }
             Timber.i("Deleted %d unused tags", result.count)
-            _events.send(DisplayMessage(ClearedUnusedTags(result.count)))
+            messageQueue.enqueue(ClearedUnusedTags(result.count))
         }
 
-    private suspend fun loadTags(searchQuery: String) {
+    private suspend fun loadTags() {
         Timber.i("Loading tags from collection")
         tagList = flattenTree(withCol { tags.tree() })
         state.value =
             ManageTagsState.Content(
-                visibleNodes = computeVisibleNodes(searchQuery),
-                searchQuery = searchQuery,
+                visibleNodes = computeVisibleNodes(searchQuery.value),
             )
     }
 
     /**
-     * Sets [ManageTagsState.Loading], runs [block], then [reloads][loadTags].
-     * On failure, transitions to [Error]
+     * Runs [block], then [reloads][loadTags], keeping any existing content visible.
      */
-    private fun launchTagOpAndRefresh(block: suspend () -> Unit = { }): Job {
-        val previousLoaded = state.value as? ManageTagsState.Content
-        state.value = ManageTagsState.Loading
-        return viewModelScope.launch {
-            try {
-                block()
-                loadTags(searchQuery = previousLoaded?.searchQuery ?: "")
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Timber.w(e, "launchTagOperation failed")
-                state.value = Error(e)
+    private fun launchTagOpAndRefresh(block: suspend () -> Unit = { }): Job =
+        launchTagOperation {
+            block()
+            loadTags()
+        }
+
+    /** Starts an operation, or returns the unfinished operation's job without starting another. */
+    private fun launchTagOperation(block: suspend () -> Unit): Job {
+        val currentOperation = tagOperation
+        if (currentOperation != null && !currentOperation.isCompleted) {
+            return currentOperation
+        }
+
+        // set 'tagOperation' before executing
+        val operation = viewModelScope.launch(start = CoroutineStart.LAZY) { runTagOperation(block) }
+        tagOperation = operation
+        // calls from observers will now find this job
+        operation.start()
+        return operation
+    }
+
+    /**
+     * Updates progress and errors while keeping existing content visible.
+     * Uses [ManageTagsState.Loading] and [Error] only when no content is available.
+     */
+    private suspend fun runTagOperation(block: suspend () -> Unit) {
+        state.update { current ->
+            when (current) {
+                is ManageTagsState.Content -> current.copy(isWorking = true, error = null)
+                is ManageTagsState.Loading, is Error -> ManageTagsState.Loading
             }
+        }
+        try {
+            block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.w(e, "Tag operation failed")
+            state.update { current ->
+                when (current) {
+                    is ManageTagsState.Content -> current.copy(isWorking = false, error = e)
+                    is ManageTagsState.Loading, is Error -> Error(e)
+                }
+            }
+        } finally {
+            updateState { it.copy(isWorking = false) }
         }
     }
 
@@ -195,10 +230,7 @@ class ManageTagsViewModel : ViewModel() {
         state.update { current ->
             when (current) {
                 is ManageTagsState.Content -> transform(current)
-                else -> {
-                    Timber.w("updateState called while in %s; ignoring", current::class.simpleName)
-                    current
-                }
+                else -> current
             }
         }
     }
@@ -319,17 +351,16 @@ sealed class ManageTagsState {
 
     data class Content(
         val visibleNodes: List<TagListItemState>,
-        val searchQuery: String = "",
+        /** `true` while a tag operation runs, allowing the UI to show progress without hiding the list. */
+        val isWorking: Boolean = false,
+        /** Most recent operation failure, cleared when the next operation starts. */
+        val error: Throwable? = null,
     ) : ManageTagsState()
 
     data class Error(
         val error: Throwable,
     ) : ManageTagsState()
 }
-
-data class DisplayMessage(
-    val message: UserMessage,
-)
 
 sealed interface UserMessage {
     /** @param notesAffected number of notes the tag was removed from */

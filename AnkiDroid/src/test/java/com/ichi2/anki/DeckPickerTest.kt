@@ -22,7 +22,6 @@ import androidx.core.net.toUri
 import androidx.core.view.ContentInfoCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.children
 import androidx.test.core.app.ActivityScenario
 import androidx.test.filters.SdkSuppress
 import anki.backend.backendError
@@ -295,7 +294,7 @@ class DeckPickerTest : RobolectricTest() {
                     .filterIsInstance<DeckPickerConfirmDeleteDeckDialog>()
                     .single()
                     .requireDialog() as AlertDialog
-            assertEquals(getString(R.string.delete_deck_title), dialog.title)
+            assertEquals(getString(CommonString.delete_deck_title), dialog.title)
             assertThat(dialog.message, containsString(deckName))
             assertEquals(deckId, col.decks.byName(deckName)?.id)
             assertEquals(1, col.cardCount())
@@ -309,7 +308,9 @@ class DeckPickerTest : RobolectricTest() {
     @Test
     fun databaseLockedTest() {
         // don't call .onCreate
-        val deckPicker = Robolectric.buildActivity(DeckPickerEx::class.java, Intent()).get()
+        val controller = Robolectric.buildActivity(DeckPickerEx::class.java, Intent())
+        saveControllerForCleanup(controller)
+        val deckPicker = controller.get()
         deckPicker.handleStartupFailure(InitialActivity.StartupFailure.DatabaseLocked)
         assertThat(
             deckPicker.databaseErrorDialog,
@@ -321,7 +322,9 @@ class DeckPickerTest : RobolectricTest() {
     @Test
     fun `storage undecided shows load-failure options rather than crashing`() {
         // don't call .onCreate
-        val deckPicker = Robolectric.buildActivity(DeckPickerEx::class.java, Intent()).get()
+        val controller = Robolectric.buildActivity(DeckPickerEx::class.java, Intent())
+        saveControllerForCleanup(controller)
+        val deckPicker = controller.get()
         deckPicker.handleStartupFailure(InitialActivity.StartupFailure.StorageUndecided)
         assertThat(
             deckPicker.databaseErrorDialog,
@@ -512,6 +515,11 @@ class DeckPickerTest : RobolectricTest() {
     private fun DeckPicker.longPressDeck(name: String): View {
         val decks = deckPickerBinding.decks
         val adapter = decks.adapter as DeckAdapter
+        // Background list diffs can finish after the initial main looper drain.
+        advanceRobolectricLooperUntil(lazyMessage = { "Deck '$name' was not laid out" }) {
+            val position = adapter.currentList.indexOfFirst { it.lastDeckNameComponent == name }
+            position >= 0 && decks.findViewHolderForAdapterPosition(position) != null
+        }
         val deck = adapter.currentList.single { it.lastDeckNameComponent == name }
         val position = adapter.currentList.indexOf(deck)
         decks.findViewHolderForAdapterPosition(position)!!.itemView.performLongClick()
@@ -753,31 +761,32 @@ class DeckPickerTest : RobolectricTest() {
     @Test
     fun `restored study options fragment is pruned when recreated into single pane`() {
         assumeTrue("We are running on a tablet", qualifiers!!.contains("xlarge"))
-        val scenario = ActivityScenario.launch(DeckPicker::class.java)
-        advanceRobolectricLooper()
-        scenario.onActivity { deckPicker ->
-            assertThat(
-                "side panel fragment should be displayed on tablet",
-                deckPicker.supportFragmentManager.findFragmentById(R.id.studyoptions_fragment),
-                notNullValue(),
-            )
-        }
-        // Fold the device: the activity recreates into the single-pane layout, while
-        // FragmentManager restores the saved side panel fragment into it.
-        RuntimeEnvironment.setQualifiers("sw320dp")
-        scenario.recreate()
-        advanceRobolectricLooper()
-        scenario.onActivity { deckPicker ->
-            assertThat(
-                "restored side panel fragment must be pruned in single-pane layout",
-                deckPicker.supportFragmentManager.findFragmentById(R.id.studyoptions_fragment),
-                nullValue(),
-            )
-            assertThat(
-                "study options menu items must not leak into the single-pane toolbar",
-                deckPicker.menu().findItem(R.id.action_custom_study),
-                nullValue(),
-            )
+        ActivityScenario.launch(DeckPicker::class.java).use { scenario ->
+            advanceRobolectricLooper()
+            scenario.onActivity { deckPicker ->
+                assertThat(
+                    "side panel fragment should be displayed on tablet",
+                    deckPicker.supportFragmentManager.findFragmentById(R.id.studyoptions_fragment),
+                    notNullValue(),
+                )
+            }
+            // Fold the device: the activity recreates into the single-pane layout, while
+            // FragmentManager restores the saved side panel fragment into it.
+            RuntimeEnvironment.setQualifiers("sw320dp")
+            scenario.recreate()
+            advanceRobolectricLooper()
+            scenario.onActivity { deckPicker ->
+                assertThat(
+                    "restored side panel fragment must be pruned in single-pane layout",
+                    deckPicker.supportFragmentManager.findFragmentById(R.id.studyoptions_fragment),
+                    nullValue(),
+                )
+                assertThat(
+                    "study options menu items must not leak into the single-pane toolbar",
+                    deckPicker.menu().findItem(R.id.action_custom_study),
+                    nullValue(),
+                )
+            }
         }
     }
 
@@ -858,14 +867,9 @@ class DeckPickerTest : RobolectricTest() {
             assertThat("deck focus is set", viewModel.focusedDeck, equalTo(emptyDeck))
 
             // ACT: open up the Deck Context Menu
-            val deckToClick =
-                deckPickerBinding.decks.children.single {
-                    it.findViewById<TextView>(R.id.deck_name).text == "With Cards"
-                }
-            deckToClick.performLongClick()
+            longPressDeck("With Cards")
 
             // ASSERT
-            advanceRobolectricLooper() // ensure that 'focusedDeck' is current
             assertThat("unbury is visible: one card is buried", col.sched.haveBuried())
             assertThat("deck focus has changed", viewModel.focusedDeck, equalTo(deckWithCards))
         }

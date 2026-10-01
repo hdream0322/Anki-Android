@@ -10,13 +10,17 @@ import android.view.KeyEvent
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import androidx.annotation.VisibleForTesting
 import androidx.appcompat.widget.Toolbar
 import androidx.core.view.ViewCompat
 import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.google.android.material.slider.Slider
 import com.ichi2.anki.CollectionManager.TR
 import com.ichi2.anki.CommonString
@@ -35,6 +39,7 @@ import com.ichi2.anki.snackbar.BaseSnackbarBuilderProvider
 import com.ichi2.anki.snackbar.SnackbarBuilder
 import com.ichi2.anki.ui.internationalization.sentenceCase
 import com.ichi2.anki.utils.ext.collectIn
+import com.ichi2.anki.utils.ext.require
 import com.ichi2.anki.utils.ext.setIconRes
 import com.ichi2.anki.utils.ext.sharedPrefs
 import com.ichi2.anki.workarounds.SafeWebViewLayout
@@ -49,8 +54,20 @@ class PreviewerFragment :
     BaseSnackbarBuilderProvider,
     DispatchKeyEventListener,
     BindingProcessor<MappableBinding, PreviewerAction> {
-    override val viewModel: PreviewerViewModel by viewModels()
-    private val binding by viewBinding(FragmentPreviewerBinding::bind)
+    override val viewModel: PreviewerViewModel by viewModels {
+        viewModelFactory {
+            initializer {
+                val handle = createSavedStateHandle()
+                // Read before constructing the ViewModel, which immediately loads the first card.
+                val ids = handle.require<IdsFile>(CARD_IDS_FILE_ARG).getIds()
+                PreviewerViewModel(handle, ids)
+            }
+        }
+    }
+
+    @VisibleForTesting
+    internal val binding by viewBinding(FragmentPreviewerBinding::bind)
+
     override val webViewLayout: SafeWebViewLayout get() = binding.webViewLayout
 
     override val baseSnackbarBuilder: SnackbarBuilder

@@ -66,6 +66,11 @@ subprojects {
         version.set(ktlintVersion)
     }
 
+    tasks.withType<Test>().configureEach {
+        // Stop on the first test failure in the merge queue; keep all results for other runs.
+        failFast = providers.environmentVariable("GITHUB_EVENT_NAME").orNull == "merge_group"
+    }
+
     afterEvaluate {
         plugins.withType<com.android.build.gradle.BasePlugin> {
             // com.android.lint [BasePlugin] has no `android` extension
@@ -75,6 +80,15 @@ subprojects {
                 isIncludeAndroidResources = true
             }
             androidExtension.testOptions.unitTests.all {
+                // Resolve SDKs before forking tests: Robolectric's shared download lock races on Windows (Issue 22069).
+                it.dependsOn(":AnkiDroid:robolectricSdkDownload")
+                val robolectricDependencies = project(":AnkiDroid").layout.buildDirectory.file("robolectric-deps.properties")
+                it.inputs.file(robolectricDependencies)
+                it.systemProperty(
+                    "robolectric-deps.properties",
+                    robolectricDependencies.get().asFile.absolutePath,
+                )
+
                 // tell backend to avoid rollover time, and disable interval fuzzing
                 it.environment("ANKI_TEST_MODE", "1")
 

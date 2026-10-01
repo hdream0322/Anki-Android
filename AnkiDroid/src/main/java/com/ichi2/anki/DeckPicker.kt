@@ -1501,10 +1501,12 @@ open class DeckPicker :
 
     private fun createBackup() {
         launchCatchingTask {
-            withProgress(message = TR.sentenceCase.creatingBackup) {
-                performBackupInBackground(true)
-            }
-            showThemedToast(this@DeckPicker, TR.profilesBackupCreated(), false)
+            val created =
+                withProgress(message = TR.sentenceCase.creatingBackup) {
+                    performBackupInBackground(true)
+                }
+            val message = if (created) TR.profilesBackupCreated() else TR.profilesBackupUnchanged()
+            showThemedToast(this@DeckPicker, message, false)
         }
     }
 
@@ -1555,6 +1557,7 @@ open class DeckPicker :
         // Due to the App Introduction, this may be called before permission has been granted.
         if (syncOnResume && hasCollectionStoragePermissions()) {
             syncOnResume = false
+            intent.removeExtra(INTENT_SYNC_FROM_LOGIN)
             Timber.i("Performing Sync on Resume")
             Permissions.requestNotificationPermissionsForSyncing(this)
             sync()
@@ -1572,7 +1575,7 @@ open class DeckPicker :
         outState.putBoolean("mIsFABOpen", floatingActionMenu.isFABOpen)
         importColpkgListener?.let {
             if (it is DatabaseRestorationListener) {
-                outState.getString("dbRestorationPath", it.newAnkiDroidDirectory.absolutePath)
+                outState.putString("dbRestorationPath", it.newAnkiDroidDirectory.absolutePath)
             }
         }
         outState.putSerializable("mediaUsnOnConflict", mediaUsnOnConflict)

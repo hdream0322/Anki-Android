@@ -4,16 +4,26 @@ package com.ichi2.anki.tags
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
+import com.ichi2.anki.CollectionManager
 import com.ichi2.anki.RobolectricTest
 import com.ichi2.anki.dialogs.utils.AnKingTags
 import com.ichi2.anki.observability.ensureOpsExecuted
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.setMain
+import net.ankiweb.rsdroid.BackendException.BackendDbException.BackendDbLockedException
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.containsInAnyOrder
 import org.hamcrest.Matchers.equalTo
 import org.hamcrest.Matchers.hasItem
 import org.hamcrest.Matchers.hasSize
+import org.hamcrest.Matchers.instanceOf
 import org.hamcrest.Matchers.not
+import org.hamcrest.Matchers.nullValue
+import org.hamcrest.Matchers.sameInstance
 import org.junit.Test
 import org.junit.runner.RunWith
 import kotlin.system.measureTimeMillis
@@ -76,8 +86,139 @@ class ManageTagsViewModelTest : RobolectricTest() {
             withViewModel {
                 filter("sci")
                 refreshTags()
-                assertThat(loadedState.searchQuery, equalTo("sci"))
+                assertThat(searchQuery.value, equalTo("sci"))
                 assertThat(loadedState.visibleTagNames, equalTo(listOf("science")))
+            }
+        }
+
+    @Test
+    fun `removeTag keeps existing content visible until completion`() =
+        runTest {
+            addTags("science", "history")
+            withViewModel {
+                val previousTags = loadedState.visibleNodes
+                withQueuedCollectionAccess {
+                    val deletion = removeTag("science")
+                    assertThat(loadedState.isWorking, equalTo(true))
+                    assertThat(loadedState.visibleNodes, equalTo(previousTags))
+
+                    deletion.join()
+
+                    assertThat(loadedState.isWorking, equalTo(false))
+                    assertThat(loadedState.error, nullValue())
+                    assertThat(loadedState.visibleTagNames, equalTo(listOf("history")))
+                }
+            }
+        }
+
+    @Test
+    fun `operations requested while busy do not mutate tags`() =
+        runTest {
+            addTags("science::biology", "history")
+            addUnusedTag("unused")
+            withViewModel {
+                withQueuedCollectionAccess {
+                    val refresh = refreshTags()
+                    assertThat(refresh.isCompleted, equalTo(false))
+
+                    assertThat(removeTag("science"), sameInstance(refresh))
+                    assertThat(renameTag("history", "past"), sameInstance(refresh))
+                    assertThat(clearUnusedTags(), sameInstance(refresh))
+                    assertThat(toggleCollapsed("science"), sameInstance(refresh))
+                    assertThat(refreshTags(), sameInstance(refresh))
+
+                    refresh.join()
+                }
+                assertThat(loadedState.visibleTagNames, containsInAnyOrder("science", "history", "unused"))
+                assertThat(loadedState.visibleNodes.single { it.fullTagName == "science" }.collapsed, equalTo(true))
+
+                removeTag("science").join()
+                assertThat(loadedState.visibleTagNames, containsInAnyOrder("history", "unused"))
+            }
+        }
+
+    @Test
+    fun `search updates visible content while refresh is running`() =
+        runTest {
+            addTags("science", "history")
+            withViewModel {
+                withQueuedCollectionAccess {
+                    val refresh = refreshTags()
+                    filter("hist")
+
+                    assertThat(loadedState.isWorking, equalTo(true))
+                    assertThat(loadedState.visibleTagNames, equalTo(listOf("history")))
+
+                    refresh.join()
+                    assertThat(loadedState.visibleTagNames, equalTo(listOf("history")))
+                }
+            }
+        }
+
+    @Test
+    fun `operation failure preserves content and retry clears error`() =
+        runTest {
+            addTags("science", "history")
+            withViewModel {
+                val previousTags = loadedState.visibleNodes
+                withLockedCollection {
+                    removeTag("science").join()
+                }
+
+                assertThat(loadedState.visibleNodes, equalTo(previousTags))
+                assertThat(loadedState.isWorking, equalTo(false))
+                assertThat(loadedState.error, instanceOf(BackendDbLockedException::class.java))
+
+                withQueuedCollectionAccess {
+                    val retry = removeTag("science")
+                    assertThat(loadedState.isWorking, equalTo(true))
+                    assertThat(loadedState.error, nullValue())
+
+                    retry.join()
+                    assertThat(loadedState.isWorking, equalTo(false))
+                    assertThat(loadedState.visibleTagNames, equalTo(listOf("history")))
+                }
+            }
+        }
+
+    @Test
+    fun `initial load failure allows search input and retry`() =
+        runTest {
+            addTags("science", "history")
+            val viewModel = withLockedCollection { ManageTagsViewModel() }
+            val failure = viewModel.state.value
+            assertThat(failure, instanceOf(ManageTagsState.Error::class.java))
+            assertThat((failure as ManageTagsState.Error).error, instanceOf(BackendDbLockedException::class.java))
+
+            viewModel.filter("hist")
+            assertThat(viewModel.searchQuery.value, equalTo("hist"))
+
+            withQueuedCollectionAccess {
+                val retry = viewModel.refreshTags()
+                assertThat(viewModel.state.value, equalTo(ManageTagsState.Loading))
+                retry.join()
+            }
+            assertThat(viewModel.loadedState.visibleTagNames, equalTo(listOf("history")))
+        }
+
+    @Test
+    fun `cancelled operation clears progress and permits another operation`() =
+        runTest {
+            addTags("science", "history")
+            withViewModel {
+                val previous = loadedState
+                withQueuedCollectionAccess {
+                    val deletion = removeTag("science")
+                    assertThat(loadedState.isWorking, equalTo(true))
+
+                    deletion.cancelAndJoin()
+
+                    assertThat(loadedState, equalTo(previous))
+                    val refresh = refreshTags()
+                    assertThat(loadedState.isWorking, equalTo(true))
+                    refresh.join()
+                    assertThat(loadedState, equalTo(previous))
+                }
             }
         }
 
@@ -96,7 +237,72 @@ class ManageTagsViewModelTest : RobolectricTest() {
             withViewModel {
                 filter("sci")
                 assertThat(loadedState.visibleTagNames, equalTo(listOf("science")))
-                assertThat(loadedState.searchQuery, equalTo("sci"))
+                assertThat(searchQuery.value, equalTo("sci"))
+            }
+        }
+
+    @Test
+    fun `filter updates query in an empty collection`() =
+        runTest {
+            withViewModel {
+                filter("sci")
+                assertThat(searchQuery.value, equalTo("sci"))
+                assertThat(loadedState.visibleNodes, hasSize(0))
+
+                addTags("science", "history")
+                refreshTags()
+                assertThat(loadedState.visibleTagNames, equalTo(listOf("science")))
+            }
+        }
+
+    @Test
+    fun `filter during initial loading applies latest query when tags arrive`() =
+        runTest {
+            addTags("science", "history")
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            withViewModel {
+                assertThat(state.value, equalTo(ManageTagsState.Loading))
+                filter("sci")
+                filter("hist")
+                assertThat(searchQuery.value, equalTo("hist"))
+
+                runCurrent()
+
+                assertThat(searchQuery.value, equalTo("hist"))
+                assertThat(loadedState.visibleTagNames, equalTo(listOf("history")))
+            }
+        }
+
+    @Test
+    fun `filter during refresh is not overwritten when refresh completes`() =
+        runTest {
+            addTags("science", "history")
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            withViewModel {
+                runCurrent()
+                filter("sci")
+                val refresh = refreshTags()
+                filter("hist")
+                assertThat(searchQuery.value, equalTo("hist"))
+
+                refresh.join()
+
+                assertThat(searchQuery.value, equalTo("hist"))
+                assertThat(loadedState.visibleTagNames, equalTo(listOf("history")))
+            }
+        }
+
+    @Test
+    fun `filter can be cleared after deleting the last tag`() =
+        runTest {
+            addTags("science")
+            withViewModel {
+                filter("sci")
+                removeTag("science")
+                filter("")
+
+                assertThat(searchQuery.value, equalTo(""))
+                assertThat(loadedState.visibleNodes, hasSize(0))
             }
         }
 
@@ -168,13 +374,12 @@ class ManageTagsViewModelTest : RobolectricTest() {
         }
 
     @Test
-    fun `toggleCollapsed on unknown tag sends UnexpectedError`() =
+    fun `toggleCollapsed on unknown tag queues UnexpectedError`() =
         runTest {
             addTags("science")
             withViewModel {
                 toggleCollapsed("nonexistent")
-                val event = events.first()
-                assertIs<UserMessage.UnexpectedError>(event.message)
+                assertThat(pendingMessages.value.single().message, equalTo(UserMessage.UnexpectedError))
             }
         }
 
@@ -246,43 +451,70 @@ class ManageTagsViewModelTest : RobolectricTest() {
         }
 
     @Test
-    fun `clearUnusedTags sends event with count`() =
+    fun `clearUnusedTags queues message with count`() =
         runTest {
             addTags("used")
             addUnusedTag("unused")
             withViewModel {
                 clearUnusedTags()
-                val event = events.first()
-                val message = assertIs<UserMessage.ClearedUnusedTags>(event.message)
-                assertThat(message.count, equalTo(1))
+                assertThat(pendingMessages.value.single().message, equalTo(UserMessage.ClearedUnusedTags(1)))
             }
         }
 
     @Test
-    fun `removeTag sends event with affected note count`() =
+    fun `removeTag queues message with affected note count`() =
         runTest {
             // add 'science to 2 notes - ensure that the return value is the notes affected
             addTags("science")
             addTags("science")
             withViewModel {
                 removeTag("science")
-                val event = events.first()
-                val message = assertIs<UserMessage.TagRemoved>(event.message)
-                assertThat(message.notesAffected, equalTo(2))
+                assertThat(pendingMessages.value.single().message, equalTo(UserMessage.TagRemoved(2)))
             }
         }
 
     @Test
-    fun `renameTag sends event with affected note count`() =
+    fun `renameTag queues message with affected note count`() =
         runTest {
             // add 'science to 2 notes - ensure that the return value is the notes affected
             addTags("science")
             addTags("science")
             withViewModel {
                 renameTag("science", "physics")
-                val event = events.first()
-                val message = assertIs<UserMessage.TagRenamed>(event.message)
-                assertThat(message.notesAffected, equalTo(2))
+                assertThat(pendingMessages.value.single().message, equalTo(UserMessage.TagRenamed(2)))
+            }
+        }
+
+    @Test
+    fun `messageShown removes the displayed message`() =
+        runTest {
+            addTags("science")
+            withViewModel {
+                removeTag("science").join()
+
+                messageShown(pendingMessages.value.single().id)
+
+                assertThat(pendingMessages.value, hasSize(0))
+            }
+        }
+
+    @Test
+    fun `pending messages survive refresh failures and retries`() =
+        runTest {
+            addTags("science", "history")
+            withViewModel {
+                removeTag("science").join()
+                val pending = pendingMessages.value
+                withLockedCollection {
+                    refreshTags().join()
+                }
+                assertThat(loadedState.error, instanceOf(BackendDbLockedException::class.java))
+                assertThat(pendingMessages.value, equalTo(pending))
+
+                refreshTags().join()
+                filter("hist")
+                assertThat(loadedState.error, nullValue())
+                assertThat(pendingMessages.value, equalTo(pending))
             }
         }
 
@@ -348,6 +580,25 @@ class ManageTagsViewModelTest : RobolectricTest() {
                 assertTrue(avgMs < expected, "toggleCollapsed took ${avgMs}ms on average, expected < $expected")
             }
         }
+
+    private suspend fun <T> withLockedCollection(block: suspend () -> T): T {
+        CollectionManager.emulatedOpenFailure = CollectionManager.CollectionOpenFailure.LOCKED
+        try {
+            return block()
+        } finally {
+            CollectionManager.emulatedOpenFailure = null
+        }
+    }
+
+    /** Suspend backend access so assertions can observe an operation in progress. */
+    private suspend fun TestScope.withQueuedCollectionAccess(block: suspend () -> Unit) {
+        val previousQueue = CollectionManager.setTestDispatcher(StandardTestDispatcher(testScheduler), useReentrantLock = false)
+        try {
+            block()
+        } finally {
+            CollectionManager.setTestDispatcher(previousQueue)
+        }
+    }
 
     private suspend fun withViewModel(block: suspend ManageTagsViewModel.() -> Unit) = ManageTagsViewModel().block()
 

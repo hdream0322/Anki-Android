@@ -12,6 +12,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.content.res.Resources
 import android.os.Looper
+import android.widget.Button
 import android.widget.TextView
 import androidx.annotation.CallSuper
 import androidx.appcompat.app.AlertDialog
@@ -40,18 +41,19 @@ import com.ichi2.anki.libanki.testutils.InMemoryCollectionManagerWithMediaFolder
 import com.ichi2.anki.libanki.testutils.TestCollectionManager
 import com.ichi2.anki.observability.ChangeManager
 import com.ichi2.anki.observability.undoableOp
+import com.ichi2.anki.utils.OnlyOnce
 import com.ichi2.compat.customtabs.CustomTabActivityHelper
 import com.ichi2.testutils.AndroidTest
+import com.ichi2.testutils.NoLiveRobolectricActivitiesRule
 import com.ichi2.testutils.ProductionCollectionManager
 import com.ichi2.testutils.common.FailOnUnhandledExceptionRule
 import com.ichi2.testutils.common.IgnoreFlakyTestsInCIRule
 import com.ichi2.testutils.filter
 import com.ichi2.testutils.grantPermissions
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.TestDispatcher
-import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import net.ankiweb.rsdroid.BackendException
 import net.ankiweb.rsdroid.testing.RustBackendLoader
@@ -74,9 +76,11 @@ import org.robolectric.shadows.ShadowLooper
 import org.robolectric.shadows.ShadowMediaPlayer
 import timber.log.Timber
 import kotlin.test.assertNotNull
+import kotlin.test.assertSame
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
+import com.ichi2.testutils.Robolectric as RobolectricActivities
 
 open class RobolectricTest :
     AnkiTest,
@@ -105,6 +109,15 @@ open class RobolectricTest :
 
     @get:Rule
     val tempFolder = TemporaryFolder()
+
+    /**
+     * After all `@After` methods, fail if any Robolectric activities are still live.
+     * Retained AppCompat delegates can recreate activities on later night-mode changes.
+     *
+     * Low [Rule.order] so this wraps other rules and always runs after their cleanup.
+     */
+    @get:Rule(order = Int.MIN_VALUE)
+    val noLiveActivities = NoLiveRobolectricActivitiesRule()
 
     override val collectionManager: TestCollectionManager by lazy {
         when (getCollectionStorageMode()) {
@@ -174,12 +187,12 @@ open class RobolectricTest :
         throwOnShowError = false
         // If you don't clean up your ActivityControllers you will get OOM errors
         for (controller in controllersForCleanup) {
-            Timber.d("Calling destroy on controller %s", controller.get().toString())
             try {
-                controller.destroy()
-            } catch (e: Exception) {
-                // Any exception here is likely because the test code already destroyed it, which is fine
-                // No exception here should halt test execution since tests are over anyway.
+                Timber.d("Closing controller %s", controller.get())
+                RobolectricActivities.closeActivity(controller)
+            } catch (failure: Throwable) {
+                // Let subclass @After methods and other rules finish cleanup before reporting.
+                noLiveActivities.recordCleanupFailure(failure)
             }
         }
         controllersForCleanup.clear()
@@ -215,19 +228,24 @@ open class RobolectricTest :
         WorkManagerTestInitHelper.closeWorkDatabase()
         Dispatchers.resetMain()
         runBlocking { CollectionManager.discardBackend() }
+        val pendingMethods = OnlyOnce.pendingMethods
+        Assert.assertTrue(
+            "OnlyOnce operations still pending after ${testName.methodName}: $pendingMethods. Await them before ending the test.",
+            pendingMethods.isEmpty(),
+        )
         println("""-- completed test "${testName.methodName}"""")
     }
 
     /**
-     * Click on a dialog button for an AlertDialog dialog box. Replaces the above helper.
+     * Click [button] on the latest AlertDialog and process its click handler.
      */
     protected fun clickAlertDialogButton(
-        button: Int,
-        @Suppress("SameParameterValue") checkDismissed: Boolean,
+        checkDismissed: Boolean = true,
+        button: AlertDialog.() -> Button,
     ) {
         val dialog = getLatestAlertDialog()
 
-        dialog.getButton(button).performClick()
+        dialog.button().performClick()
         // Need to run UI thread tasks to actually run the onClickHandler
         ShadowLooper.runUiThreadTasks()
 
@@ -479,10 +497,22 @@ open class RobolectricTest :
         ioDispatcher = dispatcher
     }
 
-    override suspend fun TestScope.runTestInner(testBody: suspend TestScope.() -> Unit) {
-        (collectionManager as? ProductionCollectionManager)
-            ?.setTestDispatcher(UnconfinedTestDispatcher(testScheduler))
-        testBody()
+    override fun withTestDispatcher(
+        dispatcher: TestDispatcher,
+        block: () -> Unit,
+    ) {
+        val previousDispatcher = CollectionManager.setTestDispatcher(dispatcher)
+        val dispatcherAfterTest: CoroutineDispatcher
+        try {
+            block()
+        } finally {
+            dispatcherAfterTest = CollectionManager.setTestDispatcher(previousDispatcher)
+        }
+        assertSame(
+            dispatcher,
+            dispatcherAfterTest,
+            "CollectionManager dispatcher was not restored. Save and restore it in a finally block.",
+        )
     }
 }
 

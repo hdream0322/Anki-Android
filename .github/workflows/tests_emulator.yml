@@ -161,6 +161,35 @@ jobs:
           max_attempts: 3
           command: ./gradlew packagePlayRelease packagePlayReleaseAndroidTest --daemon
 
+      - name: Install Android Emulator
+        # Retry to work around https://github.com/ReactiveCircus/android-emulator-runner/issues/496
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
+        env:
+          SDK_API_LEVEL: ${{ matrix.api-level }}
+          SDK_TARGET: ${{ matrix.target }}
+          SDK_ARCH: ${{ matrix.arch }}
+          # Keep in sync with sdk-installer.ts in the pinned android-emulator-runner action.
+          SDK_BUILD_TOOLS_VERSION: '37.0.0'
+        with:
+          timeout_minutes: 5
+          retry_wait_seconds: 60
+          max_attempts: 3
+          command: >-
+            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --verbose --install
+            "build-tools;$SDK_BUILD_TOOLS_VERSION"
+            platform-tools "platforms;android-$SDK_API_LEVEL"
+            emulator "system-images;android-$SDK_API_LEVEL;$SDK_TARGET;$SDK_ARCH"
+            --channel=0
+          # sdkmanager preserves failed downloads and installation state for resuming.
+          on_retry_command: >-
+            rm -rf "${ANDROID_HOME:?}/.temp"
+            "${ANDROID_HOME:?}/.downloadIntermediates"
+            "${ANDROID_HOME:?}/emulator/.installer"
+            "${ANDROID_HOME:?}/build-tools/${SDK_BUILD_TOOLS_VERSION:?}/.installer"
+            "${ANDROID_HOME:?}/platform-tools/.installer"
+            "${ANDROID_HOME:?}/platforms/android-${SDK_API_LEVEL:?}/.installer"
+            "${ANDROID_HOME:?}/system-images/android-${SDK_API_LEVEL:?}/${SDK_TARGET:?}/${SDK_ARCH:?}/.installer"
+
       - name: AVD Boot and Snapshot Creation
         # Only generate a snapshot for saving if we are on main branch with a cache miss
         # Comment the if out to generate snapshots on branch for performance testing
@@ -227,7 +256,7 @@ jobs:
             bash .github/adb_retry.sh shell settings put global hide_error_dialogs 1
             bash .github/adb_retry.sh emu screenrecord start --time-limit 1800 video.webm
             sleep 5
-            bash .github/with_emulator_log.sh adb-log.txt ./gradlew uninstallAll jacocoAndroidTestReport --daemon
+            bash .github/with_emulator_log.sh adb-log.txt python3 .github/run_emulator_tests.py
 
       - name: Report Emulator Test Results
         if: always() && hashFiles('AnkiDroid/build/outputs/androidTest-results/connected/**/TEST-*.xml') != ''

@@ -5,17 +5,6 @@ package com.ichi2.anki.ui.windows.reviewer.whiteboard
 import android.content.SharedPreferences
 import android.graphics.Color
 import androidx.core.content.edit
-import com.ichi2.utils.toRGBAHex
-
-/**
- * Holds the configuration for a single brush.
- */
-data class BrushInfo(
-    val color: Int,
-    val width: Float,
-) {
-    override fun toString(): String = "BrushInfo(color=${color.toRGBAHex()}, width=${"%.1f".format(width)})"
-}
 
 /**
  * Repository for handling data operations, specifically for saving and loading
@@ -25,14 +14,14 @@ class WhiteboardRepository(
     private val sharedPreferences: SharedPreferences,
 ) {
     fun saveBrushes(
-        brushes: List<BrushInfo>,
+        brushes: List<WhiteboardTool.Brush>,
         isDarkMode: Boolean,
     ) {
         val key = if (isDarkMode) KEY_BRUSHES_DARK else KEY_BRUSHES_LIGHT
         sharedPreferences.edit { putString(key, brushes.toPreferenceString()) }
     }
 
-    fun loadBrushes(isDarkMode: Boolean): List<BrushInfo> {
+    fun loadBrushes(isDarkMode: Boolean): List<WhiteboardTool.Brush> {
         val key = if (isDarkMode) KEY_BRUSHES_DARK else KEY_BRUSHES_LIGHT
         val saved = sharedPreferences.getString(key, null)
         return if (saved.isNullOrEmpty()) {
@@ -85,23 +74,14 @@ class WhiteboardRepository(
         get() = sharedPreferences.getBoolean(KEY_IS_TOOLBAR_SHOWN, true)
         set(value) = sharedPreferences.edit { putBoolean(KEY_IS_TOOLBAR_SHOWN, value) }
 
-    /**
-     * Whether the whiteboard drawing should scale and pan together with the card's
-     * own zoom/scroll, so ink stays visually attached to the card content it was
-     * drawn on top of.
-     */
-    var isCardZoomSyncEnabled: Boolean
-        get() = sharedPreferences.getBoolean(KEY_IS_CARD_ZOOM_SYNC_ENABLED, false)
-        set(value) = sharedPreferences.edit { putBoolean(KEY_IS_CARD_ZOOM_SYNC_ENABLED, value) }
+    private fun List<WhiteboardTool.Brush>.toPreferenceString(): String = this.joinToString(",") { "${it.color}|${it.width}" }
 
-    private fun List<BrushInfo>.toPreferenceString(): String = this.joinToString(",") { "${it.color}|${it.width}" }
-
-    private fun String.fromPreferenceString(): List<BrushInfo> =
+    private fun String.fromPreferenceString(): List<WhiteboardTool.Brush> =
         this.split(',').mapNotNull {
             val parts = it.split('|')
             if (parts.size == 2) {
                 try {
-                    BrushInfo(color = parts[0].toInt(), width = parts[1].toFloat())
+                    WhiteboardTool.Brush(color = parts[0].toInt(), width = parts[1].toFloat())
                 } catch (_: NumberFormatException) {
                     null
                 }
@@ -121,18 +101,17 @@ class WhiteboardRepository(
         private const val KEY_STYLUS_ONLY_MODE = "stylus_only_mode"
         private const val KEY_TOOLBAR_ALIGNMENT = "toolbar_alignment"
         private const val KEY_IS_TOOLBAR_SHOWN = "is_toolbar_shown"
-        private const val KEY_IS_CARD_ZOOM_SYNC_ENABLED = "is_card_zoom_sync_enabled"
         const val DEFAULT_STROKE_WIDTH = 10f
         const val DEFAULT_ERASER_WIDTH = 30f
 
-        fun getDefaultBrushes(isDarkMode: Boolean): List<BrushInfo> =
+        fun getDefaultBrushes(isDarkMode: Boolean): List<WhiteboardTool.Brush> =
             if (isDarkMode) {
                 listOf(
-                    BrushInfo(color = Color.WHITE, width = DEFAULT_STROKE_WIDTH),
+                    WhiteboardTool.Brush(color = Color.WHITE, width = DEFAULT_STROKE_WIDTH),
                 )
             } else {
                 listOf(
-                    BrushInfo(color = Color.BLACK, width = DEFAULT_STROKE_WIDTH),
+                    WhiteboardTool.Brush(color = Color.BLACK, width = DEFAULT_STROKE_WIDTH),
                 )
             }
     }

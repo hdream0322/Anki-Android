@@ -6,14 +6,12 @@ package com.ichi2.anki
 import androidx.core.content.edit
 import androidx.recyclerview.widget.RecyclerView
 import androidx.test.espresso.Espresso.onView
-import androidx.test.espresso.NoMatchingViewException
 import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.contrib.RecyclerViewActions
 import androidx.test.espresso.matcher.ViewMatchers.hasDescendant
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.espresso.matcher.ViewMatchers.withId
-import androidx.test.espresso.matcher.ViewMatchers.withResourceName
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -22,11 +20,13 @@ import com.ichi2.anki.libanki.Consts
 import com.ichi2.anki.libanki.DeckId
 import com.ichi2.anki.tests.InstrumentedTest
 import com.ichi2.anki.tests.checkWithTimeout
+import com.ichi2.anki.testutil.AvoidDayRolloverRule
 import com.ichi2.anki.testutil.GrantStoragePermission.storagePermission
 import com.ichi2.anki.testutil.closeBackupCollectionDialogIfExists
 import com.ichi2.anki.testutil.closeGetStartedScreenIfExists
 import com.ichi2.anki.testutil.grantPermissions
 import com.ichi2.anki.testutil.notificationPermission
+import com.ichi2.anki.testutil.useResumedActivity
 import com.ichi2.anki.testutil.waitUntil
 import com.ichi2.anki.utils.ext.cardStateCustomizer
 import org.hamcrest.MatcherAssert.assertThat
@@ -36,11 +36,13 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import timber.log.Timber
-import java.lang.AssertionError
 import java.util.UUID
 
 @RunWith(AndroidJUnit4::class)
 class ReviewerTest : InstrumentedTest() {
+    @get:Rule(order = 0)
+    val avoidDayRollover = AvoidDayRolloverRule()
+
     // Launch IntroductionActivity instead of DeckPicker activity because in CI
     // builds, it seems to create IntroductionActivity after the DeckPicker,
     // causing the DeckPicker activity to be destroyed. As a consequence, this
@@ -48,7 +50,7 @@ class ReviewerTest : InstrumentedTest() {
     // with an already destroyed activity. By launching IntroductionActivity, we
     // ensure that IntroductionActivity is launched first and navigate to the
     // DeckPicker -> Reviewer activities
-    @get:Rule
+    @get:Rule(order = 1)
     val activityScenarioRule = ActivityScenarioRule(IntroductionActivity::class.java)
 
     @get:Rule
@@ -106,23 +108,23 @@ class ReviewerTest : InstrumentedTest() {
 
         closeGetStartedScreenIfExists()
         closeBackupCollectionDialogIfExists()
-        reviewDeckWithName(testDeckName)
+        reviewDeckWithName(testDeckName) {
+            var cardFromDb = col.getCard(card.id).toBackendCard()
+            assertThat(cardFromDb.easeFactor, equalTo(card.factor))
+            assertThat(cardFromDb.interval, equalTo(card.ivl))
+            assertThat(cardFromDb.customData, equalTo("""{"c":1}"""))
 
-        var cardFromDb = col.getCard(card.id).toBackendCard()
-        assertThat(cardFromDb.easeFactor, equalTo(card.factor))
-        assertThat(cardFromDb.interval, equalTo(card.ivl))
-        assertThat(cardFromDb.customData, equalTo("""{"c":1}"""))
+            clickShowAnswerAndAnswerGood()
+            // Answering runs on the IO dispatcher, which Espresso does not wait for.
+            waitUntil(message = { "The review of card ${card.id} was not saved" }) {
+                col.getCard(card.id).reps == card.reps + 1
+            }
 
-        clickShowAnswerAndAnswerGood()
-        // Answering runs on the IO dispatcher, which Espresso does not wait for.
-        waitUntil(message = { "The review of card ${card.id} was not saved" }) {
-            col.getCard(card.id).reps == card.reps + 1
+            cardFromDb = col.getCard(card.id).toBackendCard()
+            assertThat(cardFromDb.easeFactor, equalTo(3000))
+            assertThat(cardFromDb.interval, equalTo(123))
+            assertThat(cardFromDb.customData, equalTo("""{"c":2}"""))
         }
-
-        cardFromDb = col.getCard(card.id).toBackendCard()
-        assertThat(cardFromDb.easeFactor, equalTo(3000))
-        assertThat(cardFromDb.interval, equalTo(123))
-        assertThat(cardFromDb.customData, equalTo("""{"c":2}"""))
     }
 
     @Test
@@ -137,11 +139,11 @@ class ReviewerTest : InstrumentedTest() {
 
         closeGetStartedScreenIfExists()
         closeBackupCollectionDialogIfExists()
-        reviewDeckWithName(testDeckName)
+        reviewDeckWithName(testDeckName) {
+            clickShowAnswer()
 
-        clickShowAnswer()
-
-        ensureAnswerButtonsAreDisplayed()
+            ensureAnswerButtonsAreDisplayed()
+        }
     }
 
     private fun clickOnDeckWithName(deckName: String) {
@@ -160,37 +162,33 @@ class ReviewerTest : InstrumentedTest() {
             .perform(click())
     }
 
-    private fun reviewDeckWithName(deckName: String) {
-        clickOnDeckWithName(deckName)
-        // Adding cards directly to the database while in the Deck Picker screen
-        // will not update the page with correct card counts. Hence, clicking
-        // on the deck will bring us to the study options page where we need to
-        // click on the Study button. If we have added cards to the database
-        // before the Deck Picker screen has fully loaded, then we skip clicking
-        // the Study button
-        clickOnStudyButtonIfExists()
+    private fun reviewDeckWithName(
+        deckName: String,
+        block: () -> Unit,
+    ) {
+        // The activity rule only owns IntroductionActivity. Close both activities before restoring
+        // rollover, so neither can refresh against a collection that is being torn down.
+        useResumedActivity<DeckPicker> {
+            clickOnDeckWithName(deckName)
+            // Adding cards directly to the database while in the Deck Picker screen
+            // will not update the page with correct card counts. Hence, clicking
+            // on the deck will bring us to the study options page where we need to
+            // click on the Study button. If we have added cards to the database
+            // before the Deck Picker screen has fully loaded, then we skip clicking
+            // the Study button
+            clickOnStudyButtonIfExists()
+            useResumedActivity<Reviewer> { block() }
+        }
     }
 
     private fun clickShowAnswerAndAnswerGood() {
         clickShowAnswer()
         ensureAnswerButtonsAreDisplayed()
-        try {
-            // ...on the command line it has resource name "good_button"...
-            onView(withResourceName("good_button")).perform(click())
-        } catch (e: NoMatchingViewException) {
-            // ...but in Android Studio it has resource name "flashcard_layout_ease3" !?
-            onView(withResourceName("flashcard_layout_ease3")).perform(click())
-        }
+        onView(withId(R.id.flashcard_layout_ease3)).perform(click())
     }
 
     private fun clickShowAnswer() {
-        try {
-            // ... on the command line, it has resource name "show_answer"...
-            onView(withResourceName("show_answer")).perform(click())
-        } catch (e: NoMatchingViewException) {
-            // ... but in Android Studio it has resource name "flashcard_layout_flip" !?
-            onView(withResourceName("flashcard_layout_flip")).perform(click())
-        }
+        onView(withId(R.id.flashcard_layout_flip)).perform(click())
     }
 
     private fun ensureAnswerButtonsAreDisplayed() {
@@ -198,19 +196,10 @@ class ReviewerTest : InstrumentedTest() {
         // the messages to be passed in and out of the WebView when evaluating
         // the custom JS scheduler code. The ease buttons are hidden until the
         // custom scheduler has finished running
-        try {
-            // ...on the command line it has resource name "good_button"...
-            onView(withResourceName("good_button")).checkWithTimeout(
-                matches(isDisplayed()),
-                100,
-            )
-        } catch (e: AssertionError) {
-            // ...but in Android Studio it has resource name "flashcard_layout_ease3" !?
-            onView(withResourceName("flashcard_layout_ease3")).checkWithTimeout(
-                matches(isDisplayed()),
-                100,
-            )
-        }
+        onView(withId(R.id.flashcard_layout_ease3)).checkWithTimeout(
+            matches(isDisplayed()),
+            100,
+        )
     }
 
     private fun disableNewReviewer() {

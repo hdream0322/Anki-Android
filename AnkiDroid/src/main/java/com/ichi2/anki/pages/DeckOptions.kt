@@ -30,11 +30,11 @@ import com.ichi2.anki.libanki.DeckId
 import com.ichi2.anki.libanki.updateDeckConfigsRaw
 import com.ichi2.anki.observability.undoableOp
 import com.ichi2.anki.settings.Prefs
-import com.ichi2.anki.utils.openUrl
 import com.ichi2.anki.withProgress
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import timber.log.Timber
+import java.util.concurrent.atomic.AtomicInteger
 
 @NeedsTest("15130: pressing back: icon + button should return to options if the manual is open")
 @NeedsTest("17905: pressing back before the webpage is ready closes the screen")
@@ -46,6 +46,7 @@ class DeckOptions : PageFragment() {
         "deck-options/$deckId"
     }
     private var webViewIsReady = false
+    private val saveAndOptimizeReload = SaveAndOptimizeReload()
 
     /**
      * Callback enabled when the manual is opened in the deck options.
@@ -164,6 +165,7 @@ class DeckOptions : PageFragment() {
     override fun onWebViewCreated() {
         // addJavascriptInterface needs to happen before loadUrl
         webViewLayout.addJavascriptInterface(ModalJavaScriptInterfaceListener(), "ankidroid")
+        webViewLayout.addJavascriptInterface(saveAndOptimizeReload, "ankidroidSave")
         Timber.d("Added JS Interface: 'ankidroid")
     }
 
@@ -175,8 +177,6 @@ class DeckOptions : PageFragment() {
         activity?.onBackPressedDispatcher?.addCallback(this, onBackFromManual)
 
         return object : PageWebViewClient() {
-            private val ankiManualHostRegex = Regex("^docs\\.ankiweb\\.net$")
-
             /** @see onWebViewReady */
             override fun onShowWebView(webView: WebView) {
                 // no-op: handled in onVebViewReady
@@ -187,14 +187,18 @@ class DeckOptions : PageFragment() {
                 request: WebResourceRequest?,
             ): Boolean {
                 // #16715: ensure that the fragment can't be used for general web browsing
-                val host = request?.url?.host ?: return shouldOverrideUrlLoading(view, request)
-                // Allow JavaScript to reload this page, including when night mode adds a fragment.
-                if (request.url.toString().substringBefore('#') == view?.url?.substringBefore('#')) return false
-                return if (ankiManualHostRegex.matches(host)) {
-                    super.shouldOverrideUrlLoading(view, request)
+                val url = request?.url ?: return true
+                if (
+                    request.isForMainFrame &&
+                    url.toString().substringBefore('#') == view?.url?.substringBefore('#') &&
+                    saveAndOptimizeReload.deferReloadIfSaving()
+                ) {
+                    return true
+                }
+                return if (request.isForMainFrame && url.scheme == "https" && url.encodedAuthority == "docs.ankiweb.net") {
+                    false
                 } else {
-                    openUrl(request.url)
-                    true
+                    super.shouldOverrideUrlLoading(view, request)
                 }
             }
         }.apply {
@@ -278,29 +282,118 @@ class DeckOptions : PageFragment() {
         webViewIsReady = true
         webViewLayout.isVisible = true
         pageLoadingIndicator.isVisible = false
-        trackSaveCompletion()
+        saveAndOptimizeReload.onPageReady()
         setParameterUnlockClickTimeout()
     }
 
-    /** Track receipt of the full save response, so reloading cannot abort it. */
-    private fun trackSaveCompletion() {
-        webViewLayout.evaluateJavascript(
-            """
-            (() => {
-                const originalFetch = window.fetch;
-                window.fetch = (input, init) => {
-                    const response = originalFetch(input, init);
-                    if (input !== "/_anki/updateDeckConfigs") return response;
-                    const completed = response.then(async (response) => {
-                        await response.clone().arrayBuffer();
+    /** Request a reload after Save & Optimize's response has reached the page. Called on main. */
+    fun reloadAfterSave() {
+        saveAndOptimizeReload.requestReload()
+    }
+
+    /**
+     * AnkiDroid workaround for the frontend reloading before its save response has been read.
+     *
+     * 1. The fetch wrapper calls [started] before the frontend can request a reload.
+     * 2. [requestReload] schedules navigation; [deferReloadIfSaving] holds premature frontend reloads.
+     * 3. Reading the response body calls [finished]: success releases the reload; failure cancels it.
+     *
+     * Remove this when the bundled frontend awaits state.save() before reloading.
+     */
+    inner class SaveAndOptimizeReload {
+        // JavaScript bridge calls run on a WebView thread; navigation callbacks run on main.
+        private val pendingSaves = AtomicInteger()
+        private var reloadRequested = false // Accessed only on the main thread.
+
+        fun onPageReady() {
+            pendingSaves.set(0)
+            reloadRequested = false
+            trackSaveResponse()
+        }
+
+        @JavascriptInterface
+        fun started() {
+            // Do this synchronously: posting to main could let the reload arrive first.
+            pendingSaves.incrementAndGet()
+        }
+
+        /** Called on main. Returning true keeps the current document and its request alive. */
+        fun deferReloadIfSaving(): Boolean {
+            if (pendingSaves.get() == 0) return false
+            requestReload()
+            return true
+        }
+
+        fun requestReload() {
+            reloadRequested = true
+        }
+
+        @JavascriptInterface
+        fun finished(success: Boolean) {
+            pendingSaves.decrementAndGet()
+            launchCatchingTask {
+                if (!success) {
+                    // Keep the edited form on screen so the user can retry.
+                    reloadRequested = false
+                    return@launchCatchingTask
+                }
+                if (pendingSaves.get() != 0 || !reloadRequested || view == null) return@launchCatchingTask
+
+                reloadRequested = false
+                webViewLayout.reload()
+            }
+        }
+
+        /**
+         * Tracks the HTTP body read, not completion of frontend decoding or state.save().
+         *
+         * The native handler finishes saving before returning its response. Waiting for blob()
+         * also avoids interrupting the frontend's network body read when we reload. Subsequent
+         * decoding is not awaited: the new page reads the saved settings from the backend.
+         */
+        private fun trackSaveResponse() {
+            webViewLayout.evaluateJavascript(
+                """
+                (() => {
+                    const originalFetch = window.fetch;
+
+                    async function readSaveBody(readBlob) {
+                        try {
+                            const body = await readBlob();
+                            ankidroidSave.finished(true);
+                            return body;
+                        } catch (error) {
+                            ankidroidSave.finished(false);
+                            throw error; // Leave error reporting to the frontend.
+                        }
+                    }
+
+                    window.fetch = async (input, init) => {
+                        if (input !== "/_anki/updateDeckConfigs") return originalFetch(input, init);
+                        ankidroidSave.started();
+
+                        let response;
+                        try {
+                            response = await originalFetch(input, init);
+                        } catch (error) {
+                            ankidroidSave.finished(false);
+                            throw error;
+                        }
+                        if (!response.ok) {
+                            ankidroidSave.finished(false);
+                            return response;
+                        }
+
+                        // fetch() only waits for headers. Anki's postProto reads the body with
+                        // blob(); keep navigation blocked until that read actually completes.
+                        const readBlob = response.blob.bind(response);
+                        response.blob = () => readSaveBody(readBlob);
                         return response;
-                    });
-                    anki.deckOptionsSaveCompleted = completed;
-                    return completed;
-                };
-            })();
-            """.trimIndent(),
-        )
+                    };
+                })();
+                """.trimIndent(),
+            )
+        }
     }
 
     /**
@@ -372,11 +465,9 @@ suspend fun FragmentActivity.updateDeckConfigsRaw(input: ByteArray): ByteArray {
     undoableOp { OpChanges.parseFrom(output) }
     withContext(Dispatchers.Main) {
         if (UpdateDeckConfigsRequest.parseFrom(input).mode == UpdateDeckConfigsMode.UPDATE_DECK_CONFIGS_MODE_COMPUTE_ALL_PARAMS) {
-            // This HTTP request has not returned to the page yet. Wait for its response body
-            // before reloading, otherwise fetch can fail and display an alert that blocks navigation.
-            requireDeckOptionsFragment().webViewLayout.evaluateJavascript(
-                "anki.deckOptionsSaveCompleted.then(() => window.location.reload())",
-            )
+            // Anki 26.05 relies on us to request a reload; 26.09 also requests one from JavaScript.
+            // Both requests share a flag, so the page reloads once, after reading this response.
+            requireDeckOptionsFragment().reloadAfterSave()
         } else {
             finish()
         }

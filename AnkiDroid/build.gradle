@@ -94,8 +94,8 @@ def forkReleaseDate = providers.gradleProperty("forkReleaseDate")
     .orElse(providers.environmentVariable("FORK_RELEASE_DATE"))
     .orElse("0")
 
-def upstreamVersionCode = 22600101
-def upstreamVersionName = "2.26.0alpha1"
+def upstreamVersionCode = 22600102
+def upstreamVersionName = "2.26.0alpha2"
 
 android {
     namespace = "com.ichi2.anki"
@@ -348,11 +348,6 @@ android {
 
     testOptions {
         animationsDisabled = true
-        kotlin {
-            compilerOptions {
-                freeCompilerArgs.add("-opt-in=kotlinx.coroutines.ExperimentalCoroutinesApi")
-            }
-        }
         unitTests {
             all { test ->
                 test.useJUnitPlatform {

@@ -20,14 +20,20 @@ import android.os.Bundle
 import android.view.View
 import android.view.WindowManager
 import android.widget.EditText
+import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.testing.FragmentScenario
 import androidx.lifecycle.Lifecycle
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.ichi2.anki.CommonString
 import com.ichi2.anki.R
 import com.ichi2.anki.RobolectricTest
+import com.ichi2.anki.browser.IdsFile
 import com.ichi2.anki.libanki.testutils.ext.newNote
+import com.ichi2.anki.utils.ext.requireParcelable
 import com.ichi2.testutils.ParametersUtils
 import com.ichi2.testutils.RecyclerViewUtils
+import com.ichi2.testutils.parcelledCopy
+import com.ichi2.testutils.saveState
 import com.ichi2.ui.CheckBoxTriStates
 import com.ichi2.ui.CheckBoxTriStates.State.CHECKED
 import com.ichi2.ui.CheckBoxTriStates.State.INDETERMINATE
@@ -41,11 +47,63 @@ import org.junit.Assert
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito
+import org.robolectric.Robolectric
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowToast
 import timber.log.Timber
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 @RunWith(AndroidJUnit4::class)
 class TagsDialogTest : RobolectricTest() {
+    @Test
+    fun `missing selection dismisses tags dialog without submitting`() = assertUnavailableSelection { assertTrue(delete()) }
+
+    @Test
+    fun `truncated selection dismisses tags dialog without submitting`() =
+        assertUnavailableSelection {
+            writeBytes(readBytes().dropLast(1).toByteArray())
+        }
+
+    private fun assertUnavailableSelection(changeFile: IdsFile.() -> Unit) {
+        val listener = Mockito.mock(TagsDialogListener::class.java)
+        val fragment = TagsDialog(listener).withArguments(targetContext, TagsDialog.DialogType.EDIT_TAGS, listOf(addBasicNote().id))
+        fragment.requireArguments().requireParcelable<IdsFile>(TagsDialog.ARG_TAGS_FILE).changeFile()
+        Robolectric.buildActivity(FragmentActivity::class.java).use { controller ->
+            controller.get().setTheme(R.style.Theme_Light)
+            val activity = controller.setup().get()
+            fragment.show(activity.supportFragmentManager, "tags")
+            advanceRobolectricLooper()
+            assertNull(activity.supportFragmentManager.findFragmentByTag("tags"))
+            assertEquals(targetContext.getString(CommonString.something_wrong), ShadowToast.getTextOfLatestToast())
+            Mockito.verifyNoInteractions(listener)
+        }
+    }
+
+    @Test
+    fun `restoring after selection loss dismisses tags dialog`() {
+        val fragment = TagsDialog().withArguments(targetContext, TagsDialog.DialogType.EDIT_TAGS, listOf(addBasicNote().id))
+        val file = fragment.requireArguments().requireParcelable<IdsFile>(TagsDialog.ARG_TAGS_FILE)
+        val savedState =
+            Robolectric.buildActivity(FragmentActivity::class.java).use { controller ->
+                controller.get().setTheme(R.style.Theme_Light)
+                val activity = controller.setup().get()
+                fragment.show(activity.supportFragmentManager, "tags")
+                advanceRobolectricLooper()
+                controller.saveState().parcelledCopy(FragmentActivity::class.java.classLoader)
+            }
+        assertTrue(file.delete())
+        ShadowToast.reset()
+        Robolectric.buildActivity(FragmentActivity::class.java).use { controller ->
+            controller.get().setTheme(R.style.Theme_Light)
+            val activity = controller.setup(savedState).get()
+            advanceRobolectricLooper()
+            assertNull(activity.supportFragmentManager.findFragmentByTag("tags"))
+            assertEquals(targetContext.getString(CommonString.something_wrong), ShadowToast.getTextOfLatestToast())
+        }
+    }
+
     // regression test #8762
     // test for #8763
     @Test

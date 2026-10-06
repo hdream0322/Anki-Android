@@ -13,6 +13,7 @@ import androidx.annotation.VisibleForTesting
 import androidx.core.app.TaskStackBuilder
 import androidx.core.content.FileProvider
 import androidx.work.WorkManager
+import com.ichi2.anki.common.analytics.reportPotentiallyDeadCode
 import com.ichi2.anki.common.annotations.NeedsTest
 import com.ichi2.anki.common.coroutines.applicationScope
 import com.ichi2.anki.common.destinations.BrowserDestination
@@ -61,6 +62,9 @@ import kotlin.math.min
 class IntentHandler : AbstractIntentHandler() {
     override fun onCreate(savedInstanceState: Bundle?) {
         // Note: This is our entry point from the launcher with intent: android.intent.action.MAIN
+        if (showedActivityFailedScreen(savedInstanceState)) {
+            return
+        }
         super.onCreate(savedInstanceState)
         val intent = intent
         Timber.v(intent.toString())
@@ -73,9 +77,11 @@ class IntentHandler : AbstractIntentHandler() {
         val launchType = getLaunchType(intent)
         // TODO block the UI with some kind of ProgressDialog instead of cancelling the sync work
         if (requiresCollectionAccess(launchType)) {
-            // # 18899
             if (WorkManager.isInitialized()) {
                 SyncWorker.cancel(this)
+            } else {
+                // #18899: suspected dead code now that backup recovery runs first.
+                reportPotentiallyDeadCode("IntentHandler.WorkManagerNotInitialized")
             }
         }
         when (launchType) {

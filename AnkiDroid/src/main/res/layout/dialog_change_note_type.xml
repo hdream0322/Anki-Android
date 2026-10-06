@@ -98,6 +98,8 @@
                         android:id="@+id/CardEditorModelText"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:maxLines="@integer/change_note_type_name_max_lines"
+                        android:ellipsize="end"
                         android:textDirection="locale"
                         android:textStyle="bold"
                         android:textAppearance="?attr/textAppearanceBodyLarge" />
@@ -154,21 +156,10 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_below="@id/to_label"
-                        android:layout_toStartOf="@+id/to_dropdown_arrow"
                         android:layout_alignParentStart="true"
                         android:background="@null"
                         android:padding="0dp"
                         android:minHeight="0dp" />
-
-                    <ImageView
-                        android:id="@+id/to_dropdown_arrow"
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:layout_alignParentEnd="true"
-                        android:layout_alignTop="@id/dest_note_type_spinner"
-                        android:layout_alignBottom="@id/dest_note_type_spinner"
-                        android:src="@drawable/ic_expand_more_black_24dp_xml"
-                        app:tint="?attr/colorPrimary" />
                 </RelativeLayout>
             </com.google.android.material.card.MaterialCardView>
         </LinearLayout>
@@ -178,6 +169,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@android:color/transparent"
+            app:tabMode="fixed"
             app:tabMaxWidth="0dp"
             app:tabGravity="fill"/>
 

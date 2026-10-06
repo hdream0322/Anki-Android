@@ -13,11 +13,12 @@ only the AnkiDroid-side wiring and the questions reviewers tend to have.
 
 Of the six hit types the library supports, AnkiDroid uses three:
 
-| Used by AnkiDroid | Sent from |
-|---|---|
-| `screen_view` | `AnkiDroidUsageAnalytics.sendAnalyticsScreenView(...)` |
-| `event`       | `AnkiDroidUsageAnalytics.send(AnalyticsEvent)` |
-| `exception`   | `AnkiDroidUsageAnalytics.sendAnalyticsException(...)` (truncated to 150 chars) |
+| Used by AnkiDroid               | Sent from                                                                      |
+|---------------------------------|--------------------------------------------------------------------------------|
+| `screen_view`                   | `AnkiDroidUsageAnalytics.sendAnalyticsScreenView(...)`                         |
+| `event`                         | `AnkiDroidUsageAnalytics.send(AnalyticsEvent)`                                 |
+| `event` (`PotentiallyDeadCode`) | `reportPotentiallyDeadCode("SomeClass.fallback")` - one event per invocation |
+| `exception`                     | `AnkiDroidUsageAnalytics.sendAnalyticsException(...)` (truncated to 150 chars) |
 
 The complete list of events, with their categories and actions, lives in
 [`AnalyticsEvent.kt`](../../common/src/main/java/com/ichi2/anki/common/analytics/AnalyticsEvent.kt).
@@ -118,7 +119,7 @@ them into AnkiDroid like so:
 | Value | Where it goes |
 |---|---|
 | Measurement ID (`G-XXXXXXXX`) | `AnkiDroid/src/main/res/values/analytic_constants.xml` → `ga_trackingId` |
-| API secret | `local.properties` → `ANALYTICS_API_KEY=...` (read at compile time into `BuildConfig.ANALYTICS_API_KEY`, see [`AnkiDroid/build.gradle`](../../AnkiDroid/build.gradle)) |
+| API secret | `local.properties` → `ANALYTICS_API_KEY=...` (read at compile time into `BuildConfig.ANALYTICS_API_KEY`, see [`AnkiDroid/build.gradle.kts`](../../AnkiDroid/build.gradle.kts)) |
 
 Builds without an `ANALYTICS_API_KEY` fall back to `DUMMY_API_XXX`, which GA
 rejects at ingest contributor builds can't accidentally write to our

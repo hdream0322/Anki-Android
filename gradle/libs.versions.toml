@@ -39,7 +39,7 @@ androidxComposeBillOfMaterials = "2026.09.00"
 # https://developer.android.com/jetpack/androidx/releases/constraintlayout
 androidxConstraintlayout = "2.2.2"
 # https://developer.android.com/jetpack/androidx/releases/core
-androidxCoreKtx = "1.19.1"
+androidxCore = "1.19.1"
 # https://developer.android.com/jetpack/androidx/releases/draganddrop
 androidxDragAndDrop = "1.0.0"
 # https://developer.android.com/jetpack/androidx/releases/exifinterface
@@ -71,7 +71,7 @@ androidxWebkit = "1.16.0"
 # https://developer.android.com/jetpack/androidx/releases/work
 androidxWork = "2.12.0"
 # https://github.com/ankidroid/Anki-Android-Backend/
-ankiBackend = '0.1.70-anki26.09.3'
+ankiBackend = '0.1.71-anki26.09.3'
 autoService = "1.1.1"
 autoServiceAnnotations = "1.1.1"
 # https://github.com/skydoves/ColorPickerView/releases
@@ -116,6 +116,8 @@ mockk = "1.14.11"
 nanohttpd = "2.3.1"
 okhttp = "5.5.0"
 androidxSecurityCrypto = "1.1.0"
+# https://github.com/JakeWharton/ProcessPhoenix/releases
+processPhoenix = "3.0.0"
 # https://github.com/protocolbuffers/protobuf/releases
 protobufKotlinLite = "4.36.2"
 # ../AnkiDroid/robolectricDownload.gradle may need changes - read instructions in that file
@@ -130,7 +132,7 @@ slackKeeper = "0.16.1"
 slf4j = "2.0.19"
 slf4jTimber = "3.1"
 # https://github.com/google/TestParameterInjector/blob/main/CHANGELOG.md
-testParameterInjector = "1.23"
+testParameterInjector = "1.24"
 timber = "5.0.1"
 # https://github.com/Triple-T/gradle-play-publisher/releases
 # In the past, releases have been published before the changelog
@@ -146,7 +148,7 @@ android-image-cropper = { module = "com.vanniktech:android-image-cropper", versi
 androidx-constraintlayout = { module = "androidx.constraintlayout:constraintlayout", version.ref = "androidxConstraintlayout" }
 androidx-fragment-ktx = { module = "androidx.fragment:fragment-ktx", version.ref = "androidxFragmentKtx" }
 androidx-exifinterface = { module = "androidx.exifinterface:exifinterface", version.ref = "androidxExifinterface" }
-androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidxCoreKtx" }
+androidx-core = { module = "androidx.core:core", version.ref = "androidxCore" }
 androidx-draganddrop = { module = "androidx.draganddrop:draganddrop", version.ref = "androidxDragAndDrop" }
 androidx-browser = { module = "androidx.browser:browser", version.ref = "androidxBrowser" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "androidxAppCompat" }
@@ -206,6 +208,7 @@ androidx-security-crypto = { module = "androidx.security:security-crypto", versi
 android-lint-api = { module = "com.android.tools.lint:lint-api", version.ref = "lint" }
 android-lint = { module = "com.android.tools.lint:lint", version.ref = "lint" }
 android-lint-tests = { module = "com.android.tools.lint:lint-tests", version.ref = "lint" }
+process-phoenix = { module = "com.jakewharton:process-phoenix", version.ref = "processPhoenix" }
 protobuf-kotlin-lite = { module = "com.google.protobuf:protobuf-kotlin-lite", version.ref = "protobufKotlinLite" }
 search-preference = { module = "com.github.ByteHamster:SearchPreference", version.ref = "searchpreference" }
 seismic = { module = "com.squareup:seismic", version.ref = "seismic" }

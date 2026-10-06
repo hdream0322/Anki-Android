@@ -229,6 +229,7 @@ open class RobolectricTest :
         }
         WorkManagerTestInitHelper.closeWorkDatabase()
         Dispatchers.resetMain()
+        ioDispatcher = Dispatchers.IO
         runBlocking { CollectionManager.discardBackend() }
         val pendingMethods = OnlyOnce.pendingMethods
         Assert.assertTrue(
@@ -385,7 +386,7 @@ open class RobolectricTest :
     }
 
     /**
-     * Emulates a null collection and a `BackendDbLockedException` while [block] runs,
+     * Emulates a null collection and a `CollectionLockedException` while [block] runs,
      * restoring normal collection behavior afterwards.
      *
      * @see enableNullCollection

@@ -43,6 +43,7 @@ import com.ichi2.anki.common.utils.annotation.KotlinCleanup
 import com.ichi2.anki.compat.CompatHelper
 import com.ichi2.anki.contextmenu.AnkiCardContextMenu
 import com.ichi2.anki.contextmenu.CardBrowserContextMenu
+import com.ichi2.anki.exception.CollectionLockedException
 import com.ichi2.anki.exception.StorageAccessException
 import com.ichi2.anki.exception.SystemStorageException
 import com.ichi2.anki.logging.FragmentLifecycleLogger
@@ -53,6 +54,7 @@ import com.ichi2.anki.logging.logActivityCreation
 import com.ichi2.anki.model.FieldFilters.NoSuggestFilter
 import com.ichi2.anki.multimedia.MultimediaArgsStorage
 import com.ichi2.anki.multiprofile.ProfileManager
+import com.ichi2.anki.multiprofile.isPhoenixProcess
 import com.ichi2.anki.navigation.initializeNavigator
 import com.ichi2.anki.observability.ChangeManager
 import com.ichi2.anki.preferences.SharedPreferencesProvider
@@ -62,6 +64,7 @@ import com.ichi2.anki.servicelayer.ThrowableFilterService
 import com.ichi2.anki.services.NotificationService
 import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.settings.PrefsRepository
+import com.ichi2.anki.startup.configureBackendTemporaryDirectory
 import com.ichi2.anki.startup.ensureCollectionPathSet
 import com.ichi2.anki.startup.getDefaultAnkiDroidDirectory
 import com.ichi2.anki.ui.dialogs.ActivityAgnosticDialogs
@@ -168,6 +171,10 @@ open class AnkiDroidApp :
      */
     @KotlinCleanup("analytics can be moved to attachBaseContext()")
     override fun onCreate() {
+        if (isPhoenixProcess()) {
+            super.onCreate()
+            return
+        }
         initAnkiBackend(debugTraceSqlCalls = false)
         super.onCreate()
         if (!setupAnkiDroidApp()) {
@@ -181,6 +188,9 @@ open class AnkiDroidApp :
         initializeWidgetRepository()
         WidgetNotificationScheduler.register { scheduleNotification() }
         Animations.setPreferencesProvider { context -> PrefsRepository(context) }
+        CollectionLockedException.messageProvider = {
+            getString(CommonString.database_locked_summary_new, getString(CommonString.col_path))
+        }
         val logType = LogType.value
         when (logType) {
             LogType.DEBUG -> Timber.plant(DebugTree())
@@ -667,7 +677,7 @@ open class AnkiDroidApp :
             if (Build.FINGERPRINT == "robolectric") return
 
             // Prevent sqlite throwing error 6410 due to the lack of /tmp on Android
-            Os.setenv("TMPDIR", context.cacheDir.path, false)
+            configureBackendTemporaryDirectory(context)
             // Load backend library
             System.loadLibrary("rsdroid")
         }

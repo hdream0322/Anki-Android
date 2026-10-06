@@ -78,7 +78,7 @@
     <string name="dialog_positive_overwrite">Üzerine Yaz</string>
     <string name="dialog_positive_repair">Onar</string>
     <string name="dialog_positive_replace">Değiştir</string>
-    <string name="sync_clock_off_with_current_time">%1$s\n\nCorrect the date and time, or enable automatic date and time, then sync again.\n\nYour device’s current time is: %2$s</string>
+    <string name="sync_clock_off_with_current_time">%1$s\n\nTarih ve zamanı düzeltin, veya otomatik tarih ve zamanı açın, sonra tekrar senkronize edin.\n\nCihazınızın güncel zamanı: %2$s</string>
     <string name="dialog_collection_path_not_dir">Belirtilen konum geçerli bir dizin değildi.</string>
     <string name="dialog_invalid_custom_certificate">Verilen metin geçerli bir PEM-kodlanmış X509 sertifikasına çözümlenmiyor</string>
     <string name="dialog_invalid_custom_certificate_title">Sertifika çözümlemesinde hata</string>
@@ -117,7 +117,7 @@
     <!-- Deck Options -->
     <!-- Database Errors-->
     <string name="database_locked_title">Veritabanı kilitli</string>
-    <string name="database_locked_summary">AnkiDroid veritabanı başka bir uygulama tarafından kullanılıyor. Lütfen diğer uygulamayı kapatın ve ardından AnkiDroid\'i yeniden açın.</string>
+    <string name="database_locked_summary_new" comment="%s is the name of the \'AnkiDroid directory\' setting">Another AnkiDroid app is using this collection. It may conflict even when it is not visibly running.\n\nTo keep using both apps, change the ‘%s’ in one app\'s Advanced settings.\n\nTo use this app now, force-stop the conflicting app.</string>
     <string name="incompatible_database_version_title">Uyumsuz Veritabanı Sürümü</string>
     <string name="incompatible_database_version_summary">Veritabanı, AnkiDroid\'in bu sürümünün çalışabileceğinden daha gelişmiş bir sürümdür. Açmak için AnkiDroid\'i yükseltin veya veritabanını düşürün\n\nDesteklenen sürüm: %1$d\nVeritabanı sürümü: %2$d\n\nAşağıdaki geri yükleme seçenekleri, muhtemelen uyumlu bir veritabanı sürümüyle mevcut koleksiyonunuzun üzerine yazacaktır:</string>
     <!-- Deck Picker Background-->

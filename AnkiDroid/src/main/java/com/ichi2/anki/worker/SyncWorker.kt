@@ -20,7 +20,6 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import anki.collection.Progress
 import anki.sync.SyncCollectionResponse
-import anki.sync.syncAuth
 import com.ichi2.anki.CollectionManager
 import com.ichi2.anki.CollectionManager.TR
 import com.ichi2.anki.CollectionManager.withCol
@@ -39,8 +38,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 import timber.log.Timber
 import kotlin.coroutines.cancellation.CancellationException
+
+/**
+ * Held while a background collection sync runs. A profile switch holds it until
+ * the process dies, so a sync cannot start part way through a restart.
+ */
+val syncLock = Mutex()
 
 /**
  * Syncs collection and media in the background.
@@ -70,18 +76,13 @@ class SyncWorker(
 
     override suspend fun doWork(): Result {
         Timber.v("SyncWorker::doWork")
+        return syncLock.withLockUnlessSwitching { doWorkHoldingLock() }
+    }
+
+    private suspend fun doWorkHoldingLock(): Result {
         trySetForeground(getForegroundInfo())
 
-        val hkey =
-            inputData.getString(HKEY_KEY)
-                ?: return Result.failure()
-        val auth =
-            syncAuth {
-                this.hkey = hkey
-                inputData.getString(ENDPOINT_KEY)?.let {
-                    endpoint = it
-                }
-            }.let(::SyncAuth)
+        val auth = inputData.toSyncAuth() ?: return Result.failure()
         val shouldSyncMedia = inputData.getBoolean(SYNC_MEDIA_KEY, false)
 
         try {
@@ -229,8 +230,6 @@ class SyncWorker(
     }
 
     companion object {
-        private const val HKEY_KEY = "hkey"
-        private const val ENDPOINT_KEY = "endpoint"
         private const val SYNC_MEDIA_KEY = "syncMedia"
 
         fun start(
@@ -247,8 +246,7 @@ class SyncWorker(
             val data =
                 Data
                     .Builder()
-                    .putString(HKEY_KEY, syncAuth.hkey)
-                    .putString(ENDPOINT_KEY, syncAuth.endpoint)
+                    .putAll(syncAuth.toWorkData())
                     .putBoolean(SYNC_MEDIA_KEY, syncMedia)
                     .build()
 

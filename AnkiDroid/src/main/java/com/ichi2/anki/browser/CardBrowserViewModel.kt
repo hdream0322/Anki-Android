@@ -69,6 +69,7 @@ import com.ichi2.anki.utils.ext.getCardOrNull
 import com.ichi2.anki.utils.ext.setUserFlagForCards
 import com.ichi2.utils.TagsUtil.getUpdatedTags
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.BufferOverflow
@@ -89,6 +90,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
 import net.ankiweb.rsdroid.BackendException
@@ -236,6 +238,9 @@ class CardBrowserViewModel(
 
     /** Emits each time the user changes the sort order, with data for a snackbar */
     val flowOfSortTypeChanged = MutableSharedFlow<SortChangeNotification>()
+
+    val flowOfCurrentSort: StateFlow<SortChangeNotification?>
+        field = MutableStateFlow<SortChangeNotification?>(null)
 
     /**
      * A map from column backend key to backend column definition
@@ -496,6 +501,11 @@ class CardBrowserViewModel(
      */
     private var pendingSelectionRestore: List<CardOrNoteId>
 
+    /**
+     * The file backing the most recently saved [STATE_MULTISELECT_VALUES], until replaced or the activity finishes.
+     */
+    private var multiselectStateFile: IdsFile? = null
+
     val flowOfColumnHeadings: StateFlow<List<ColumnHeading>> =
         combine(flowOfActiveColumns, flowOfCardsOrNotes, flowOfAllColumns) { activeColumns, cardsOrNotes, allColumns ->
             if (allColumns.isEmpty()) return@combine emptyList()
@@ -545,6 +555,7 @@ class CardBrowserViewModel(
             savedStateHandle.get<Bundle>(STATE_MULTISELECT_VALUES)?.let { bundle ->
                 BundleCompat.getParcelable(bundle, STATE_MULTISELECT_VALUES, IdsFile::class.java)
             }
+        multiselectStateFile = idsFile
         pendingSelectionRestore =
             try {
                 idsFile?.getIds()?.map { CardOrNoteId(it) }
@@ -603,7 +614,7 @@ class CardBrowserViewModel(
             setSelectedDeck(initialDeckId)
             refreshBackendColumns()
 
-            flowOfReverseDirection.update { (SortType.build(cardsOrNotes) as? SortType.CollectionOrdering)?.reverse }
+            refreshSortState()
 
             Timber.i("initCompleted")
 
@@ -623,10 +634,31 @@ class CardBrowserViewModel(
     fun generateExpensiveSavedState() =
         Bundle().apply {
             // a restored selection not yet applied to the rows is still the selection to save
-            val selection = pendingSelectionRestore.ifEmpty { selectedRows.toList() }
-            if (selection.isEmpty()) return@apply
-            putParcelable(STATE_MULTISELECT_VALUES, IdsFile(cacheDir, selection.map { it.cardOrNoteId }, "multiselect-values"))
+            saveMultiselectState(pendingSelectionRestore.ifEmpty { selectedRows.toList() })
         }
+
+    private fun Bundle.saveMultiselectState(selection: List<CardOrNoteId>) {
+        // Write the replacement before deleting the previous snapshot, so write failures preserve it.
+        val idsFile =
+            if (selection.isEmpty()) {
+                null
+            } else {
+                IdsFile(cacheDir, selection.map { it.cardOrNoteId }, "multiselect-values")
+            }
+        multiselectStateFile?.removeSafely("CardBrowserViewModel")
+        multiselectStateFile = idsFile
+        if (idsFile != null) putParcelable(STATE_MULTISELECT_VALUES, idsFile)
+    }
+
+    /**
+     * Delete the file backing the last saved selection when the activity is permanently dismissed.
+     *
+     * Call from [com.ichi2.anki.common.utils.ext.onPermanentDismissal], never from [onCleared].
+     */
+    internal fun deleteSavedSelectionFile() {
+        multiselectStateFile?.removeSafely("CardBrowserViewModel")
+        multiselectStateFile = null
+    }
 
     /**
      * Called if `onCreate` is called again, which may be due to the collection being reopened
@@ -650,6 +682,7 @@ class CardBrowserViewModel(
         // if the language has changed, the backend column labels may have changed
         viewModelScope.launch {
             refreshBackendColumns()
+            refreshSortState()
         }
     }
 
@@ -819,7 +852,11 @@ class CardBrowserViewModel(
                 }
         }
 
-    fun setCardsOrNotes(newValue: CardsOrNotes) = viewModelScope.launch { browserOptionsRepository.setCardsOrNotes(newValue) }
+    fun setCardsOrNotes(newValue: CardsOrNotes) =
+        viewModelScope.launch {
+            browserOptionsRepository.setCardsOrNotes(newValue)
+            refreshSortState()
+        }
 
     fun setTruncated(value: Boolean) = viewModelScope.launch { browserOptionsRepository.setIsTruncated(value) }
 
@@ -969,14 +1006,8 @@ class CardBrowserViewModel(
 
             sortType.save(cardsOrNotes)
 
-            flowOfReverseDirection.update {
-                when (sortType) {
-                    is SortType.NoOrdering -> null
-                    is SortType.CollectionOrdering -> sortType.reverse
-                }
-            }
-
-            flowOfSortTypeChanged.emit(buildSortChangeNotification(sortType))
+            val notification = updateSortState(sortType)
+            flowOfSortTypeChanged.emit(notification)
 
             launchSearchForCards()
         }
@@ -1000,6 +1031,17 @@ class CardBrowserViewModel(
                 )
             }
         }
+
+    private suspend fun refreshSortState() {
+        updateSortState(SortType.build(cardsOrNotes))
+    }
+
+    private fun updateSortState(sortType: SortType): SortChangeNotification {
+        val notification = buildSortChangeNotification(sortType)
+        flowOfReverseDirection.value = (sortType as? SortType.CollectionOrdering)?.reverse
+        flowOfCurrentSort.value = notification
+        return notification
+    }
 
     /**
      * Updates the backend with a new collection of columns
@@ -1449,8 +1491,11 @@ class CardBrowserViewModel(
                     val cards = com.ichi2.anki.searchForRows(searchString, sortOrder, cardsOrNotes)
                     Timber.d("Search returned %d card(s)", cards.size)
 
-                    ensureActive()
-                    this@CardBrowserViewModel.cards.replaceWith(cardsOrNotes, cards)
+                    withContext(Dispatchers.Main) {
+                        ensureActive()
+                        // The adapter takes snapshots on the main thread.
+                        this@CardBrowserViewModel.cards.replaceWith(cardsOrNotes, cards)
+                    }
                     ensurePaneRowValid()
                     if (isFragmented) flowOfNoteEditorCommand.emit(NoteEditorCommand.fromCurrentSearchState())
                     flowOfSearchState.emit(SearchState.Completed.fromCurrentState(fromUserSearch))

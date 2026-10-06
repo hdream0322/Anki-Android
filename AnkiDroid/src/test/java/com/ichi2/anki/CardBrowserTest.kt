@@ -14,6 +14,7 @@ import android.widget.TextView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.edit
 import androidx.core.net.toUri
+import androidx.core.os.BundleCompat
 import androidx.core.view.children
 import androidx.core.view.get
 import androidx.core.view.size
@@ -42,6 +43,7 @@ import com.ichi2.anki.CollectionManager.TR
 import com.ichi2.anki.CollectionManager.withCol
 import com.ichi2.anki.IntentHandler.Companion.grantedStoragePermissions
 import com.ichi2.anki.RobolectricTest.Companion.advanceRobolectricLooper
+import com.ichi2.anki.RobolectricTest.Companion.advanceRobolectricLooperUntil
 import com.ichi2.anki.browser.BrowserColumnKey
 import com.ichi2.anki.browser.BrowserMultiColumnAdapter
 import com.ichi2.anki.browser.BrowserMultiColumnAdapter.Companion.LINES_VISIBLE_WHEN_COLLAPSED
@@ -63,6 +65,7 @@ import com.ichi2.anki.browser.FindAndReplaceDialogFragment.Companion.ARG_REPLACE
 import com.ichi2.anki.browser.FindAndReplaceDialogFragment.Companion.ARG_SEARCH
 import com.ichi2.anki.browser.FindAndReplaceDialogFragment.Companion.REQUEST_FIND_AND_REPLACE
 import com.ichi2.anki.browser.FindAndReplaceDialogFragment.Companion.TAGS_AS_FIELD
+import com.ichi2.anki.browser.IdsFile
 import com.ichi2.anki.browser.column1
 import com.ichi2.anki.browser.selectRowAtPosition
 import com.ichi2.anki.browser.setColumn
@@ -134,6 +137,7 @@ import java.util.Random
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNotSame
 import kotlin.test.assertNull
 import kotlin.test.fail
 
@@ -498,8 +502,8 @@ class CardBrowserTest : RobolectricTest() {
             }
 
         ActivityScenario.launch<CardBrowser>(deepLink).use { scenario ->
-            advanceRobolectricLooper()
             scenario.onActivity { browser ->
+                browser.waitForSearchResults()
                 assertThat("the deep link's search is applied", browser.viewModel.searchTerms, equalTo("dog"))
                 assertThat("only the matching note is shown", browser.viewModel.rowCount, equalTo(1))
             }
@@ -515,8 +519,8 @@ class CardBrowserTest : RobolectricTest() {
         fun CardBrowser.subtitle() = findViewById<TextView>(R.id.subtitle).text.toString()
 
         ActivityScenario.launch(CardBrowser::class.java).use { scenario ->
-            advanceRobolectricLooper()
             scenario.onActivity { browser ->
+                browser.waitForSearchResults()
                 assertThat("card count before recreation", browser.subtitle(), equalTo("2 cards shown"))
             }
 
@@ -527,6 +531,65 @@ class CardBrowserTest : RobolectricTest() {
                 assertThat("card count after recreation", browser.subtitle(), equalTo("2 cards shown"))
             }
         }
+    }
+
+    @Test
+    fun finishingBrowserDeletesSavedSelectionFile() {
+        ensureCollectionLoadIsSynchronous()
+        addBasicNote("front", "back")
+        val controller = Robolectric.buildActivity(CardBrowser::class.java).setup()
+        saveControllerForCleanup(controller)
+        advanceRobolectricLooper()
+        val browser = controller.get()
+        browser.viewModel.selectRowAtPosition(0)
+
+        controller.pause().saveInstanceState(Bundle()).stop()
+        val key = CardBrowserViewModel.STATE_MULTISELECT_VALUES
+        val savedSelection = assertNotNull(browser.viewModel.savedStateHandle.get<Bundle>(key), "selection bundle is saved")
+        val file = assertNotNull(BundleCompat.getParcelable(savedSelection, key, IdsFile::class.java), "selection file is saved")
+        assertThat("saved selection file exists before finishing", file.exists(), equalTo(true))
+
+        browser.finish()
+        assertThat(browser.isFinishing, equalTo(true))
+        controller.destroy()
+        assertThat("permanently closing the browser deletes its snapshot", file.exists(), equalTo(false))
+    }
+
+    @Test
+    fun selectionSurvivesNonFinishingDestructionAndFileIsDeletedOnFinish() {
+        ensureCollectionLoadIsSynchronous()
+        addBasicNote("front", "back")
+        val controller = Robolectric.buildActivity(CardBrowser::class.java).setup()
+        saveControllerForCleanup(controller)
+        advanceRobolectricLooper()
+        val browser = controller.get()
+        browser.viewModel.selectRowAtPosition(0)
+        val selected = browser.viewModel.selectedRows.toSet()
+        assertThat("one row is selected before saving", selected.size, equalTo(1))
+
+        // Model "Don't keep activities": destroy without finishing or retaining the ViewModel.
+        val state = Bundle()
+        controller.pause().saveInstanceState(state).stop()
+        assertThat(browser.isFinishing, equalTo(false))
+        assertThat(browser.isChangingConfigurations, equalTo(false))
+        controller.destroy()
+
+        val restored = Robolectric.buildActivity(CardBrowser::class.java).setup(state)
+        saveControllerForCleanup(restored)
+        advanceRobolectricLooper()
+        assertNotSame(browser.viewModel, restored.get().viewModel, "restoration creates a new ViewModel")
+        assertThat("saved selection survives ViewModel clearing", restored.get().viewModel.selectedRows, equalTo(selected))
+
+        val key = CardBrowserViewModel.STATE_MULTISELECT_VALUES
+        val handle = restored.get().viewModel.savedStateHandle
+        val savedSelection = assertNotNull(handle.get<Bundle>(key), "selection bundle is restored")
+        val file = assertNotNull(BundleCompat.getParcelable(savedSelection, key, IdsFile::class.java), "selection file is restored")
+        assertThat("inherited snapshot exists before finishing", file.exists(), equalTo(true))
+
+        // Finish without another save, so cleanup must delete the inherited snapshot.
+        restored.get().finish()
+        restored.pause().stop().destroy()
+        assertThat("finishing the restored browser deletes its inherited snapshot", file.exists(), equalTo(false))
     }
 
     @Test
@@ -2209,10 +2272,10 @@ fun getBrowserWithNotes(
             test.addBasicNote(i.toString(), "back")
         }
     }
-    return test.startRegularActivity<CardBrowser>(Intent()).also {
-        advanceRobolectricLooper() // may be a fix for flaky tests
-    }
+    return test.startRegularActivity<CardBrowser>(Intent()).also { it.waitForSearchResults() }
 }
+
+fun CardBrowser.waitForSearchResults() = advanceRobolectricLooperUntil { viewModel.searchJob?.isCompleted == true }
 
 context(test: RobolectricTest)
 fun withCardBrowser(

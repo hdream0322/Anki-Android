@@ -290,6 +290,9 @@ open class DeckPicker :
     override val analyticsScreenName: String
         get() = selectedBottomNavItem()?.analyticsScreenName ?: super.analyticsScreenName
 
+    internal val bottomNavigationEnabled: Boolean
+        get() = Prefs.devBottomNavEnabled && !fragmented
+
     // Short animation duration from system
     private var shortAnimDuration = 0
 
@@ -551,7 +554,7 @@ open class DeckPicker :
 
         // create inherited navigation drawer layout here so that it can be used by parent class
         initNavigationDrawer()
-        if (Prefs.devBottomNavEnabled && !fragmented) {
+        if (bottomNavigationEnabled) {
             disableDrawerSwipe()
             disableDrawerIndicator()
         }
@@ -582,7 +585,7 @@ open class DeckPicker :
                 },
             )
         deckPickerBinding.decks.adapter = deckListAdapter
-        if (Prefs.devBottomNavEnabled) {
+        if (bottomNavigationEnabled) {
             deckPickerBinding.decks.addItemDecoration(
                 DeckHierarchyLinesDecoration(this, deckListAdapter),
             )
@@ -595,12 +598,16 @@ open class DeckPicker :
         setupPullToSync()
         // Setup the FloatingActionButtons
         floatingActionMenu =
-            DeckPickerFloatingActionMenu(this, binding, this).apply {
+            DeckPickerFloatingActionMenu(
+                context = this,
+                homescreenBinding = binding,
+                deckPicker = this,
                 toggleListener =
                     FloatingActionBarToggleListener { isOpening ->
                         closeFloatingActionBarBackPressCallback.isEnabled = isOpening
-                    }
-            }
+                    },
+                initiallyOpen = savedInstanceState?.getBoolean("mIsFABOpen") == true,
+            )
 
         shortAnimDuration = resources.getInteger(android.R.integer.config_shortAnimTime)
 
@@ -1231,7 +1238,9 @@ open class DeckPicker :
         }
 
         Timber.d("onCreateOptionsMenu()")
-        floatingActionMenu.closeFloatingActionMenu(applyRiseAndShrinkAnimation = false)
+        if (isDrawerOpen) {
+            floatingActionMenu.closeFloatingActionMenu(applyRiseAndShrinkAnimation = false)
+        }
         // Fragments own their menus: each fragment registers a MenuProvider against this
         // activity (see StudyOptionsFragment), and the menu host dispatches creation,
         // preparation and selection to them. This activity never drives a fragment's menu.
@@ -1585,7 +1594,6 @@ open class DeckPicker :
 
     public override fun onRestoreInstanceState(savedInstanceState: Bundle) {
         super.onRestoreInstanceState(savedInstanceState)
-        floatingActionMenu.isFABOpen = savedInstanceState.getBoolean("mIsFABOpen")
         savedInstanceState.getString("dbRestorationPath")?.let { path ->
             val path = File(path)
             CollectionHelper.ankiDroidDirectoryOverride = path
@@ -1665,7 +1673,7 @@ open class DeckPicker :
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (!Prefs.devBottomNavEnabled || fragmented || event.action != KeyEvent.ACTION_DOWN || !event.isAltPressed) {
+        if (!bottomNavigationEnabled || event.action != KeyEvent.ACTION_DOWN || !event.isAltPressed) {
             return super.dispatchKeyEvent(event)
         }
 
@@ -2414,7 +2422,7 @@ open class DeckPicker :
             fun bottomNavShortcut(
                 keys: String,
                 destination: NavigationItem,
-            ) = if (Prefs.devBottomNavEnabled && !fragmented) shortcut(keys, destination.shortcutLabel) else null
+            ) = if (bottomNavigationEnabled) shortcut(keys, destination.shortcutLabel) else null
 
             return ShortcutGroup(
                 listOfNotNull(

@@ -52,6 +52,7 @@ import com.ichi2.utils.FileUtil.internalizeUri
 import com.ichi2.utils.Permissions.arePermissionsDefinedInManifest
 import net.ankiweb.rsdroid.BackendException
 import net.ankiweb.rsdroid.exceptions.BackendDeckIsFilteredException
+import net.ankiweb.rsdroid.exceptions.BackendNotFoundException
 import org.json.JSONArray
 import org.json.JSONException
 import timber.log.Timber
@@ -84,10 +85,9 @@ import java.io.IOException
  *
  */
 
-// TODO: Consider streaming Cursor results instead of materializing all rows
-//  to avoid potential OOM for large queries.
-//  Tracked in: https://github.com/ankidroid/Anki-Android/issues/20253
 class CardContentProvider : ContentProvider() {
+    private val applicationStartup = ContentProviderStartup()
+
     companion object {
         // URI types
         private const val NOTES = 1000
@@ -120,6 +120,48 @@ class CardContentProvider : ContentProvider() {
          * applied to more columns. "MID", "USN", "MOD" are not really user friendly.
          */
         private val defaultNoteProjectionDbAccess = FlashCardsContract.Note.DEFAULT_COLUMNS
+
+        private val cardColumns: Map<String, (Card, Collection) -> Any?> =
+            mapOf(
+                FlashCardsContract.Card._ID to { card, _ -> card.id },
+                FlashCardsContract.Card.NOTE_ID to { card, _ -> card.nid },
+                FlashCardsContract.Card.CARD_ORD to { card, _ -> card.ord },
+                FlashCardsContract.Card.CARD_NAME to { card, col -> cardName(card, col) },
+                FlashCardsContract.Card.DECK_ID to { card, _ -> card.did },
+                FlashCardsContract.Card.REPS to { card, _ -> card.reps },
+                FlashCardsContract.Card.LAPSES to { card, _ -> card.lapses },
+                FlashCardsContract.Card.TYPE to { card, _ -> card.type.code },
+                FlashCardsContract.Card.ORIGINAL_DECK_ID to { card, _ -> card.oDid },
+                FlashCardsContract.Card.QUESTION to { card, col -> card.renderOutput(col).questionWithFixedSoundTags() },
+                FlashCardsContract.Card.ANSWER to { card, col -> card.renderOutput(col).answerWithFixedSoundTags() },
+                FlashCardsContract.Card.QUESTION_SIMPLE to { card, col -> card.renderOutput(col).questionText },
+                FlashCardsContract.Card.ANSWER_SIMPLE to { card, col -> card.renderOutput(col, false).answerText },
+                FlashCardsContract.Card.ANSWER_PURE to { card, col -> card.pureAnswer(col) },
+                FlashCardsContract.Card.RAW_QUEUE to { card, _ -> card.queue.code },
+                FlashCardsContract.Card.RAW_DUE to { card, _ -> card.due },
+                FlashCardsContract.Card.RAW_ORIGINAL_DUE to { card, _ -> card.oDue },
+                FlashCardsContract.Card.INTERVAL to { card, _ -> card.ivl },
+                FlashCardsContract.Card.RAW_SM2_FACTOR to { card, _ -> card.factor },
+                FlashCardsContract.Card.RAW_LEFT to { card, _ -> card.left },
+                FlashCardsContract.Card.ORIGINAL_POSITION to { card, _ -> card.originalPosition },
+                FlashCardsContract.Card.RAW_CUSTOM_DATA to { card, _ -> card.customData },
+                FlashCardsContract.Card.FSRS_STABILITY to { card, _ -> card.memoryStateStability },
+                FlashCardsContract.Card.FSRS_DIFFICULTY to { card, _ -> card.memoryStateDifficulty },
+                FlashCardsContract.Card.FSRS_DESIRED_RETENTION to { card, _ -> card.fsrsDesiredRetention },
+                FlashCardsContract.Card.FSRS_DECAY to { card, _ -> card.decay },
+                FlashCardsContract.Card.LAST_REVIEW_TIME_SECONDS to { card, _ -> card.lastReviewTimeSecs },
+                FlashCardsContract.Card.FLAGS to { card, _ -> card.flags and 7 }, // return only 3 first bits
+            )
+
+        private fun cardName(
+            card: Card,
+            col: Collection,
+        ): String =
+            try {
+                card.template(col).name
+            } catch (je: JSONException) {
+                throw IllegalArgumentException("Card is using an invalid template", je)
+            }
 
         private fun sanitizeNoteProjection(projection: Array<String>?): Array<String> {
             if (projection.isNullOrEmpty()) {
@@ -175,6 +217,7 @@ class CardContentProvider : ContentProvider() {
         // Initialize content provider on startup.
         Timber.d("CardContentProvider: onCreate")
         AnkiDroidApp.makeBackendUsable(context!!)
+        applicationStartup.onProviderCreate()
         return true
     }
 
@@ -219,6 +262,7 @@ class CardContentProvider : ContentProvider() {
      */
     private fun getColUnsafe(): Collection =
         try {
+            applicationStartup.awaitCompletion()
             CollectionManager.getColUnsafe()
         } catch (e: StorageNotConfiguredException) {
             // StorageNotConfiguredException is not supported by Parcel.writeException
@@ -429,6 +473,9 @@ class CardContentProvider : ContentProvider() {
                 val columns = projection ?: FlashCardsContract.Card.DEFAULT_COLUMNS
                 val query = selection ?: ""
 
+                // validate the columns
+                columns.forEach { cardColumnAccessor(it) }
+
                 val cardIds =
                     try {
                         col.findCards(query)
@@ -442,21 +489,28 @@ class CardContentProvider : ContentProvider() {
                 // Fast path: Only if _id is requested
                 val onlyRequestingId = columns.singleOrNull() == FlashCardsContract.Card._ID
 
-                if (onlyRequestingId) {
-                    // Return IDs without fetching card objects
-                    val rv = MatrixCursor(columns, cardIds.size)
-                    for (cardId in cardIds) {
-                        rv.newRow().add(cardId)
+                LazyCursor(columns, cardIds.size) { position, row ->
+                    val cardId = cardIds[position]
+                    if (onlyRequestingId) {
+                        row.newRow().add(cardId)
+                    } else {
+                        val currentCol = getColUnsafe()
+                        val card =
+                            try {
+                                currentCol.getCard(cardId)
+                            } catch (e: BackendNotFoundException) {
+                                Timber.d(e, "card %d was deleted after the query returned", cardId)
+                                null
+                            }
+                        if (card != null) {
+                            addCardToCursor(card, row, currentCol, columns)
+                        } else {
+                            val rb = row.newRow()
+                            for (column in columns) {
+                                rb.add(if (column == FlashCardsContract.Card._ID) cardId else null)
+                            }
+                        }
                     }
-                    rv
-                } else {
-                    // Get all requested fields
-                    val rv = MatrixCursor(columns, cardIds.size)
-                    for (cardId in cardIds) {
-                        val card = col.getCard(cardId)
-                        addCardToCursor(card, rv, col, columns)
-                    }
-                    rv
                 }
             }
             CARD_ID -> {
@@ -1199,49 +1253,14 @@ class CardContentProvider : ContentProvider() {
         col: Collection,
         columns: Array<String>,
     ) {
-        val cardName: String =
-            try {
-                currentCard.template(col).name
-            } catch (je: JSONException) {
-                throw IllegalArgumentException("Card is using an invalid template", je)
-            }
-        val question = currentCard.renderOutput(col).questionWithFixedSoundTags()
-        val answer = currentCard.renderOutput(col).answerWithFixedSoundTags()
         val rb = rv.newRow()
         for (column in columns) {
-            when (column) {
-                FlashCardsContract.Card._ID -> rb.add(currentCard.id)
-                FlashCardsContract.Card.NOTE_ID -> rb.add(currentCard.nid)
-                FlashCardsContract.Card.CARD_ORD -> rb.add(currentCard.ord)
-                FlashCardsContract.Card.CARD_NAME -> rb.add(cardName)
-                FlashCardsContract.Card.DECK_ID -> rb.add(currentCard.did)
-                FlashCardsContract.Card.REPS -> rb.add(currentCard.reps)
-                FlashCardsContract.Card.LAPSES -> rb.add(currentCard.lapses)
-                FlashCardsContract.Card.TYPE -> rb.add(currentCard.type.code)
-                FlashCardsContract.Card.ORIGINAL_DECK_ID -> rb.add(currentCard.oDid)
-                FlashCardsContract.Card.QUESTION -> rb.add(question)
-                FlashCardsContract.Card.ANSWER -> rb.add(answer)
-                FlashCardsContract.Card.QUESTION_SIMPLE -> rb.add(currentCard.renderOutput(col).questionText)
-                FlashCardsContract.Card.ANSWER_SIMPLE -> rb.add(currentCard.renderOutput(col, false).answerText)
-                FlashCardsContract.Card.ANSWER_PURE -> rb.add(currentCard.pureAnswer(col))
-                FlashCardsContract.Card.RAW_QUEUE -> rb.add(currentCard.queue.code)
-                FlashCardsContract.Card.RAW_DUE -> rb.add(currentCard.due)
-                FlashCardsContract.Card.RAW_ORIGINAL_DUE -> rb.add(currentCard.oDue)
-                FlashCardsContract.Card.INTERVAL -> rb.add(currentCard.ivl)
-                FlashCardsContract.Card.RAW_SM2_FACTOR -> rb.add(currentCard.factor)
-                FlashCardsContract.Card.RAW_LEFT -> rb.add(currentCard.left)
-                FlashCardsContract.Card.ORIGINAL_POSITION -> rb.add(currentCard.originalPosition)
-                FlashCardsContract.Card.RAW_CUSTOM_DATA -> rb.add(currentCard.customData)
-                FlashCardsContract.Card.FSRS_STABILITY -> rb.add(currentCard.memoryStateStability)
-                FlashCardsContract.Card.FSRS_DIFFICULTY -> rb.add(currentCard.memoryStateDifficulty)
-                FlashCardsContract.Card.FSRS_DESIRED_RETENTION -> rb.add(currentCard.fsrsDesiredRetention)
-                FlashCardsContract.Card.FSRS_DECAY -> rb.add(currentCard.decay)
-                FlashCardsContract.Card.LAST_REVIEW_TIME_SECONDS -> rb.add(currentCard.lastReviewTimeSecs)
-                FlashCardsContract.Card.FLAGS -> rb.add(currentCard.flags and 7) // return only 3 first bits
-                else -> throw UnsupportedOperationException("Queue \"$column\" is unknown")
-            }
+            rb.add(cardColumnAccessor(column)(currentCard, col))
         }
     }
+
+    private fun cardColumnAccessor(column: String): (Card, Collection) -> Any? =
+        cardColumns[column] ?: throw UnsupportedOperationException("Column \"$column\" is unknown")
 
     private fun addReviewInfoToCursor(
         currentCard: Card,

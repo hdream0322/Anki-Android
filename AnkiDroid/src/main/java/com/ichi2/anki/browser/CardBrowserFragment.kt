@@ -936,6 +936,12 @@ class CardBrowserFragment :
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        // Search update flows can be missed while the note editor is open.
+        cardsAdapter.refreshRows()
+    }
+
     override fun onDestroyView() {
         super.onDestroyView()
         if (::cardsListView.isInitialized) {
@@ -952,7 +958,7 @@ class CardBrowserFragment :
     private fun setupFlows() {
         fun onIsTruncatedChanged(isTruncated: Boolean) = cardsAdapter.notifyDataSetChanged()
 
-        fun cardsUpdatedChanged(unit: Unit) = cardsAdapter.notifyDataSetChanged()
+        fun cardsUpdatedChanged(unit: Unit) = cardsAdapter.refreshRows()
 
         fun onColumnsChanged(columnCollection: BrowserColumnCollection) {
             Timber.d("columns changed")
@@ -1035,7 +1041,7 @@ class CardBrowserFragment :
         }
 
         fun searchStateChanged(searchState: SearchState) {
-            cardsAdapter.notifyDataSetChanged()
+            cardsAdapter.refreshRows()
             progressIndicator.isVisible = searchState == Initializing || searchState == Searching
             if (searchState is SearchState.Completed) {
                 onSearchCompleted(searchState)
@@ -1241,8 +1247,7 @@ class CardBrowserFragment :
             showDialogFragment(dialog)
         }
 
-        /** Displays a snackbar: Sort by Card Type · A-Z*/
-        fun onSortTypeChanged(notification: SortChangeNotification) {
+        fun describeSort(notification: SortChangeNotification): String {
             val (title, subtitle) =
                 when (notification) {
                     is SortChangeNotification.NoOrdering ->
@@ -1253,8 +1258,16 @@ class CardBrowserFragment :
                             subtitleRes?.let(::getString)
                     }
                 }
-            val text = if (subtitle != null) "$title · $subtitle" else title
-            showSnackbar(text, Snackbar.LENGTH_SHORT)
+            return if (subtitle != null) "$title · $subtitle" else title
+        }
+
+        /** Displays a snackbar: Sort by Card Type · A-Z*/
+        fun onSortTypeChanged(notification: SortChangeNotification) {
+            showSnackbar(describeSort(notification), Snackbar.LENGTH_SHORT)
+        }
+
+        fun onCurrentSortChanged(sort: SortChangeNotification?) {
+            sortChip?.contentDescription = sort?.let(::describeSort) ?: getString(CommonString.card_browser_change_display_order_title)
         }
 
         activityViewModel.flowOfReverseDirection.launchCollectionInLifecycleScope(::reverseDirectionChanged)
@@ -1281,6 +1294,7 @@ class CardBrowserFragment :
         activityViewModel.flowOfChangeNoteType.launchCollectionInLifecycleScope(::onChangeNoteType)
         activityViewModel.flowOfSaveSearchNamePrompt.launchCollectionInLifecycleScope(::onSaveSearchNamePrompt)
         activityViewModel.flowOfSortTypeChanged.launchCollectionInLifecycleScope(::onSortTypeChanged)
+        activityViewModel.flowOfCurrentSort.launchCollectionInLifecycleScope(::onCurrentSortChanged)
     }
 
     private fun setupFragmentResultListeners() {

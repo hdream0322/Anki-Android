@@ -15,6 +15,7 @@ import android.view.ViewGroup
 import android.widget.CheckBox
 import android.widget.TextView
 import androidx.annotation.ColorInt
+import androidx.annotation.MainThread
 import androidx.annotation.VisibleForTesting
 import androidx.appcompat.widget.ThemeUtils
 import androidx.core.graphics.drawable.toDrawable
@@ -28,6 +29,7 @@ import com.ichi2.anki.common.annotations.NeedsTest
 import com.ichi2.anki.common.utils.android.darkenColor
 import com.ichi2.anki.common.utils.android.lightenColorAbsolute
 import com.ichi2.anki.common.utils.ext.replaceWith
+import com.ichi2.anki.common.utils.ext.setBitFlag
 import com.ichi2.anki.databinding.ItemCardBrowserBinding
 import com.ichi2.anki.databinding.ViewBrowserColumnCellBinding
 import com.ichi2.themes.Themes
@@ -56,8 +58,14 @@ class BrowserMultiColumnAdapter(
     val fontSizeScalePercent =
         sharedPrefs().getInt("relativeCardBrowserFontSize", DEFAULT_FONT_SIZE_RATIO)
 
-    private val rowCollection: BrowserRowCollection
-        get() = viewModel.cards
+    // Search updates must not change the adapter's rows before RecyclerView is notified.
+    private var rows: List<CardOrNoteId> = viewModel.cards.toList()
+
+    @MainThread
+    fun refreshRows() {
+        rows = viewModel.cards.toList()
+        notifyDataSetChanged()
+    }
 
     private var originalTextSize = -1.0f
 
@@ -191,12 +199,7 @@ class BrowserMultiColumnAdapter(
         }
 
         private fun TextView.setStrikeThrough(strikeThrough: Boolean) {
-            paintFlags =
-                if (strikeThrough) {
-                    paintFlags or Paint.STRIKE_THRU_TEXT_FLAG
-                } else {
-                    paintFlags and Paint.STRIKE_THRU_TEXT_FLAG.inv()
-                }
+            paintFlags = paintFlags.setBitFlag(Paint.STRIKE_THRU_TEXT_FLAG, enabled = strikeThrough)
         }
 
         private fun TextView.setupTextSize() {
@@ -222,19 +225,13 @@ class BrowserMultiColumnAdapter(
         return MultiColumnViewHolder(binding)
     }
 
-    override fun getItemCount(): Int = rowCollection.size
+    override fun getItemCount(): Int = rows.size
 
     override fun onBindViewHolder(
         holder: MultiColumnViewHolder,
         position: Int,
     ) {
-        val id =
-            try {
-                rowCollection[position]
-            } catch (e: Exception) {
-                Timber.w(e)
-                return
-            }
+        val id = rows[position]
 
         try {
             val (row, isSelected) = viewModel.transformBrowserRow(id)

@@ -25,10 +25,11 @@ git log --no-merges --format=%s <last-tag>..HEAD | grep -E '^(fix|feat)'
 
 - Default: bump the patch (`v0.1.1` → `v0.1.2`). Suggest a minor bump only for a
   headline feature, and confirm with the user.
-- `versionCode = upstreamVersionCode + <patch number>` (see `AnkiDroid/build.gradle`).
+- `versionCode = upstreamVersionCode + <patch number>` (see `AnkiDroid/build.gradle.kts`).
   Check the new value is **greater** than the previous release's, otherwise
   installed apps will refuse the update:
-  `git show <last-tag>:AnkiDroid/build.gradle | grep 'def upstreamVersionCode'`.
+  `git show <last-tag>:AnkiDroid/build.gradle.kts | grep 'val upstreamVersionCode'`
+  (tags before the Oct 2026 Kotlin DSL switch: `AnkiDroid/build.gradle`, `def upstreamVersionCode`).
 
 ## 3. Pre-flight
 

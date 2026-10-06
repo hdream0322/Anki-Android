@@ -60,10 +60,8 @@ These come up almost every time and have a known answer:
 | `gradle/libs.versions.toml` | Union. Keep fork-only entries (e.g. `konfetti`, `androidxSecurityCrypto`), take upstream's version wherever upstream bumped a shared library. |
 | `UD` — upstream deleted or moved a file `deurim` modified | Find where it went: `git log --oneline --diff-filter=D -1 MERGE_HEAD -- <file>` and read that commit. Re-apply the fork's change (`git diff $(git merge-base HEAD MERGE_HEAD) HEAD -- <file>`) to the new location, then `git rm <file>`. If upstream replaced it entirely (e.g. XML layout → Compose), tell the user the fork change has no direct home and ask how to carry it over. |
 
-Upstream renamed `AnkiDroid/build.gradle` → `build.gradle.kts` in Oct 2026 (`2ff52b0d8f`).
-The first sync across that commit must port the fork blocks from Groovy to Kotlin DSL,
-and `.github/workflows/release-deurim.yml` / the `release-deurim` skill reference the
-old filename — update them in the same sync.
+Since Oct 2026 the build file is Kotlin DSL (`build.gradle.kts`); the fork blocks were
+ported in `af83ee0e12`.
 
 Also check for **new** upstream workflow files — they don't conflict, so they slip in
 silently and may start running on the fork:

@@ -24,7 +24,7 @@
 > - **New-version dialog** — on first launch after an update, shows human-written Korean release notes with their markdown formatting preserved (`release-notes/v0.0.X.md` is used both for the GitHub Release body and the in-app dialog; works offline).
 > - **Refreshed About screen** — Deurim fork version + versionCode + actual release date, plus shortcuts to "Install upstream AnkiDroid" and the GitHub release notes.
 > - **App label `AnkiDroid.d`** — same label for both debug and release; debug uses a red icon + `.debug` package so it can be installed alongside the official AnkiDroid.
-> - **Fork-only versionCode auto-increment** — `upstreamVersionCode + forkBuild`, so the fork keeps tracking upstream while every fork build is recognized as an OS-level upgrade.
+> - **Fork-only versionCode auto-increment** — `upstream versionCode + forkBuild`, so the fork keeps tracking upstream while every fork build is recognized as an OS-level upgrade.
 
 ---
 

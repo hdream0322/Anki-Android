@@ -119,7 +119,6 @@ val forkReleaseDate =
         .orElse(providers.environmentVariable("FORK_RELEASE_DATE"))
         .orElse("0")
 
-val upstreamVersionCode = 22600102
 val upstreamVersionName = "2.26.0alpha2"
 
 android {
@@ -176,8 +175,11 @@ android {
         //
         // This ensures the correct ordering between the various types of releases (dev < alpha < beta < release) which is
         // needed for upgrades to be offered correctly.
-        // Upstream baseline + per-fork build counter (see forkBuild above).
-        versionCode = upstreamVersionCode + forkBuild
+        // Upstream baseline: keep this a plain literal, upstream's validateVersionCode parses it.
+        versionCode = 22600102
+        // Deurim: add the per-fork build counter (see forkBuild above). Must not start with
+        // `versionCode`, or validateVersionCode sees two declarations and fails.
+        this.versionCode = versionCode!! + forkBuild
         // If you change this to a new version, you probably also want to update .gradle/workflows/milestone.yml for the new version...
         versionName =
             if (forkVersion.get().isEmpty()) {

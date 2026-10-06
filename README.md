@@ -25,7 +25,7 @@
 > - **새 버전 안내 다이얼로그** — 업데이트 후 첫 실행 시 사람이 쓴 한국어 릴리스 노트를 마크다운 서식 그대로 보여 줌 (`release-notes/v0.0.X.md` 가 GitHub Release body 와 인앱 안내에 동시에 사용됨, 오프라인에서도 동작)
 > - **About 화면 정비** — Deurim fork 버전 + versionCode + 실제 릴리스 날짜 표기, "원본 AnkiDroid 설치" 와 GitHub 릴리스 노트 바로가기 추가
 > - **앱 라벨 `AnkiDroid.d`** — 디버그/릴리스 모두 같은 라벨, debug 는 빨간 아이콘 + `.debug` 패키지로 공식 AnkiDroid 와 함께 설치 가능
-> - **fork 전용 versionCode 자동 증분** — `upstreamVersionCode + forkBuild` 식으로 upstream 을 따라가면서도 fork 빌드가 OS-level 업그레이드로 인식됨
+> - **fork 전용 versionCode 자동 증분** — `upstream versionCode + forkBuild` 식으로 upstream 을 따라가면서도 fork 빌드가 OS-level 업그레이드로 인식됨
 
 ---
 

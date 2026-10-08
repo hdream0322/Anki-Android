@@ -15,6 +15,7 @@
  */
 package com.ichi2.anki.update
 
+import android.os.Build
 import androidx.annotation.VisibleForTesting
 import com.ichi2.anki.BuildConfig
 import com.ichi2.anki.web.HttpFetcher
@@ -51,7 +52,7 @@ object UpdateChecker {
                         Timber.w("UpdateChecker: HTTP %d on %s", response.code, url)
                         return@use null
                     }
-                    parseRelease(response.body.string())
+                    parseRelease(response.body.string(), Build.SUPPORTED_ABIS.toList())
                 }
             } catch (e: Exception) {
                 Timber.w(e, "UpdateChecker: fetch failed for %s", url)
@@ -59,27 +60,40 @@ object UpdateChecker {
             }
         }
 
+    /**
+     * Releases ship one APK per ABI (`AnkiDroid-deurim-<tag>-<abi>.apk`) plus a
+     * `-universal.apk`. Picks the APK for the first of [supportedAbis] (most preferred
+     * first, as in [Build.SUPPORTED_ABIS]) that has one, then the universal APK,
+     * then any APK.
+     */
     @VisibleForTesting
-    fun parseRelease(json: String): GitHubRelease? {
+    fun parseRelease(
+        json: String,
+        supportedAbis: List<String>,
+    ): GitHubRelease? {
         val obj = JSONObject(json)
         val tag = obj.optString("tag_name").takeIf { it.isNotEmpty() } ?: return null
-        var apkUrl = ""
-        var apkName = ""
-        var apkSha256: String? = null
+        val apks = mutableListOf<JSONObject>()
         val assets = obj.optJSONArray("assets")
         if (assets != null) {
             for (i in 0 until assets.length()) {
                 val asset = assets.getJSONObject(i)
-                val name = asset.optString("name")
-                val url = asset.optString("browser_download_url")
-                if (name.endsWith(".apk", ignoreCase = true) && url.isNotEmpty()) {
-                    apkUrl = url
-                    apkName = name
-                    apkSha256 = extractSha256Digest(asset.optString("digest").takeIf { it.isNotEmpty() })
-                    break
+                if (asset.optString("name").endsWith(".apk", ignoreCase = true) &&
+                    asset.optString("browser_download_url").isNotEmpty()
+                ) {
+                    apks.add(asset)
                 }
             }
         }
+
+        fun apkFor(suffix: String) = apks.firstOrNull { it.optString("name").endsWith("-$suffix.apk", ignoreCase = true) }
+        val apk =
+            supportedAbis.firstNotNullOfOrNull { apkFor(it) }
+                ?: apkFor("universal")
+                ?: apks.firstOrNull()
+        val apkUrl = apk?.optString("browser_download_url") ?: ""
+        val apkName = apk?.optString("name") ?: ""
+        val apkSha256 = extractSha256Digest(apk?.optString("digest")?.takeIf { it.isNotEmpty() })
         return GitHubRelease(
             tag = tag,
             name = obj.optString("name", tag),

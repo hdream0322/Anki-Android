@@ -39,7 +39,7 @@ class UpdateCheckerTest {
               ]
             }
             """.trimIndent()
-        val release = UpdateChecker.parseRelease(json)
+        val release = UpdateChecker.parseRelease(json, supportedAbis = listOf("arm64-v8a"))
         assertEquals("abcdef0123456789", release?.apkSha256)
     }
 
@@ -59,8 +59,53 @@ class UpdateCheckerTest {
               ]
             }
             """.trimIndent()
-        val release = UpdateChecker.parseRelease(json)
+        val release = UpdateChecker.parseRelease(json, supportedAbis = listOf("arm64-v8a"))
         assertNull(release?.apkSha256)
+    }
+
+    private fun splitReleaseJson(vararg abis: String): String {
+        val assets =
+            abis.joinToString(",") { abi ->
+                """{"name": "AnkiDroid-deurim-v0.1.11-$abi.apk", "browser_download_url": "https://example.com/$abi.apk"}"""
+            }
+        return """{"tag_name": "v0.1.11", "name": "v0.1.11", "body": "", "assets": [$assets]}"""
+    }
+
+    private val allAssets = arrayOf("arm64-v8a", "armeabi-v7a", "universal", "x86", "x86_64")
+
+    @Test
+    fun `parseRelease picks the apk for the device's primary abi`() {
+        val release = UpdateChecker.parseRelease(splitReleaseJson(*allAssets), supportedAbis = listOf("armeabi-v7a", "armeabi"))
+        assertEquals("AnkiDroid-deurim-v0.1.11-armeabi-v7a.apk", release?.apkName)
+        assertEquals("https://example.com/armeabi-v7a.apk", release?.apkUrl)
+    }
+
+    @Test
+    fun `parseRelease does not confuse x86 with x86_64`() {
+        val release = UpdateChecker.parseRelease(splitReleaseJson(*allAssets), supportedAbis = listOf("x86"))
+        assertEquals("AnkiDroid-deurim-v0.1.11-x86.apk", release?.apkName)
+    }
+
+    @Test
+    fun `parseRelease prefers abis in the device's order`() {
+        val release = UpdateChecker.parseRelease(splitReleaseJson(*allAssets), supportedAbis = listOf("x86_64", "x86", "arm64-v8a"))
+        assertEquals("AnkiDroid-deurim-v0.1.11-x86_64.apk", release?.apkName)
+    }
+
+    @Test
+    fun `parseRelease falls back to a secondary abi when the primary has no apk`() {
+        val release =
+            UpdateChecker.parseRelease(
+                splitReleaseJson("armeabi-v7a", "universal"),
+                supportedAbis = listOf("arm64-v8a", "armeabi-v7a"),
+            )
+        assertEquals("AnkiDroid-deurim-v0.1.11-armeabi-v7a.apk", release?.apkName)
+    }
+
+    @Test
+    fun `parseRelease falls back to the universal apk when no abi matches`() {
+        val release = UpdateChecker.parseRelease(splitReleaseJson(*allAssets), supportedAbis = listOf("riscv64"))
+        assertEquals("AnkiDroid-deurim-v0.1.11-universal.apk", release?.apkName)
     }
 
     @Test

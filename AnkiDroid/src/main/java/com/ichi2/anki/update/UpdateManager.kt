@@ -41,7 +41,7 @@ import androidx.core.content.edit
 import androidx.core.view.isVisible
 import androidx.fragment.app.FragmentActivity
 import com.ichi2.anki.BuildConfig
-import com.ichi2.anki.NOTIFICATION_MIN_DELAY_MS
+import com.ichi2.anki.NOTIFICATION_MIN_DELAY
 import com.ichi2.anki.NotificationChannel
 import com.ichi2.anki.R
 import com.ichi2.anki.common.preferences.sharedPrefs
@@ -263,7 +263,7 @@ object UpdateManager {
                         val stageChanged = progress.stage != lastStage
                         lastStage = progress.stage
                         val uiDue = stageChanged || now - lastUiMs >= UI_UPDATE_INTERVAL_MS
-                        val notifyDue = stageChanged || now - lastNotifyMs >= NOTIFICATION_MIN_DELAY_MS
+                        val notifyDue = stageChanged || now - lastNotifyMs >= NOTIFICATION_MIN_DELAY.inWholeMilliseconds
                         if (!uiDue && !notifyDue) return@download
                         val text = describeProgress(activity, progress, estimator)
                         if (uiDue) {

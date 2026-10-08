@@ -97,6 +97,7 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.reflect.jvm.jvmName
+import kotlin.time.Duration.Companion.milliseconds
 
 class ReviewerFragment :
     CardViewerFragment(R.layout.fragment_reviewer),
@@ -719,7 +720,7 @@ class ReviewerFragment :
                 isScrollingJob?.cancel()
                 isScrollingJob =
                     lifecycleScope.launch {
-                        delay(300)
+                        delay(300.milliseconds)
                         isScrolling = false
                     }
             }

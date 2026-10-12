@@ -8,6 +8,7 @@ import com.ichi2.anki.ai.AiChatRole
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.contains
 import org.hamcrest.Matchers.empty
+import org.hamcrest.Matchers.equalTo
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -45,5 +46,17 @@ class MetaDBAiChatTest : RobolectricTest() {
             MetaDB.getAiChatMessages(targetContext, nid = 2L),
             contains(AiChatMessage(AiChatRole.USER, "note 2 message")),
         )
+    }
+
+    @Test
+    fun `hasAiChatMessages reflects whether the given note has history`() {
+        MetaDB.storeAiChatMessage(targetContext, nid = 1L, AiChatMessage(AiChatRole.USER, "note 1 message"))
+
+        assertThat(MetaDB.hasAiChatMessages(targetContext, nid = 1L), equalTo(true))
+        assertThat(MetaDB.hasAiChatMessages(targetContext, nid = 2L), equalTo(false))
+
+        MetaDB.deleteAiChatMessages(targetContext, nid = 1L)
+
+        assertThat(MetaDB.hasAiChatMessages(targetContext, nid = 1L), equalTo(false))
     }
 }

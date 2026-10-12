@@ -339,6 +339,10 @@ open class Reviewer :
         }
         startLoadingCollection()
         registerOnForgetHandler { listOf(currentCardId!!) }
+        // The chat may have added or cleared history: update the AI chat icon
+        supportFragmentManager.setFragmentResultListener(AiChatBottomSheetFragment.REQUEST_KEY_DISMISSED, this) { _, _ ->
+            refreshActionBar()
+        }
         previousCardId = savedInstanceState?.getLongOrNull(KEY_PREVIOUS_CARD_ID)
     }
 
@@ -1338,6 +1342,13 @@ open class Reviewer :
             markCardIcon.setTitle(TR.sentenceCase.markNote).setIcon(R.drawable.ic_star_border_white)
         }
         markCardIcon.iconAlpha = alpha
+
+        val aiChatIcon = menu.findItem(R.id.action_ai_chat)
+        if (currentCard != null && MetaDB.hasAiChatMessages(this, currentCard!!.nid)) {
+            aiChatIcon.setIcon(R.drawable.ic_ai_chat_has_history)
+        } else {
+            aiChatIcon.setIcon(R.drawable.ic_ai_chat)
+        }
 
         val flagIcon = menu.findItem(R.id.action_flag)
         if (flagIcon != null) {

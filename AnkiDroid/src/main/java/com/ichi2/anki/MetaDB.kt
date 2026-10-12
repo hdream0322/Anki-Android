@@ -734,6 +734,24 @@ object MetaDB {
         }
     }
 
+    /** Returns whether a note has any AI chat history. */
+    fun hasAiChatMessages(
+        context: Context,
+        nid: NoteId,
+    ): Boolean {
+        openDBIfClosed(context)
+        try {
+            metaDb!!
+                .rawQuery(
+                    "SELECT 1 FROM aiChatMessages WHERE nid = ? LIMIT 1",
+                    arrayOf(nid.toString()),
+                ).use { cur -> return cur.moveToFirst() }
+        } catch (e: Exception) {
+            Timber.e(e, "Error checking AI chat messages in MetaDB")
+        }
+        return false
+    }
+
     /** Returns a note's AI chat history in insertion order. */
     fun getAiChatMessages(
         context: Context,

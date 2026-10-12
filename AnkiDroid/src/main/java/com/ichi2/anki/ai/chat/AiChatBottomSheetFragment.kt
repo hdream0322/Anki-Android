@@ -2,12 +2,14 @@
 
 package com.ichi2.anki.ai.chat
 
+import android.content.DialogInterface
 import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AlertDialog
 import androidx.core.os.BundleCompat
 import androidx.core.view.isVisible
 import androidx.fragment.app.FragmentManager
+import androidx.fragment.app.setFragmentResult
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -133,6 +135,11 @@ class AiChatBottomSheetFragment : BottomSheetDialogFragment(R.layout.fragment_ai
         }
     }
 
+    override fun onDismiss(dialog: DialogInterface) {
+        super.onDismiss(dialog)
+        setFragmentResult(REQUEST_KEY_DISMISSED, Bundle.EMPTY)
+    }
+
     private fun errorMessage(error: AiError): CharSequence =
         when (error) {
             is AiError.RateLimited ->
@@ -153,6 +160,9 @@ class AiChatBottomSheetFragment : BottomSheetDialogFragment(R.layout.fragment_ai
 
     companion object {
         private const val TAG = "AiChatBottomSheetFragment"
+
+        /** Fragment result key sent when the sheet is dismissed. */
+        const val REQUEST_KEY_DISMISSED = "aiChatDismissed"
         private const val ARG_LAUNCH_ARGS = "launchArgs"
         private const val HTTP_UNAUTHORIZED = 401
         private const val HTTP_FORBIDDEN = 403

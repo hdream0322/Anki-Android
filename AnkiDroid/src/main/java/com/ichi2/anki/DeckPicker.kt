@@ -67,6 +67,7 @@ import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import androidx.work.NetworkType
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import anki.collection.OpChanges
@@ -991,6 +992,12 @@ open class DeckPicker :
 
         viewModel.deckDeletedNotification.launchCollectionInLifecycleScope(::onDeckDeleted)
         viewModel.flowOfDeleteDeckConfirmation.launchCollectionInLifecycleScope(::showDeleteDeckConfirmationDialog)
+        viewModel.flowOfRenameDeck.launchCollectionInLifecycleScope(::renameDeckDialog)
+        viewModel.flowOfStudyDeck.launchCollectionInLifecycleScope { deckId ->
+            launchCatchingTask {
+                handleDeckSelection(deckId, DeckSelectionType.SKIP_STUDY_OPTIONS)
+            }
+        }
         viewModel.emptyCardsNotification.launchCollectionInLifecycleScope(::onCardsEmptied)
         viewModel.flowOfDeckCountsChanged.launchCollectionInLifecycleScope(::onDeckCountsChanged)
         viewModel.flowOfDestination.launchCollectionInLifecycleScope(::onDestinationChanged)
@@ -1146,6 +1153,8 @@ open class DeckPicker :
 
                 override val preferences: SharedPreferences
                     get() = context.sharedPrefs()
+
+                override fun decideStorageIfUndecided() = InitialActivity.decideStorageIfUndecided(context)
 
                 override fun initializeAnkiDroidFolder(): Boolean = CollectionHelper.isCurrentAnkiDroidDirAccessible(context)
             }
@@ -1366,14 +1375,14 @@ open class DeckPicker :
     }
 
     /**
-     * Shows/hides deck related menu items based on the collection being empty or not.
+     * Shows/hides deck related menu items using the ViewModel's action eligibility.
      */
     private fun updateDeckRelatedMenuItems(menu: Menu) {
         viewModel.optionsMenuState?.run {
-            menu.findItem(R.id.action_deck_rename)?.isVisible = !isColEmpty
-            menu.findItem(R.id.action_deck_delete)?.isVisible = !isColEmpty
+            menu.findItem(R.id.action_deck_rename)?.isVisible = showDeckActions
+            menu.findItem(R.id.action_deck_delete)?.isVisible = showDeckActions
             // added to the menu by StudyOptionsFragment
-            menu.findItem(R.id.action_deck_or_study_options)?.isVisible = !isColEmpty
+            menu.findItem(R.id.action_deck_or_study_options)?.isVisible = showDeckActions
         }
     }
 
@@ -1492,10 +1501,7 @@ open class DeckPicker :
                 return true
             }
             R.id.action_deck_rename -> {
-                launchCatchingTask {
-                    val targetDeckId = withCol { decks.selected() }
-                    renameDeckDialog(targetDeckId)
-                }
+                viewModel.requestRenameSelectedDeck()
                 return true
             }
             R.id.action_deck_delete -> {
@@ -1601,6 +1607,7 @@ open class DeckPicker :
             }
         }
         outState.putSerializable("mediaUsnOnConflict", mediaUsnOnConflict)
+        outState.putSerializable("mediaNetworkTypeOnConflict", mediaNetworkTypeOnConflict)
         floatingActionMenu.showFloatingActionButton()
     }
 
@@ -1612,6 +1619,8 @@ open class DeckPicker :
             importColpkgListener = DatabaseRestorationListener(this, path)
         }
         mediaUsnOnConflict = savedInstanceState.getSerializableCompat("mediaUsnOnConflict")
+        mediaNetworkTypeOnConflict =
+            savedInstanceState.getSerializableCompat<NetworkType>("mediaNetworkTypeOnConflict") ?: NetworkType.UNMETERED
         showRestoredBottomNavTab()
     }
 
@@ -1758,9 +1767,7 @@ open class DeckPicker :
             }
             KeyEvent.KEYCODE_S -> {
                 Timber.i("Study from keypress")
-                launchCatchingTask {
-                    handleDeckSelection(withCol { decks.selected() }, DeckSelectionType.SKIP_STUDY_OPTIONS)
-                }
+                viewModel.requestStudySelectedDeck()
                 return true
             }
             KeyEvent.KEYCODE_T -> {
@@ -2068,9 +2075,15 @@ open class DeckPicker :
         return false
     }
 
+    // TODO: Move both conflict fields into pending full-sync context carried by dialog arguments,
+    //  confirmation callbacks, and deferred dialog messages.
+
     /** In the conflict case, we need to store the USN received from the initial sync, and reuse
      it after the user has decided. */
     var mediaUsnOnConflict: Int? = null
+
+    /** Preserve the original attempt's network restriction while the user chooses upload/download. */
+    var mediaNetworkTypeOnConflict: NetworkType = NetworkType.UNMETERED
 
     /**
      * The mother of all syncing attempts. This might be called from sync() as first attempt to sync a collection OR
@@ -2090,8 +2103,8 @@ open class DeckPicker :
             skipPrompt = conflict != null,
             // TODO: why is this needed? 1f91b2868d
             onDialogShown = ::refreshState,
-        ) {
-            handleNewSync(conflict, shouldFetchMedia())
+        ) { permission ->
+            handleNewSync(conflict, shouldFetchMedia(), meteredSyncPermission = permission)
         }
     }
 

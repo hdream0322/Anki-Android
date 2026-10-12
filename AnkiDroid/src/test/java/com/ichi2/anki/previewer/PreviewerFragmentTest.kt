@@ -15,6 +15,8 @@ import com.ichi2.anki.pages.AnkiServer
 import com.ichi2.testutils.createTransientDirectory
 import com.ichi2.testutils.parcelledCopy
 import com.ichi2.testutils.saveState
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.hamcrest.MatcherAssert.assertThat
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -25,15 +27,20 @@ import java.io.IOException
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNotSame
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
 
 @RunWith(AndroidJUnit4::class)
 class PreviewerFragmentTest : RobolectricTest() {
+    // Changing the selected card renders its media controls, which requires a media folder.
+    override fun getCollectionStorageMode() = CollectionStorageMode.IN_MEMORY_WITH_MEDIA
+
     @Test
     fun `server startup failure is not handled as an unavailable selection`() {
-        val file = IdsFile(createTransientDirectory(), addBasicNote().cardIds(col))
+        val file = IdsFile(createTransientDirectory(), addBasicNote().cardIds(col), IdsFile.Purpose.PREVIEW)
         val intent = PreviewerFragment.getIntent(targetContext, file, currentIndex = 0)
         val failure = IOException("server bind failed")
         // A constructor failure never registers the ViewModel for cleanup, so avoid creating real media resources.
@@ -68,7 +75,7 @@ class PreviewerFragmentTest : RobolectricTest() {
     }
 
     private fun assertUnavailableSelection(changeFile: IdsFile.() -> Unit) {
-        val file = IdsFile(createTransientDirectory(), addBasicNote().cardIds(col)).apply(changeFile)
+        val file = IdsFile(createTransientDirectory(), addBasicNote().cardIds(col), IdsFile.Purpose.PREVIEW).apply(changeFile)
         val intent = PreviewerFragment.getIntent(targetContext, file, currentIndex = 0)
         Robolectric.buildActivity(CardViewerActivity::class.java, intent).use { controller ->
             val activity = controller.setup().get()
@@ -79,7 +86,7 @@ class PreviewerFragmentTest : RobolectricTest() {
 
     @Test
     fun `restoring after selection loss closes previewer and accepts key dispatch`() {
-        val file = IdsFile(createTransientDirectory(), addBasicNote().cardIds(col))
+        val file = IdsFile(createTransientDirectory(), addBasicNote().cardIds(col), IdsFile.Purpose.PREVIEW)
         val intent = PreviewerFragment.getIntent(targetContext, file, currentIndex = 0)
         val savedState =
             Robolectric.buildActivity(CardViewerActivity::class.java, intent).use { controller ->
@@ -97,9 +104,42 @@ class PreviewerFragmentTest : RobolectricTest() {
     }
 
     @Test
+    fun `launch index is honored and restored selection overrides it`() {
+        ensureCollectionLoadIsSynchronous()
+        val ids = (1..3).flatMap { addBasicNote().cardIds(col) }
+        val file = IdsFile(createTransientDirectory(), ids, IdsFile.Purpose.PREVIEW)
+        val intent = PreviewerFragment.getIntent(targetContext, file, currentIndex = 1)
+        lateinit var original: PreviewerViewModel
+        val savedState =
+            Robolectric.buildActivity(CardViewerActivity::class.java, intent).use { controller ->
+                val activity = controller.setup().get()
+                original = (activity.supportFragmentManager.fragments.single() as PreviewerFragment).viewModel
+                assertEquals(1, original.currentIndex.value)
+                runBlocking { withTimeout(10.seconds) { assertEquals(ids[1], original.currentCard.await().id) } }
+
+                // Slider positions are one-based; move away from the launch index before saving.
+                val launchCard = original.currentCard
+                original.onSliderChange(3)
+                advanceRobolectricLooperUntil { original.currentCard !== launchCard && original.currentCard.isCompleted }
+                assertEquals(2, original.currentIndex.value)
+                runBlocking { withTimeout(10.seconds) { assertEquals(ids[2], original.currentCard.await().id) } }
+                controller.saveState().parcelledCopy(javaClass.classLoader)
+            }
+
+        // A new controller creates a new ViewModel, unlike a configuration-only recreation.
+        Robolectric.buildActivity(CardViewerActivity::class.java, intent).use { controller ->
+            val activity = controller.setup(savedState).get()
+            val restored = (activity.supportFragmentManager.fragments.single() as PreviewerFragment).viewModel
+            assertNotSame(original, restored)
+            assertEquals(2, restored.currentIndex.value)
+            runBlocking { withTimeout(10.seconds) { assertEquals(ids[2], restored.currentCard.await().id) } }
+        }
+    }
+
+    @Test
     fun `rotation retains loaded selection when its file has disappeared`() {
         val ids = addBasicAndReversedNote().cardIds(col)
-        val file = IdsFile(createTransientDirectory(), ids)
+        val file = IdsFile(createTransientDirectory(), ids, IdsFile.Purpose.PREVIEW)
         val intent = PreviewerFragment.getIntent(targetContext, file, currentIndex = 0)
         ActivityScenario.launch<CardViewerActivity>(intent).use { scenario ->
             lateinit var original: PreviewerViewModel
@@ -124,7 +164,7 @@ class PreviewerFragmentTest : RobolectricTest() {
         val intent =
             PreviewerFragment.getIntent(
                 targetContext,
-                idsFile = IdsFile(createTransientDirectory(), note.cardIds(col)),
+                idsFile = IdsFile(createTransientDirectory(), note.cardIds(col), IdsFile.Purpose.PREVIEW),
                 currentIndex = 0,
             )
 

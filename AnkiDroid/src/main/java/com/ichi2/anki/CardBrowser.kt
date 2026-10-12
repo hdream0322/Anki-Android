@@ -45,6 +45,7 @@ import com.ichi2.anki.browser.CardBrowserViewModel.SearchState
 import com.ichi2.anki.browser.CardBrowserViewModel.SearchState.Initializing
 import com.ichi2.anki.browser.CardBrowserViewModel.SearchState.Searching
 import com.ichi2.anki.browser.CardOrNoteId
+import com.ichi2.anki.browser.IdsFile
 import com.ichi2.anki.browser.SaveSearchResult
 import com.ichi2.anki.browser.SharedPreferencesLastDeckIdRepository
 import com.ichi2.anki.browser.registerFindReplaceHandler
@@ -57,6 +58,7 @@ import com.ichi2.anki.common.annotations.NeedsTest
 import com.ichi2.anki.common.destinations.NoteEditorDestination
 import com.ichi2.anki.common.destinations.navigate
 import com.ichi2.anki.common.utils.annotation.KotlinCleanup
+import com.ichi2.anki.common.utils.ext.getLongExtra
 import com.ichi2.anki.common.utils.ext.onPermanentDismissal
 import com.ichi2.anki.databinding.ActivityCardBrowserBinding
 import com.ichi2.anki.dialogs.DiscardChangesDialog
@@ -646,9 +648,10 @@ open class CardBrowser :
         viewModelStore,
         CardBrowserViewModel.factory(
             lastDeckIdRepository = AnkiDroidApp.instance.sharedPrefsLastDeckIdRepository,
-            cacheDir = cacheDir,
+            idsFileDirectory = IdsFile.getDirectory(this),
             options = launchOptions,
             isFragmented = fragmented,
+            initialDeckId = intent?.getLongExtra(CardBrowserViewModel.EXTRA_DECK_ID),
         ),
         defaultViewModelCreationExtras,
     )[CardBrowserViewModel::class.java]

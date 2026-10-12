@@ -212,7 +212,7 @@ class WhiteboardFragment :
                     4 -> Gesture.FOUR_FINGER_TAP
                     else -> return@setOnMultiTouchListener
                 }
-            val result = bindingMap.onGesture(gesture)
+            val result = onGesture(gesture)
             if (!result) {
                 gestureFallbackListener?.invoke(gesture)
             }
@@ -220,11 +220,14 @@ class WhiteboardFragment :
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (event.action != KeyEvent.ACTION_DOWN) return false
+        if (isHidden || event.action != KeyEvent.ACTION_DOWN) return false
         return bindingMap.onKeyDown(event)
     }
 
-    fun onScreenShake(): Boolean = bindingMap.onGesture(Gesture.SHAKE)
+    fun onScreenShake(): Boolean = !isHidden && onGesture(Gesture.SHAKE)
+
+    /** Handles gestures detected on the whiteboard or on the card beneath it in stylus mode. */
+    fun onGesture(gesture: Gesture): Boolean = bindingMap.onGesture(gesture)
 
     /**
      * Sets up observers for the ViewModel's flows.

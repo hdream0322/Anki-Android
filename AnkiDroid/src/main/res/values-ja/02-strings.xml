@@ -78,9 +78,9 @@
     <string name="slide_to_cancel" comment="Message shown when pressing the record button">左にｽﾗｲﾄﾞでｷｬﾝｾﾙ</string>
     <string name="filter_by_flags" maxLength="41">フラグ</string>
     <!-- filtered deck options -->
-    <string name="filtered_option_delay_again">Delay for again</string>
-    <string name="filtered_option_delay_hard">Delay for hard</string>
-    <string name="filtered_option_delay_good">Delay for good</string>
+    <string name="filtered_option_delay_again">[もう一度] の待ち時間</string>
+    <string name="filtered_option_delay_hard">[難しい] の待ち時間</string>
+    <string name="filtered_option_delay_good">[正解] の待ち時間</string>
     <!-- Custom study options -->
     <string name="custom_study_loading_tags">タグのリストを作成しています&#8230;</string>
     <!-- Study options -->
@@ -217,8 +217,8 @@
     <!-- A Menu item to change the Font Size (currently in the Note Editor) -->
     <string name="menu_font_size" maxLength="28">フォントサイズ</string>
     <string name="menu_show_toolbar" comment="Checkable item stating whether the note editor toolbar should be shown" maxLength="28">ツールバーを表示</string>
-    <string name="note_editor_show_previewer" comment="Checkable item stating whether the note editor preview sidebar should be shown" maxLength="28">Show preview</string>
-    <string name="note_editor_hide_previewer" comment="Checkable item stating whether the note editor preview sidebar should be hidden" maxLength="28">Hide preview</string>
+    <string name="note_editor_show_previewer" comment="Checkable item stating whether the note editor preview sidebar should be shown" maxLength="28">プレビューを表示</string>
+    <string name="note_editor_hide_previewer" comment="Checkable item stating whether the note editor preview sidebar should be hidden" maxLength="28">プレビューを非表示</string>
     <string name="format_insert_bold">太字</string>
     <string name="format_insert_italic">斜体</string>
     <string name="format_insert_underline">下線</string>
@@ -262,7 +262,7 @@
     <string name="percentage">%s%%</string>
     <string name="download_deck">デッキをダウンロード</string>
     <string name="open_in_browser" comment="Label of a button inviting to open ankiweb\'s shared deck page if automated download failed">ﾌﾞﾗｳｻﾞｱﾌﾟﾘで開く</string>
-    <string name="try_again">Try again</string>
+    <string name="try_again">再試行</string>
     <string name="cancel_download">ダウンロードをキャンセル</string>
     <string name="cancel_download_question_title">ダウンロードをキャンセルしますか？</string>
     <string name="downloading_file">%s をダウンロード中</string>
@@ -371,7 +371,7 @@
     <!--Set up date-->
     <string name="set_due_date_day" comment="Used for setting due date">日</string>
     <string name="set_due_date_date_range">期間</string>
-    <string comment="Shown when retrying a running action" name="already_in_progress">Already in progress</string>
+    <string comment="Shown when retrying a running action" name="already_in_progress">すでに進行中です</string>
     <!-- Switch profiles screen -->
     <string name="switch_profile" maxLength="41" comment="Title of the screen where the user switches between profiles">プロファイルを切り替える</string>
     <string name="edit_profile" comment="Content description of the button that edits a profile in the profile list">プロファイルを編集</string>

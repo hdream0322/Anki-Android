@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
+import androidx.annotation.VisibleForTesting
 import androidx.core.content.edit
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat.Type.displayCutout
@@ -96,7 +97,9 @@ class NoteEditorActivity :
     val hasPreviewerPane: Boolean
         get() = previewerFrame != null
 
-    private lateinit var binding: ActivityNoteEditorBinding
+    @VisibleForTesting
+    internal lateinit var binding: ActivityNoteEditorBinding
+        private set
 
     private fun setupEdgeToEdge() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -185,11 +188,11 @@ class NoteEditorActivity :
             ResizablePaneManager(
                 parentLayout = parentLayout,
                 divider = divider,
-                leftPane = noteEditorPane,
-                rightPane = previewerPane,
+                startPane = noteEditorPane,
+                endPane = previewerPane,
                 sharedPrefs = Prefs.getUiConfig(this),
-                leftPaneWeightKey = PREF_NOTE_EDITOR_PANE_WEIGHT,
-                rightPaneWeightKey = PREF_PREVIEWER_PANE_WEIGHT,
+                startPaneWeightKey = PREF_NOTE_EDITOR_PANE_WEIGHT,
+                endPaneWeightKey = PREF_PREVIEWER_PANE_WEIGHT,
             )
             if (isPreviewerVisible) {
                 // Defer previewer loading to avoid blocking onCreate

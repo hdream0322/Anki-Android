@@ -49,6 +49,7 @@ import com.ichi2.anki.browser.RepositionCardsRequest.RepositionData
 import com.ichi2.anki.browser.search.SavedSearch
 import com.ichi2.anki.common.destinations.NoteEditorDestination
 import com.ichi2.anki.common.utils.ext.ifNotZero
+import com.ichi2.anki.common.utils.ext.ignoreAccentsInSearch
 import com.ichi2.anki.export.ExportDialogFragment
 import com.ichi2.anki.flagCardForNote
 import com.ichi2.anki.libanki.BrowserConfig
@@ -75,7 +76,6 @@ import com.ichi2.anki.servicelayer.NoteService
 import com.ichi2.anki.setFlagFilterSync
 import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.utils.ext.defaultBrowserSearch
-import com.ichi2.anki.utils.ext.ignoreAccentsInSearch
 import com.ichi2.testutils.IntentAssert
 import com.ichi2.testutils.JvmTest
 import com.ichi2.testutils.createTransientDirectory
@@ -1655,6 +1655,37 @@ class CardBrowserViewModelTest : JvmTest() {
             searchJob?.join()
             assertThat("deleted row is no longer displayed", toDelete !in cards, equalTo(true))
             assertThat("pane falls back to the first remaining row", paneRow, equalTo(cards.first()))
+        }
+
+    @Test
+    fun `searchResultMessage - initial search provides rows without a message - Issue 21242`() =
+        runViewModelTest(notes = 2, initMode = InitMode.MANUAL) {
+            flowOfSearchState.test {
+                manualInit()
+                val completed = awaitSearchCompleted()
+                assertThat(completed.rowCount, equalTo(2))
+                assertThat(completed.resultMessage, nullValue())
+            }
+        }
+
+    @Test
+    fun `searchResultMessage - sorting and reversing do not produce count messages`() =
+        runViewModelTest(notes = 2) {
+            flowOfSearchState.test {
+                ignoreEventsDuringViewModelInit()
+                val sortOrders =
+                    listOf(
+                        SortType.CollectionOrdering(BrowserColumnKey("noteCrt"), reverse = false),
+                        SortType.CollectionOrdering(BrowserColumnKey("noteCrt"), reverse = true),
+                        SortType.NoOrdering,
+                    )
+                for (sort in sortOrders) {
+                    setSortType(sort).join()
+                    val completed = awaitSearchCompleted()
+                    assertThat("sorting retains the results", completed.rowCount, equalTo(2))
+                    assertThat("sorting has its own feedback", completed.resultMessage, nullValue())
+                }
+            }
         }
 
     @Test

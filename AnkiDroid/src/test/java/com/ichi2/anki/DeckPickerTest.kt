@@ -10,9 +10,13 @@ import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.database.sqlite.SQLiteDatabaseCorruptException
 import android.os.Bundle
+import android.text.Layout
 import android.view.KeyEvent
 import android.view.Menu
+import android.view.MotionEvent
 import android.view.View
+import android.view.View.MeasureSpec
+import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.Toolbar
@@ -23,6 +27,10 @@ import androidx.core.net.toUri
 import androidx.core.view.ContentInfoCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.children
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
+import androidx.fragment.app.commitNow
 import androidx.test.core.app.ActivityScenario
 import androidx.test.filters.SdkSuppress
 import anki.backend.backendError
@@ -48,6 +56,7 @@ import com.ichi2.anki.dialogs.DeckPickerConfirmDeleteDeckDialog
 import com.ichi2.anki.dialogs.DeckPickerContextMenu.DeckPickerContextMenuOption
 import com.ichi2.anki.dialogs.DeckPickerContextMenuResult
 import com.ichi2.anki.dialogs.DeckSelectionDialog
+import com.ichi2.anki.dialogs.SyncErrorDialog
 import com.ichi2.anki.dialogs.setDeckPickerContextMenuResult
 import com.ichi2.anki.dialogs.utils.input
 import com.ichi2.anki.dialogs.utils.message
@@ -58,6 +67,7 @@ import com.ichi2.anki.model.SelectableDeck
 import com.ichi2.anki.navigation.AnkiDroidNavigator
 import com.ichi2.anki.observability.ChangeManager
 import com.ichi2.anki.preferences.PreferencesActivity
+import com.ichi2.anki.reviewreminders.ScheduleRemindersFragment
 import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.snackbar.showSnackbar
 import com.ichi2.anki.ui.RecyclerFastScroller
@@ -72,6 +82,7 @@ import com.ichi2.testutils.BackendEmulatingOpenConflict
 import com.ichi2.testutils.BackupManagerTestUtilities
 import com.ichi2.testutils.common.Flaky
 import com.ichi2.testutils.common.OS
+import com.ichi2.testutils.dispatchTouch
 import com.ichi2.testutils.ext.addBasicNoteWithOp
 import com.ichi2.testutils.ext.menu
 import com.ichi2.testutils.ext.text
@@ -81,6 +92,7 @@ import com.ichi2.testutils.withBooleanPreference
 import com.ichi2.testutils.withDeniedPermissions
 import com.ichi2.testutils.withWritePermissions
 import com.ichi2.ui.AccessibleSearchView
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.merge
 import net.ankiweb.rsdroid.BackendException.BackendDbException.BackendDbCorruptException
 import org.hamcrest.MatcherAssert.assertThat
@@ -95,6 +107,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Ignore
 import org.junit.Test
+import org.junit.jupiter.api.Assertions.assertAll
 import org.junit.jupiter.api.Assertions.assertDoesNotThrow
 import org.junit.runner.RunWith
 import org.mockito.Mockito.mock
@@ -114,6 +127,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNotSame
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
@@ -723,14 +737,59 @@ class DeckPickerTest : RobolectricTest() {
     @Test
     fun `study options follows the selected deck`() {
         assumeTrue("We are running on a tablet", qualifiers!!.contains("xlarge"))
+        addBasicNote()
         val deckId = addDeck("Another Deck")
+        addNoteToDeck(deckId, count = 2)
 
         deckPicker {
+            val studyOptions = assertNotNull(fragment)
+            val studyOptionsView = studyOptions.requireView()
             viewModel.selectDeck(deckId).join()
             advanceRobolectricLooper()
 
+            assertSame(studyOptions, fragment)
+            assertSame(studyOptionsView, assertNotNull(fragment).requireView())
             assertEquals(deckId, assertNotNull(fragment).viewModel.selectedDeckId)
             assertEquals("Another Deck", findViewById<TextView>(R.id.studyoptions_deck_name).text.toString())
+            assertEquals("2", findViewById<TextView>(R.id.studyoptions_new_count).text.toString())
+
+            viewModel.selectDeck(1L).join()
+            advanceRobolectricLooper()
+
+            assertSame(studyOptionsView, assertNotNull(fragment).requireView())
+            assertEquals(1L, studyOptions.viewModel.selectedDeckId)
+            assertEquals("1", findViewById<TextView>(R.id.studyoptions_new_count).text.toString())
+        }
+    }
+
+    @Test
+    fun `description wrapping is restored after releasing or cancelling divider drag`() {
+        assumeTrue("We are running on a tablet", qualifiers!!.contains("xlarge"))
+        addBasicNote()
+
+        deckPicker {
+            val description = findViewById<TextView>(R.id.studyoptions_deck_description)
+            val defaultDescription =
+                layoutInflater.inflate(R.layout.fragment_study_options, null).findViewById<TextView>(R.id.studyoptions_deck_description)
+            assertEquals(defaultDescription.breakStrategy, description.breakStrategy)
+            assertEquals(defaultDescription.hyphenationFrequency, description.hyphenationFrequency)
+            val divider = findViewById<View>(R.id.resizing_divider)
+
+            for (endAction in listOf(MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL)) {
+                // Restore the view's own settings, including values different from the theme defaults.
+                @SuppressLint("WrongConstant")
+                description.breakStrategy = Layout.BREAK_STRATEGY_BALANCED
+                description.hyphenationFrequency = Layout.HYPHENATION_FREQUENCY_FULL
+
+                divider.dispatchTouch(MotionEvent.ACTION_DOWN)
+                repeat(2) { divider.dispatchTouch(MotionEvent.ACTION_MOVE) }
+                assertEquals(Layout.BREAK_STRATEGY_SIMPLE, description.breakStrategy)
+                assertEquals(Layout.HYPHENATION_FREQUENCY_NONE, description.hyphenationFrequency)
+
+                divider.dispatchTouch(endAction)
+                assertEquals(Layout.BREAK_STRATEGY_BALANCED, description.breakStrategy)
+                assertEquals(Layout.HYPHENATION_FREQUENCY_FULL, description.hyphenationFrequency)
+            }
         }
     }
 
@@ -740,16 +799,210 @@ class DeckPickerTest : RobolectricTest() {
         addBasicNote()
 
         deckPicker {
-            val initialState = assertNotNull(fragment).viewModel.state
+            val studyOptions = assertNotNull(fragment)
+            val initialState = studyOptions.viewModel.state
             assertEquals(1, initialState.dataOrNull()?.numberOfCardsInDeck)
 
             addBasicNote()
-            viewModel.reloadDeckCounts().join()
-            advanceRobolectricLooper()
+            reloadDecks()
 
+            assertSame(studyOptions, fragment)
             val updatedState = assertNotNull(fragment).viewModel.state
             assertEquals(2, updatedState.dataOrNull()?.numberOfCardsInDeck)
         }
+    }
+
+    @Test
+    fun `deck reload preserves reminder panel and its dialog`() =
+        withReminderPanel { reminders ->
+            val dialog = showSyncConflict()
+
+            reloadDecks()
+
+            assertSame(reminders, sidePanel)
+            assertTrue(dialog.isShowing)
+        }
+
+    @Test
+    fun `cancelling sync conflict after reload returns to reminders`() =
+        withReminderPanel { reminders ->
+            val dialog = showSyncConflict()
+            reloadDecks()
+
+            dialog.getButton(DialogInterface.BUTTON_NEUTRAL).performClick()
+            advanceRobolectricLooper()
+
+            assertFalse(dialog.isShowing)
+            assertSame(reminders, sidePanel)
+        }
+
+    @Test
+    fun `reminder toolbar returns to study options after reload`() =
+        withReminderPanel { reminders ->
+            reloadDecks()
+
+            reminders.navigateUp()
+
+            assertNotNull(fragment)
+            assertEquals(0, supportFragmentManager.backStackEntryCount)
+        }
+
+    @Test
+    fun `selecting another deck closes reminders and clears pane navigation history`() =
+        withReminderPanel {
+            val anotherDeck = addDeck("Another Deck")
+
+            viewModel.selectDeck(anotherDeck).join()
+            advanceRobolectricLooper()
+
+            assertEquals(anotherDeck, assertNotNull(fragment).viewModel.selectedDeckId)
+            assertEquals(0, supportFragmentManager.backStackEntryCount)
+        }
+
+    @Test
+    fun `returning from reminders does not accumulate study options subscriptions`() {
+        assumeTrue("We are running on a tablet", qualifiers!!.contains("xlarge"))
+        addBasicNote()
+        Prefs.newReviewRemindersEnabled = true
+
+        deckPicker {
+            val studyOptions = assertNotNull(fragment)
+            val state = studyOptions.viewModel.flowOfState as MutableStateFlow<StudyOptionsState>
+            val initialSubscriberCount = ChangeManager.subscriberCount
+            assertEquals(1, state.subscriptionCount.value)
+
+            repeat(2) {
+                selectContextMenuOption(ContextMenuOption.SCHEDULE_REMINDERS, studyOptions.viewModel.selectedDeckId)
+                advanceRobolectricLooper()
+                val reminders = requireNotNull(sidePanel as? ScheduleRemindersFragment)
+                reminders.navigateUp()
+
+                assertSame(studyOptions, fragment)
+                assertAll(
+                    { assertEquals("Active study options state collectors", 1, state.subscriptionCount.value) },
+                    { assertEquals("ChangeManager subscriptions", initialSubscriberCount, ChangeManager.subscriberCount) },
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `returning from reminders restores scroll only for the same deck`() {
+        assumeTrue("We are running on a tablet", qualifiers!!.contains("xlarge"))
+        addBasicNote()
+        val anotherDeck = addDeck("Another deck")
+        addNoteToDeck(anotherDeck, count = 2)
+        Prefs.newReviewRemindersEnabled = true
+
+        deckPicker {
+            makeStudyOptionsScrollable()
+            val studyOptions = assertNotNull(fragment)
+            for (selectAnotherDeck in listOf(false, true)) {
+                val scroll = studyOptions.layoutScroll()
+                scroll.scrollTo(0, 200)
+                assertEquals(200, scroll.scrollY)
+
+                selectContextMenuOption(ContextMenuOption.SCHEDULE_REMINDERS, studyOptions.viewModel.selectedDeckId)
+                advanceRobolectricLooper()
+                val reminders = assertNotNull(sidePanel as? ScheduleRemindersFragment)
+                if (selectAnotherDeck) {
+                    viewModel.selectDeck(anotherDeck).join()
+                    advanceRobolectricLooper()
+                } else {
+                    reminders.navigateUp()
+                }
+
+                assertSame(studyOptions, fragment)
+                assertEquals(if (selectAnotherDeck) anotherDeck else 1L, studyOptions.viewModel.selectedDeckId)
+                val restoredScroll = studyOptions.layoutScroll()
+                assertEquals(if (selectAnotherDeck) 0 else 200, restoredScroll.scrollY)
+            }
+        }
+    }
+
+    @Test
+    fun `restored study options associates saved scroll with its deck`() {
+        assumeTrue("We are running on a tablet", qualifiers!!.contains("xlarge"))
+        addBasicNote()
+        val anotherDeck = addDeck("Another deck")
+        addNoteToDeck(anotherDeck, count = 2)
+
+        deckPicker {
+            makeStudyOptionsScrollable()
+            for (deckId in listOf(1L, anotherDeck)) {
+                val studyOptions = assertNotNull(fragment)
+                studyOptions.layoutScroll().scrollTo(0, 200)
+                val savedState = supportFragmentManager.saveFragmentInstanceState(studyOptions)
+                viewModel.selectDeck(deckId).join()
+                advanceRobolectricLooper()
+
+                // Recreate the fragment from its saved state, including its view hierarchy.
+                val restored = StudyOptionsFragment().apply { setInitialSavedState(savedState) }
+                supportFragmentManager.commitNow { replace(R.id.studyoptions_fragment, restored) }
+                advanceRobolectricLooper()
+
+                assertEquals(deckId, restored.viewModel.selectedDeckId)
+                assertEquals(if (deckId == 1L) 200 else 0, restored.layoutScroll().scrollY)
+            }
+        }
+    }
+
+    /** Keep original and restored panes scrollable without relying on font metrics. */
+    private fun DeckPicker.makeStudyOptionsScrollable() {
+        val studyOptionsView = assertNotNull(fragment).requireView()
+        studyOptionsView.findViewById<ScrollView>(R.id.studyoptions_scrollview).getChildAt(0).minimumHeight = 10000
+        supportFragmentManager.registerFragmentLifecycleCallbacks(
+            object : FragmentManager.FragmentLifecycleCallbacks() {
+                override fun onFragmentViewCreated(
+                    fm: FragmentManager,
+                    f: Fragment,
+                    v: View,
+                    savedInstanceState: Bundle?,
+                ) {
+                    if (f is StudyOptionsFragment) {
+                        v.findViewById<ScrollView>(R.id.studyoptions_scrollview).getChildAt(0).minimumHeight = 10000
+                    }
+                }
+            },
+            false,
+        )
+    }
+
+    private fun StudyOptionsFragment.layoutScroll(): ScrollView =
+        requireView().findViewById<ScrollView>(R.id.studyoptions_scrollview).apply {
+            measure(MeasureSpec.makeMeasureSpec(400, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(300, MeasureSpec.EXACTLY))
+            layout(0, 0, 400, 300)
+        }
+
+    private fun withReminderPanel(test: suspend DeckPicker.(ScheduleRemindersFragment) -> Unit) {
+        assumeTrue("We are running on a tablet", qualifiers!!.contains("xlarge"))
+        addBasicNote()
+        Prefs.newReviewRemindersEnabled = true
+        deckPicker {
+            selectContextMenuOption(ContextMenuOption.SCHEDULE_REMINDERS, getColUnsafe.decks.selected())
+            advanceRobolectricLooper()
+            test(requireNotNull(sidePanel as? ScheduleRemindersFragment))
+        }
+    }
+
+    private val DeckPicker.sidePanel
+        get() = supportFragmentManager.findFragmentById(R.id.studyoptions_fragment)
+
+    private suspend fun DeckPicker.reloadDecks() {
+        viewModel.reloadDeckCounts().join()
+        advanceRobolectricLooper()
+    }
+
+    private fun DeckPicker.showSyncConflict(): AlertDialog {
+        showSyncErrorDialog(SyncErrorDialog.Type.DIALOG_SYNC_CONFLICT_RESOLUTION)
+        advanceRobolectricLooper()
+        return ShadowDialog.getLatestDialog() as AlertDialog
+    }
+
+    private fun ScheduleRemindersFragment.navigateUp() {
+        val toolbar = requireView().findViewById<Toolbar>(R.id.non_collapsible_toolbar)
+        toolbar.children.first { it.contentDescription == toolbar.navigationContentDescription }.performClick()
+        advanceRobolectricLooper()
     }
 
     @Test

@@ -13,6 +13,7 @@ plugins {
     alias(libs.plugins.tripletPlay)
     id("ankidroid.android.app")
     id("ankidroid.plugins.jacoco")
+    id("ankidroid.plugins.robolectric-downloader")
     alias(libs.plugins.androidx.baselineprofile)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.kotlin.compose)
@@ -119,7 +120,7 @@ val forkReleaseDate =
         .orElse(providers.environmentVariable("FORK_RELEASE_DATE"))
         .orElse("0")
 
-val upstreamVersionName = "2.26.0alpha2"
+val upstreamVersionName = "2.26.0alpha3"
 
 android {
     namespace = "com.ichi2.anki"
@@ -176,7 +177,7 @@ android {
         // This ensures the correct ordering between the various types of releases (dev < alpha < beta < release) which is
         // needed for upgrades to be offered correctly.
         // Upstream baseline: keep this a plain literal, upstream's validateVersionCode parses it.
-        versionCode = 22600102
+        versionCode = 22600103
         // Deurim: add the per-fork build counter (see forkBuild above). Must not start with
         // `versionCode`, or validateVersionCode sees two declarations and fails.
         this.versionCode = versionCode!! + forkBuild
@@ -772,8 +773,6 @@ afterEvaluate {
     }
 }
 
-apply(from = "./robolectricDownloader.gradle")
-
 android {
     lint {
         // Analyze project-local dependencies (:common:android etc.) as part of this
@@ -879,7 +878,7 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.okhttp.sse)
     implementation(libs.androidx.security.crypto)
-    implementation(libs.slf4j.timber)
+    implementation(libs.slf4j.api)
     implementation(libs.jakewharton.timber)
     implementation(libs.jsoup)
     implementation(libs.java.semver) // For AnkiDroid JS API Versioning
@@ -909,7 +908,8 @@ dependencies {
     testImplementation(libs.mockito.kotlin)
     testImplementation(libs.hamcrest)
     testImplementation(libs.test.parameter.injector)
-    // robolectricDownloader.gradle *may* need a new SDK jar entry if they release one or if we change targetSdk. Instructions in that gradle file.
+    // ankidroid.plugins.robolectric-downloader may need a new SDK jar entry
+    // when Robolectric or targetSdk changes. See the instructions in that plugin.
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.compose.ui.test.junit4)
     // Needed for createComposeRule(), but not for createAndroidComposeRule<YourActivity>()

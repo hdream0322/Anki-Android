@@ -7,14 +7,16 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
+import android.view.View
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.commit
-import com.google.android.material.button.MaterialButton
 import com.ichi2.anki.AnkiActivity
 import com.ichi2.anki.R
 import com.ichi2.anki.compat.CompatHelper.Companion.getSerializableCompat
@@ -26,6 +28,8 @@ import com.ichi2.anki.settings.enums.NightTheme
 import com.ichi2.anki.snackbar.BaseSnackbarBuilderProvider
 import com.ichi2.anki.snackbar.SnackbarBuilder
 import com.ichi2.anki.startup.ensureStorageIsReady
+import com.ichi2.compose.theme.AnkiDroidTheme
+import com.ichi2.compose.ui.components.HeroToolbarActionButton
 import com.ichi2.themes.Themes
 import com.ichi2.utils.FragmentFactoryUtils
 import dev.androidbroadcast.vbpd.viewBinding
@@ -84,6 +88,7 @@ class MultimediaActivity :
         }
         setupEdgeToEdge()
         setSupportActionBar(binding.toolbar)
+        setupToolbarActions()
 
         // avoid recreating the fragment on configuration changes
         if (savedInstanceState != null) {
@@ -114,6 +119,23 @@ class MultimediaActivity :
         }
     }
 
+    private fun setupToolbarActions() {
+        binding.toolbarActions.isVisible = intent.getStringExtra(EXTRA_FRAGMENT_NAME) == MultimediaImageFragment::class.jvmName
+        if (!binding.toolbarActions.isVisible) return
+
+        binding.toolbarActions.apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+            setContent {
+                AnkiDroidTheme {
+                    HeroToolbarActionButton(onClick = {
+                        val fragment = supportFragmentManager.findFragmentById(R.id.fragment_container) as? MultimediaImageFragment
+                        fragment?.onDone()
+                    })
+                }
+            }
+        }
+    }
+
     /**
      * Applies edge-to-edge insets for the app bar. The hosted fragment insets its own root,
      * see [MultimediaFragment].
@@ -130,14 +152,8 @@ class MultimediaActivity :
     }
 
     override val baseSnackbarBuilder: SnackbarBuilder = {
-        // if action_done exists in a fragment, use that as the anchor view
-
-        // This is a minor hack architecturally: AudioRecordingController should request that
-        // the host fragment/activity opens a snackbar, so the activity doesn't need knowledge
-        // of the layout of its hosted fragments
-
-        // If this doesn't work, anchorView remains null
-        anchorView = findViewById<MaterialButton>(R.id.action_done)
+        // Keep error messages above the editor's bottom controls.
+        anchorView = findViewById<View>(R.id.image_actions) ?: findViewById<View>(R.id.action_done)
     }
 
     companion object {

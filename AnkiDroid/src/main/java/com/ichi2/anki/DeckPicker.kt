@@ -191,6 +191,7 @@ import com.ichi2.anki.utils.ShortcutUtils
 import com.ichi2.anki.utils.ext.dismissAllDialogFragments
 import com.ichi2.anki.utils.ext.doOnScrolled
 import com.ichi2.anki.utils.ext.launchCollectionInLifecycleScope
+import com.ichi2.anki.utils.ext.onGlobalLayout
 import com.ichi2.anki.utils.ext.positionIsVisible
 import com.ichi2.anki.utils.ext.setFragmentResultListener
 import com.ichi2.anki.utils.ext.setImageDrawableSafe
@@ -224,6 +225,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.ankiweb.rsdroid.Translations
+import net.ankiweb.rsdroid.exceptions.BackendInvalidInputException.BackendCollectionNotOpenException
 import timber.log.Timber
 import java.io.File
 import kotlin.time.Duration
@@ -737,7 +739,7 @@ open class DeckPicker :
         }
         // Insets move the FAB's ancestors without changing the FAB's bounds within its parent.
         // Wait until the whole hierarchy is laid out before reading positions in the window.
-        deckPickerBinding.root.viewTreeObserver.addOnGlobalLayoutListener {
+        deckPickerBinding.root.onGlobalLayout(this) {
             setRecyclerViewBottomPaddingAbove(listAnchor())
         }
         deckPickerBinding.reviewSummaryTextView.addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
@@ -930,7 +932,8 @@ open class DeckPicker :
 
         fun onDecksReloaded(param: Unit) {
             hideProgressBar()
-            tryShowStudyOptionsPanel()
+            // TODO: Refresh deck metadata in the reminder pane
+            fragment?.refreshInterface()
         }
 
         fun onStartupResponse(response: StartupResponse) {
@@ -959,11 +962,12 @@ open class DeckPicker :
                         ResizablePaneManager(
                             parentLayout = requireNotNull(binding.deckpickerXlView) { "deckpickerXlView" },
                             divider = requireNotNull(binding.resizingDivider) { "resizingDivider" },
-                            leftPane = deckPickerBinding.root,
-                            rightPane = requireNotNull(binding.studyoptionsFragment) { "studyoptionsFragment" },
+                            startPane = deckPickerBinding.root,
+                            endPane = requireNotNull(binding.studyoptionsFragment) { "studyoptionsFragment" },
                             sharedPrefs = Prefs.getUiConfig(this),
-                            leftPaneWeightKey = PREF_DECK_PICKER_PANE_WEIGHT,
-                            rightPaneWeightKey = PREF_STUDY_OPTIONS_PANE_WEIGHT,
+                            startPaneWeightKey = PREF_DECK_PICKER_PANE_WEIGHT,
+                            endPaneWeightKey = PREF_STUDY_OPTIONS_PANE_WEIGHT,
+                            onResizingChanged = { isResizing -> fragment?.onResizingChanged(isResizing) },
                         )
                     }
                 }
@@ -1626,18 +1630,23 @@ open class DeckPicker :
      */
     private suspend fun automaticSync(runInBackground: Boolean = false): Boolean {
         /**
-         * @return whether there are collection changes to be sync.
+         * @return whether there are collection changes to sync, or null if the collection is closed.
          *
          * It DOES NOT include if there are media to be synced.
          */
-        suspend fun areThereChangesToSync(): Boolean {
+        suspend fun areThereChangesToSync(): Boolean? {
             val auth = syncAuth() ?: return false
             val status =
                 withContext(Dispatchers.IO) {
-                    CollectionManager.getBackend().syncStatus(auth)
-                }.required
+                    // The status check may wait for the network. Do not hold the collection queue.
+                    try {
+                        CollectionManager.getBackend().syncStatus(auth)
+                    } catch (_: BackendCollectionNotOpenException) {
+                        null
+                    }
+                } ?: return null
 
-            return when (status) {
+            return when (status.required) {
                 SyncStatusResponse.Required.NO_CHANGES,
                 SyncStatusResponse.Required.UNRECOGNIZED,
                 null,
@@ -1657,24 +1666,31 @@ open class DeckPicker :
             !NetworkUtils.isOnline -> Timber.d("autoSync: offline")
             !runInBackground && !syncIntervalPassed() -> Timber.d("autoSync: interval not passed")
             !isLoggedIn() -> Timber.d("autoSync: not logged in")
-            !areThereChangesToSync() -> {
-                Timber.d("autoSync: no collection changes to sync. Syncing media if set")
-                if (shouldFetchMedia()) {
-                    val auth = syncAuth() ?: return false
-                    SyncMediaWorker.start(this, auth)
-                }
-                setLastSyncTimeToNow()
-            }
             else -> {
-                if (runInBackground) {
-                    Timber.i("autoSync: starting background")
-                    val auth = syncAuth() ?: return false
-                    SyncWorker.start(this, auth, shouldFetchMedia())
-                } else {
-                    Timber.i("autoSync: starting foreground")
-                    sync()
+                // Startup may have failed to open the collection. Do not sync on exit in that case.
+                val hasChanges = areThereChangesToSync()
+                if (hasChanges == null) {
+                    Timber.d("autoSync: collection not open")
+                    return false
                 }
-                return true
+                if (!hasChanges) {
+                    Timber.d("autoSync: no collection changes to sync. Syncing media if set")
+                    if (shouldFetchMedia()) {
+                        val auth = syncAuth() ?: return false
+                        SyncMediaWorker.start(this, auth)
+                    }
+                    setLastSyncTimeToNow()
+                } else {
+                    if (runInBackground) {
+                        Timber.i("autoSync: starting background")
+                        val auth = syncAuth() ?: return false
+                        SyncWorker.start(this, auth, shouldFetchMedia())
+                    } else {
+                        Timber.i("autoSync: starting foreground")
+                        sync()
+                    }
+                    return true
+                }
             }
         }
         return false
@@ -2105,15 +2121,20 @@ open class DeckPicker :
      */
     private fun tryShowStudyOptionsPanel(): Boolean {
         val containerId = binding.studyoptionsFragment?.id ?: return false
-        // 이미 표시돼 있으면 새로 만들지 않고 갱신만 — 매번 replace 하면 깜빡임이 생긴다.
-        val existing = supportFragmentManager.findFragmentById(containerId) as? StudyOptionsFragment
-        if (existing != null) {
-            existing.refreshInterface()
-            return true
-        }
-        supportFragmentManager.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE)
-        supportFragmentManager.commit {
-            replace(containerId, StudyOptionsFragment())
+
+        // Close other panels before looking for restored study options.
+        supportFragmentManager.popBackStackImmediate(
+            null,
+            FragmentManager.POP_BACK_STACK_INCLUSIVE,
+        )
+
+        val studyOptions = fragment
+        if (studyOptions != null) {
+            studyOptions.refreshInterface()
+        } else {
+            supportFragmentManager.commitNow {
+                replace(containerId, StudyOptionsFragment())
+            }
         }
         return true
     }

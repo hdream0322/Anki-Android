@@ -30,7 +30,6 @@ import com.ichi2.anki.common.android.AnkiBroadcastReceiver
 import com.ichi2.anki.common.annotations.UseContextParameter
 import com.ichi2.anki.common.coroutines.applicationScope
 import com.ichi2.anki.common.crashreporting.CrashReportService
-import com.ichi2.anki.common.crashreporting.runCatchingWithReport
 import com.ichi2.anki.common.destinations.DeckOptionsDestination
 import com.ichi2.anki.common.destinations.PreferencesDestination
 import com.ichi2.anki.common.utils.android.isRobolectric
@@ -245,15 +244,34 @@ fun Fragment.launchCatchingTask(
     lifecycle.coroutineScope.launch {
         // It's a bug to call this if the activity is invalid or finishing.
         val validActivity =
-            runCatchingWithReport("Fragment.launchCatchingTask", onlyIfSilent = true) {
-                requireActivity().also { activity ->
-                    check(!activity.isFinishing) { "Cannot launch task for ${this@launchCatchingTask}: activity is finishing" }
+            kotlin
+                .runCatching {
+                    requireActivity(simpleName = true).also { activity ->
+                        check(!activity.isFinishing) {
+                            "Cannot launch task for ${this@launchCatchingTask.javaClass.simpleName}: activity is finishing"
+                        }
+                    }
+                }.getOrElse {
+                    Timber.w(it, "Fragment.launchCatchingTask")
+                    if (isRobolectric) throw it
+                    return@launch
                 }
-            }.getOrElse {
-                if (isRobolectric) throw it
-                return@launch
-            }
         validActivity.runCatching(errorMessage, skipCrashReport = skipCrashReport) { block() }
+    }
+
+/**
+ * [Fragment.requireActivity], with a short stable name so crash reports can be grouped together.
+ *
+ * ```diff
+ * - Fragment <name>{afc1c3c} (f8db5cf7-13f5-495f-8195-79e0be3aff68) not attached to an activity.
+ * + Fragment <name> not attached to an activity.
+ * ```
+ */
+fun Fragment.requireActivity(simpleName: Boolean): FragmentActivity =
+    if (simpleName) {
+        checkNotNull(activity) { "Fragment ${javaClass.simpleName} not attached to an activity." }
+    } else {
+        requireActivity()
     }
 
 /**

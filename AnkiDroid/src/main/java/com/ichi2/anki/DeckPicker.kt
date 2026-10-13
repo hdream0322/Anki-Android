@@ -140,6 +140,8 @@ import com.ichi2.anki.dialogs.DeckPickerBackupNoSpaceLeftDialog
 import com.ichi2.anki.dialogs.DeckPickerConfirmDeleteDeckDialog
 import com.ichi2.anki.dialogs.DeckPickerContextMenu
 import com.ichi2.anki.dialogs.DeckPickerContextMenu.DeckPickerContextMenuOption
+import com.ichi2.anki.dialogs.DeckPickerMaintenanceDialog
+import com.ichi2.anki.dialogs.DeckPickerMaintenanceDialog.Check
 import com.ichi2.anki.dialogs.DeckPickerNoSpaceLeftDialog
 import com.ichi2.anki.dialogs.DialogHandlerMessage
 import com.ichi2.anki.dialogs.EditDeckDescriptionDialog
@@ -214,7 +216,6 @@ import com.ichi2.utils.configureView
 import com.ichi2.utils.customView
 import com.ichi2.utils.dp
 import com.ichi2.utils.message
-import com.ichi2.utils.negativeButton
 import com.ichi2.utils.positiveButton
 import com.ichi2.utils.show
 import com.ichi2.utils.showDialogIfWebViewOutdated
@@ -637,6 +638,14 @@ open class DeckPicker :
 
         setDeckPickerContextMenuResultListener { result ->
             handleContextMenuSelection(result.option, result.deckId)
+        }
+
+        setFragmentResultListener(Check.MEDIA.requestKey) { _, _ ->
+            Timber.i("Starting media check")
+            startActivity(MediaCheckFragment.getIntent(this))
+        }
+        setFragmentResultListener(Check.DATABASE.requestKey) { _, _ ->
+            performIntegrityCheck()
         }
 
         registerStudyOptionsStudyHandler {
@@ -1283,6 +1292,7 @@ open class DeckPicker :
         // redraw menu synchronously to avoid flicker
         updateMenuFromState(menu)
         updateSearchVisibilityFromState(menu)
+        restoreSearchState(menu)
         // ...then launch a task to possibly update the visible icons.
         // Store the job so that tests can easily await it. In the future
         // this may be better done by injecting a custom test scheduler
@@ -1291,6 +1301,7 @@ open class DeckPicker :
             launchCatchingTask {
                 viewModel.refreshMenuState()
                 updateSearchVisibilityFromState(menu)
+                restoreSearchState(menu)
                 updateDeckRelatedMenuItems(menu)
                 updateMenuFromState(menu)
             }
@@ -1330,6 +1341,7 @@ open class DeckPicker :
                 // When SearchItem is expanded
                 override fun onMenuItemActionExpand(item: MenuItem): Boolean {
                     Timber.i("DeckPicker:: SearchItem opened")
+                    viewModel.updateDeckSearchExpanded(true)
                     // Hide the floating action button if it is visible
                     floatingActionMenu.hideFloatingActionButton()
                     activeSnackBar?.anchorView = null
@@ -1339,6 +1351,8 @@ open class DeckPicker :
                 // When SearchItem is collapsed
                 override fun onMenuItemActionCollapse(item: MenuItem): Boolean {
                     Timber.i("DeckPicker:: SearchItem closed")
+                    viewModel.updateDeckSearchExpanded(false)
+                    viewModel.updateDeckFilter("")
                     // Show the floating action button if it is hidden
                     floatingActionMenu.showFloatingActionButton()
                     activeSnackBar?.anchorView = floatingActionButtonBinding.fabMain
@@ -1347,7 +1361,8 @@ open class DeckPicker :
             },
         )
 
-        (menuItem.actionView as AccessibleSearchView).run {
+        val searchView = menuItem.actionView as AccessibleSearchView
+        searchView.run {
             queryHint = getString(CommonString.search_decks)
             setOnQueryTextListener(
                 object : SearchView.OnQueryTextListener {
@@ -1357,7 +1372,21 @@ open class DeckPicker :
                     }
 
                     override fun onQueryTextChange(newText: String): Boolean {
-                        viewModel.updateDeckFilter(newText)
+                        if (newText.isNotEmpty()) {
+                            viewModel.updateDeckFilter(newText)
+                        } else {
+                            // Ignore empty callbacks from a replaced action view.
+                            searchView.post {
+                                if (
+                                    !isDestroyed &&
+                                    toolbarSearchView === searchView &&
+                                    menuItem.isActionViewExpanded &&
+                                    searchView.query.isEmpty()
+                                ) {
+                                    viewModel.updateDeckFilter("")
+                                }
+                            }
+                        }
                         return true
                     }
                 },
@@ -1366,10 +1395,22 @@ open class DeckPicker :
         searchDecksIcon = menuItem
     }
 
+    private fun restoreSearchState(menu: Menu) {
+        val searchItem = menu.findItem(R.id.deck_picker_action_filter)
+        if (viewModel.isDeckSearchExpanded && searchItem.isVisible) {
+            val searchView = searchItem.actionView as AccessibleSearchView
+            val query = viewModel.deckSearchQuery
+            // Expanding the action view clears its text, so restore the query afterwards.
+            searchItem.expandActionView()
+            searchView.setQuery(query, false)
+        }
+    }
+
     fun updateMenuFromState(menu: Menu) {
         viewModel.optionsMenuState?.run {
-            updateUndoLabelFromState(menu.findItem(R.id.action_undo), undoLabel, undoAvailable)
-            updateSyncIconFromState(menu.findItem(R.id.action_sync), this)
+            // The menu may have been cleared while refreshMenuState was suspended.
+            menu.findItem(R.id.action_undo)?.let { updateUndoLabelFromState(it, undoLabel, undoAvailable) }
+            menu.findItem(R.id.action_sync)?.let { updateSyncIconFromState(it, this) }
         }
         updateDeckRelatedMenuItems(menu)
     }
@@ -1539,15 +1580,7 @@ open class DeckPicker :
 
     private fun showMediaCheckDialog() {
         Timber.i("showing media check dialog")
-        AlertDialog.Builder(this).show {
-            title(text = TR.sentenceCase.checkMediaTitle)
-            message(text = getString(CommonString.check_media_warning))
-            positiveButton(CommonString.dialog_ok) {
-                Timber.i("Starting media check")
-                startActivity(MediaCheckFragment.getIntent(this@DeckPicker))
-            }
-            negativeButton(CommonString.dialog_cancel)
-        }
+        DeckPickerMaintenanceDialog.newInstance(Check.MEDIA).show(supportFragmentManager, DeckPickerMaintenanceDialog.TAG)
     }
 
     fun showCreateFilteredDeckDialog() {
@@ -2034,14 +2067,9 @@ open class DeckPicker :
         val status = CollectionIntegrityStorageCheck.createInstance(this)
         if (status.shouldWarnOnIntegrityCheck()) {
             Timber.d("Displaying File Size confirmation")
-            AlertDialog.Builder(this).show {
-                title(text = TR.sentenceCase.checkDatabase)
-                message(text = status.getWarningDetails(this@DeckPicker))
-                positiveButton(CommonString.integrity_check_continue_anyway) {
-                    performIntegrityCheck()
-                }
-                negativeButton(CommonString.dialog_cancel)
-            }
+            DeckPickerMaintenanceDialog
+                .newInstance(Check.DATABASE, status.getWarningDetails(this))
+                .show(supportFragmentManager, DeckPickerMaintenanceDialog.TAG)
         } else {
             performIntegrityCheck()
         }

@@ -81,7 +81,13 @@ class DeckPickerViewModel :
         }
 
     /** User filter of the deck list. Shown as a search in the UI */
-    private val flowOfCurrentDeckFilter = MutableStateFlow(DeckFilters.create(""))
+    private val flowOfDeckSearchQuery = MutableStateFlow("")
+
+    val deckSearchQuery: String
+        get() = flowOfDeckSearchQuery.value
+
+    var isDeckSearchExpanded: Boolean = false
+        private set
 
     /**
      * Keep track of which deck was last given focus in the deck list. If we find that this value
@@ -109,11 +115,11 @@ class DeckPickerViewModel :
     val flowOfDeckList =
         combine(
             flowOfDeckDueTree,
-            flowOfCurrentDeckFilter,
+            flowOfDeckSearchQuery,
             flowOfFocusedDeck,
             flowOfRefreshDeckList.onStart { emit(Unit) },
             _flowOfDeckSortOrder,
-        ) { tree, filter, _, _, sortOrder ->
+        ) { tree, query, _, _, sortOrder ->
             if (tree == null) return@combine FlattenedDeckList.empty
 
             // TODO: use flowOfFocusedDeck once it's set on all instances
@@ -130,7 +136,7 @@ class DeckPickerViewModel :
             val data =
                 tree
                     .filterAndFlattenDisplay(
-                        filter,
+                        DeckFilters.create(query),
                         currentDeckId,
                         lastStudiedByDeck,
                         sortOrder,
@@ -510,7 +516,11 @@ class DeckPickerViewModel :
 
     fun updateDeckFilter(filterText: String) {
         Timber.d("filter: %s", filterText)
-        flowOfCurrentDeckFilter.value = DeckFilters.create(filterText)
+        flowOfDeckSearchQuery.value = filterText
+    }
+
+    fun updateDeckSearchExpanded(isExpanded: Boolean) {
+        isDeckSearchExpanded = isExpanded
     }
 
     fun toggleDeckExpand(deckId: DeckId) =

@@ -10,6 +10,7 @@ import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.database.sqlite.SQLiteDatabaseCorruptException
 import android.os.Bundle
+import android.os.SystemClock
 import android.text.Layout
 import android.view.KeyEvent
 import android.view.Menu
@@ -28,6 +29,7 @@ import androidx.core.view.ContentInfoCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.children
+import androidx.core.view.size
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.commitNow
@@ -94,6 +96,8 @@ import com.ichi2.testutils.withWritePermissions
 import com.ichi2.ui.AccessibleSearchView
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import net.ankiweb.rsdroid.BackendException.BackendDbException.BackendDbCorruptException
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.containsInAnyOrder
@@ -735,6 +739,115 @@ class DeckPickerTest : RobolectricTest() {
     }
 
     @Test
+    fun `deck search query is restored after recreation`() {
+        addBasicNote()
+        repeat(10) { addDeck("Test Deck $it") }
+
+        ActivityScenario.launch(DeckPicker::class.java).use { scenario ->
+            lateinit var retainedViewModel: DeckPickerViewModel
+            scenario.onActivity { deckPicker ->
+                advanceRobolectricLooper()
+                retainedViewModel = deckPicker.viewModel
+                val searchItem = deckPicker.menu().findItem(R.id.deck_picker_action_filter)
+                assertTrue(searchItem.expandActionView())
+                (searchItem.actionView as AccessibleSearchView).setQuery("Test Deck 1", false)
+                advanceRobolectricLooperUntil { deckPicker.visibleDeckCount == 1 }
+            }
+
+            scenario.recreate()
+            advanceRobolectricLooper()
+
+            scenario.onActivity { deckPicker ->
+                assertSame(retainedViewModel, deckPicker.viewModel)
+                assertEquals("Test Deck 1", deckPicker.viewModel.deckSearchQuery)
+                val searchItem = deckPicker.menu().findItem(R.id.deck_picker_action_filter)
+                assertTrue(searchItem.isActionViewExpanded)
+                assertEquals("Test Deck 1", (searchItem.actionView as AccessibleSearchView).query.toString())
+                advanceRobolectricLooperUntil { deckPicker.visibleDeckCount == 1 }
+                deckPicker.invalidateOptionsMenu()
+            }
+            advanceRobolectricLooper()
+
+            scenario.onActivity { deckPicker ->
+                val searchItem = deckPicker.menu().findItem(R.id.deck_picker_action_filter)
+                assertTrue(searchItem.isActionViewExpanded)
+                assertEquals("Test Deck 1", (searchItem.actionView as AccessibleSearchView).query.toString())
+                assertEquals(1, deckPicker.visibleDeckCount)
+                assertTrue(searchItem.collapseActionView())
+                assertFalse(deckPicker.viewModel.isDeckSearchExpanded)
+                assertEquals("", deckPicker.viewModel.deckSearchQuery)
+                advanceRobolectricLooperUntil { deckPicker.visibleDeckCount == 11 }
+            }
+        }
+    }
+
+    @Test
+    fun `deck search query is restored before the queued menu refresh`() =
+        runTest {
+            addBasicNote()
+            repeat(10) { addDeck("Test Deck $it") }
+            val deckPicker = startRegularActivity<DeckPicker>()
+            advanceRobolectricLooper()
+            val menu = deckPicker.menu()
+            val searchItem = menu.findItem(R.id.deck_picker_action_filter)
+            assertTrue(searchItem.expandActionView())
+            (searchItem.actionView as AccessibleSearchView).setQuery("Test Deck 1", false)
+            advanceRobolectricLooperUntil { deckPicker.visibleDeckCount == 1 }
+
+            // A synchronous collection refresh restores the query a second time, masking
+            // SearchView clearing it during expansion. Exercise the production queue instead.
+            val previousQueue = CollectionManager.setTestDispatcher(StandardTestDispatcher(testScheduler), useReentrantLock = false)
+            try {
+                menu.clear()
+                deckPicker.onCreateOptionsMenu(menu)
+                assertFalse(assertNotNull(deckPicker.createMenuJob).isCompleted)
+
+                val restoredSearchItem = menu.findItem(R.id.deck_picker_action_filter)
+                assertTrue(restoredSearchItem.isActionViewExpanded)
+                assertEquals("Test Deck 1", (restoredSearchItem.actionView as AccessibleSearchView).query.toString())
+                advanceRobolectricLooper()
+                assertEquals("Test Deck 1", deckPicker.viewModel.deckSearchQuery)
+
+                advanceUntilIdle()
+                advanceRobolectricLooperUntil { deckPicker.visibleDeckCount == 1 }
+            } finally {
+                CollectionManager.setTestDispatcher(previousQueue)
+            }
+        }
+
+    @Test
+    fun `empty expanded deck search is restored after recreation`() {
+        addBasicNote()
+        repeat(10) { addDeck("Test Deck $it") }
+
+        ActivityScenario.launch(DeckPicker::class.java).use { scenario ->
+            scenario.onActivity { deckPicker ->
+                advanceRobolectricLooper()
+                assertTrue(deckPicker.menu().findItem(R.id.deck_picker_action_filter).expandActionView())
+            }
+
+            scenario.recreate()
+            advanceRobolectricLooper()
+
+            scenario.onActivity { deckPicker ->
+                val searchItem = deckPicker.menu().findItem(R.id.deck_picker_action_filter)
+                assertTrue(searchItem.isActionViewExpanded)
+                assertEquals("", (searchItem.actionView as AccessibleSearchView).query.toString())
+                assertTrue(searchItem.collapseActionView())
+            }
+
+            scenario.recreate()
+            advanceRobolectricLooper()
+
+            scenario.onActivity { deckPicker ->
+                val searchItem = deckPicker.menu().findItem(R.id.deck_picker_action_filter)
+                assertFalse(searchItem.isActionViewExpanded)
+                assertEquals(11, deckPicker.visibleDeckCount)
+            }
+        }
+    }
+
+    @Test
     fun `study options follows the selected deck`() {
         assumeTrue("We are running on a tablet", qualifiers!!.contains("xlarge"))
         addBasicNote()
@@ -1224,6 +1337,44 @@ class DeckPickerTest : RobolectricTest() {
         }
 
     @Test
+    fun `adding a note by single tap closes the FAB menu`() = assertAddingNoteByTouchClosesMenu(doubleTap = false)
+
+    @Test
+    fun `adding a note by double tap closes the FAB menu`() = assertAddingNoteByTouchClosesMenu(doubleTap = true)
+
+    private fun assertAddingNoteByTouchClosesMenu(doubleTap: Boolean) =
+        deckPicker {
+            val fab = floatingActionButtonBinding.fabMain
+            val startTime = SystemClock.uptimeMillis()
+
+            fun tap(offset: Long) {
+                val downTime = startTime + offset
+                for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
+                    val eventTime = downTime + if (action == MotionEvent.ACTION_UP) 50 else 0
+                    val event = MotionEvent.obtain(downTime, eventTime, action, 0f, 0f, 0)
+                    try {
+                        fab.dispatchTouchEvent(event)
+                    } finally {
+                        event.recycle()
+                    }
+                }
+            }
+
+            if (!doubleTap) floatingActionMenu.showFloatingActionMenu()
+            viewModel.flowOfNavigate.test {
+                if (doubleTap) {
+                    tap(0)
+                    assertTrue(floatingActionMenu.isFABOpen)
+                }
+                tap(100)
+                val intent = AnkiDroidNavigator.toIntent(awaitItem())
+                assertEquals("com.ichi2.anki.NoteEditorActivity", intent.component!!.className)
+                assertFalse(floatingActionMenu.isFABOpen, "Adding a note must close the FAB menu")
+                assertEquals(View.GONE, floatingActionButtonBinding.fabBGLayout.visibility)
+            }
+        }
+
+    @Test
     fun `FAB menu opens on ENTER key`() =
         deckPicker {
             val fab = findViewById<View>(R.id.fab_main)
@@ -1545,6 +1696,34 @@ class DeckPickerTest : RobolectricTest() {
         }
 
     @Test
+    fun `menu state refresh tolerates a cleared menu`() =
+        deckPicker {
+            createMenuJob?.join()
+            assertNotNull(viewModel.optionsMenuState)
+            val menu = menu()
+            // Menu invalidation can clear the menu while refreshMenuState is suspended.
+            menu.clear()
+
+            updateMenuFromState(menu)
+
+            assertEquals(0, menu.size)
+        }
+
+    @Test
+    fun `menu state refresh tolerates a removed sync item`() =
+        deckPicker {
+            createMenuJob?.join()
+            assertNotNull(viewModel.optionsMenuState)
+            val menu = menu()
+            assertNotNull(menu.findItem(R.id.action_undo))
+            menu.removeItem(R.id.action_sync)
+
+            updateMenuFromState(menu)
+
+            assertThat(menu.findItem(R.id.action_sync), nullValue())
+        }
+
+    @Test
     fun `fatal error arriving after menu creation blanks the options menu`() =
         deckPickerEx {
             assertThat("menu was built normally on startup", lastCreateOptionsMenuResult, equalTo(true))
@@ -1652,6 +1831,11 @@ class DeckPickerTest : RobolectricTest() {
         var databaseErrorDialog: DatabaseErrorDialogType? = null
         var displayedAnalyticsOptIn = false
         var optionsMenu: Menu? = null
+        var integrityCheckCalled = false
+
+        override fun integrityCheck() {
+            integrityCheckCalled = true
+        }
 
         /** result of the last [onCreateOptionsMenu] call: false means the menu was blanked */
         var lastCreateOptionsMenuResult: Boolean? = null

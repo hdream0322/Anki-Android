@@ -73,40 +73,65 @@ class TestInputMethodRule(
             }
         }
 
-    private fun snapshot(): Bundle = assertNotNull(instrumentation.context.contentResolver.call(uri, "editor", null, null))
+    private fun callIme(
+        action: String,
+        text: String? = null,
+    ): Bundle? = instrumentation.context.contentResolver.call(uri, action, text, null)
 
-    /** Chromium and the keyboard bridge update asynchronously; match all requested properties in one snapshot. */
+    /** Wait for a responsive input connection and matching metadata in the same IME snapshot. */
     fun awaitEditor(
         inputType: Int? = null,
         imeAction: Int? = null,
     ): EditorInfo {
-        var info: EditorInfo? = null
+        var response = ImeResponse()
         waitUntil(message = {
-            val actualAction = info?.imeOptions?.and(EditorInfo.IME_MASK_ACTION)
-            "IME expected inputType=$inputType, action=$imeAction; " +
-                "received inputType=${info?.inputType}, action=$actualAction, package=${info?.packageName}"
+            "IME expected inputType=$inputType, action=$imeAction; received ${response.describeEditor()}"
         }) {
-            info = BundleCompat.getParcelable(snapshot(), "editor", EditorInfo::class.java)
-            val editor = info ?: return@waitUntil false
-            val matchesInputType =
-                if (inputType == null) {
-                    editor.inputType and InputType.TYPE_MASK_CLASS == InputType.TYPE_CLASS_TEXT &&
-                        editor.inputType and InputType.TYPE_MASK_VARIATION == InputType.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT
-                } else {
-                    editor.inputType == inputType
-                }
-            editor.packageName == instrumentation.targetContext.packageName && matchesInputType &&
-                (imeAction == null || editor.imeOptions and EditorInfo.IME_MASK_ACTION == imeAction)
+            response = ImeResponse(assertNotNull(callIme("editor")))
+            response.ready && response.editor?.matches(inputType, imeAction) == true
         }
-        return assertNotNull(info)
+        return assertNotNull(response.editor)
     }
 
     fun perform(
         action: String,
         text: String? = null,
     ) {
-        val result = instrumentation.context.contentResolver.call(uri, action, text, null)
-        assertTrue(result?.getBoolean("accepted") == true, "IME rejected $action")
+        var response = ImeResponse()
+        waitUntil(message = { "IME connection did not become ready for $action" }) {
+            response = ImeResponse(callIme(action, text))
+            response.ready
+        }
+        assertTrue(response.accepted, "IME rejected $action")
+    }
+
+    private fun EditorInfo.matches(
+        inputType: Int?,
+        imeAction: Int?,
+    ): Boolean =
+        packageName == instrumentation.targetContext.packageName && matchesInputType(inputType) &&
+            (imeAction == null || imeOptions and EditorInfo.IME_MASK_ACTION == imeAction)
+
+    private fun EditorInfo.matchesInputType(expected: Int?): Boolean =
+        if (expected == null) {
+            inputType and InputType.TYPE_MASK_CLASS == InputType.TYPE_CLASS_TEXT &&
+                inputType and InputType.TYPE_MASK_VARIATION == InputType.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT
+        } else {
+            inputType == expected
+        }
+
+    /** Metadata and readiness must come from the same call to the IME. */
+    private class ImeResponse(
+        bundle: Bundle? = null,
+    ) {
+        val editor = bundle?.let { BundleCompat.getParcelable(it, "editor", EditorInfo::class.java) }
+        val ready = bundle?.getBoolean("ready") == true
+        val accepted = bundle?.getBoolean("accepted") == true
+
+        fun describeEditor(): String {
+            val action = editor?.imeOptions?.and(EditorInfo.IME_MASK_ACTION)
+            return "inputType=${editor?.inputType}, action=$action, package=${editor?.packageName}, ready=$ready"
+        }
     }
 }
 

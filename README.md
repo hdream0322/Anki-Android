@@ -58,7 +58,7 @@
 <a href="https://github.com/ankidroid/Anki-Android/blob/main/COPYING"><img src="https://img.shields.io/github/license/ankidroid/Anki-Android" alt="license"/></a>
 
 # AnkiDroid
-오픈소스 [Anki](https://apps.ankiweb.net/index.html) 간격 반복 플래시카드 시스템의 준공식 안드로이드 포팅. AnkiDroid 와 함께라면 무엇이든 외울 수 있습니다!
+오픈소스 [Anki](https://apps.ankiweb.net/index.html) 간격 반복 플래시카드 시스템의 공식 안드로이드 포팅. AnkiDroid 와 함께라면 무엇이든 외울 수 있습니다!
 
 <img src="docs/graphics/logos/ankidroid_logo.png" align="right" width="40%" height="100%"></img>
 

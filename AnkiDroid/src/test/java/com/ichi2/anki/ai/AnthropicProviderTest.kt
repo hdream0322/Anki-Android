@@ -103,14 +103,20 @@ class AnthropicProviderTest {
         val body =
             """
             {"data":[
-              {"type":"model","id":"claude-opus-5-5","display_name":"Claude Opus 5.5"},
-              {"type":"model","id":"claude-haiku-5-5","display_name":"Claude Haiku 5.5"}
+              {"type":"model","id":"claude-opus-5-5","display_name":"Claude Opus 5.5","max_input_tokens":1000000,"lifecycle":"active"},
+              {"type":"model","id":"claude-haiku-5-5","display_name":"Claude Haiku 5.5","max_input_tokens":null,"lifecycle":"deprecated"}
             ],"first_id":"claude-opus-5-5","has_more":true,"last_id":"claude-haiku-5-5"}
             """.trimIndent()
 
         val page = provider.parseModelsPage(body)
 
-        assertEquals(listOf("claude-opus-5-5", "claude-haiku-5-5"), page.modelIds)
+        assertEquals(
+            listOf(
+                AiModelInfo("claude-opus-5-5", displayName = "Claude Opus 5.5", inputTokenLimit = 1_000_000),
+                AiModelInfo("claude-haiku-5-5", displayName = "Claude Haiku 5.5", isDeprecated = true),
+            ),
+            page.models,
+        )
         assertEquals("claude-haiku-5-5", page.nextPageToken)
     }
 

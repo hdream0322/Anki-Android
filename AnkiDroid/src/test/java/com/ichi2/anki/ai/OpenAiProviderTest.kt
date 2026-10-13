@@ -99,7 +99,14 @@ class OpenAiProviderTest {
 
         val page = provider.parseModelsPage(body)
 
-        assertEquals(listOf("gpt-5.6-luna", "o3", "gpt-4o"), page.modelIds)
+        assertEquals(
+            listOf(
+                AiModelInfo("gpt-5.6-luna", createdEpochSeconds = 400),
+                AiModelInfo("o3", createdEpochSeconds = 200),
+                AiModelInfo("gpt-4o", createdEpochSeconds = 100),
+            ),
+            page.models,
+        )
         assertNull(page.nextPageToken)
     }
 }

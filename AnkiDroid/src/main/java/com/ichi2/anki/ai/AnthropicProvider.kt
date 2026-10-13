@@ -87,9 +87,18 @@ class AnthropicProvider : AiProvider {
     override fun parseModelsPage(body: String): AiModelsPage {
         val json = JSONObject(body)
         val data = json.getJSONArray("data")
-        val modelIds = (0 until data.length()).map { data.getJSONObject(it).getString("id") }
+        val models =
+            (0 until data.length()).map {
+                val model = data.getJSONObject(it)
+                AiModelInfo(
+                    id = model.getString("id"),
+                    displayName = model.optString("display_name").ifEmpty { null },
+                    inputTokenLimit = model.optLong("max_input_tokens").takeIf { limit -> limit > 0 },
+                    isDeprecated = model.optString("lifecycle") == "deprecated",
+                )
+            }
         val nextPageToken = if (json.optBoolean("has_more")) json.optString("last_id").ifEmpty { null } else null
-        return AiModelsPage(modelIds, nextPageToken)
+        return AiModelsPage(models, nextPageToken)
     }
 
     companion object {

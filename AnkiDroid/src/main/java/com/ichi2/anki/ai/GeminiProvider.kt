@@ -88,14 +88,21 @@ class GeminiProvider : AiProvider {
     override fun parseModelsPage(body: String): AiModelsPage {
         val json = JSONObject(body)
         val models = json.optJSONArray("models") ?: JSONArray()
-        val chatModelIds =
+        val chatModels =
             (0 until models.length())
                 .map { models.getJSONObject(it) }
                 .filter { model ->
                     val methods = model.optJSONArray("supportedGenerationMethods") ?: JSONArray()
                     (0 until methods.length()).any { methods.getString(it) == "generateContent" }
-                }.map { it.getString("name").removePrefix("models/") }
-        return AiModelsPage(chatModelIds, json.optString("nextPageToken").ifEmpty { null })
+                }.map { model ->
+                    AiModelInfo(
+                        id = model.getString("name").removePrefix("models/"),
+                        displayName = model.optString("displayName").ifEmpty { null },
+                        description = model.optString("description").ifEmpty { null },
+                        inputTokenLimit = model.optLong("inputTokenLimit").takeIf { it > 0 },
+                    )
+                }
+        return AiModelsPage(chatModels, json.optString("nextPageToken").ifEmpty { null })
     }
 
     companion object {

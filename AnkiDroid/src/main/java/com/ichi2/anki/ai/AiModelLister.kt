@@ -18,26 +18,26 @@ open class AiModelLister(
             .build(),
 ) {
     /**
-     * Returns every chat-capable model id across all pages, in the order [AiProvider.parseModelsPage]
-     * gives them, without duplicates.
+     * Returns every chat-capable model across all pages, in the order [AiProvider.parseModelsPage]
+     * gives them, without duplicate ids.
      *
      * @throws AiError on a missing key, network failure, error status or malformed response
      */
     open suspend fun listModels(
         provider: AiProvider,
         apiKey: String,
-    ): List<String> =
+    ): List<AiModelInfo> =
         withContext(Dispatchers.IO) {
             if (apiKey.isBlank()) throw AiError.MissingApiKey
-            val modelIds = LinkedHashSet<String>()
+            val modelsById = LinkedHashMap<String, AiModelInfo>()
             var pageToken: String? = null
             // Bounded so a vendor that keeps returning a token cannot loop forever.
             repeat(MAX_PAGES) {
                 val page = fetchPage(provider, apiKey, pageToken)
-                modelIds += page.modelIds
-                pageToken = page.nextPageToken ?: return@withContext modelIds.toList()
+                page.models.forEach { modelsById.putIfAbsent(it.id, it) }
+                pageToken = page.nextPageToken ?: return@withContext modelsById.values.toList()
             }
-            modelIds.toList()
+            modelsById.values.toList()
         }
 
     private fun fetchPage(

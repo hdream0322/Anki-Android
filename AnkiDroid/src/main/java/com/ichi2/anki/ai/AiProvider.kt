@@ -14,9 +14,26 @@ sealed class AiSseEvent {
     object Ignored : AiSseEvent()
 }
 
+/**
+ * A model from a vendor's model list. Every field but [id] is optional because each vendor's
+ * official list returns a different subset of them.
+ *
+ * @param inputTokenLimit the context window in tokens
+ * @param createdEpochSeconds the release time, used when the vendor gives nothing more descriptive
+ * @param isDeprecated the model still works but is headed for retirement
+ */
+data class AiModelInfo(
+    val id: String,
+    val displayName: String? = null,
+    val description: String? = null,
+    val inputTokenLimit: Long? = null,
+    val createdEpochSeconds: Long? = null,
+    val isDeprecated: Boolean = false,
+)
+
 /** One page of a vendor's model list; [nextPageToken] is `null` on the last page. */
 data class AiModelsPage(
-    val modelIds: List<String>,
+    val models: List<AiModelInfo>,
     val nextPageToken: String?,
 )
 

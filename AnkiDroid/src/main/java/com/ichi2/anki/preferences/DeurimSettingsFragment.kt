@@ -15,17 +15,25 @@
  */
 package com.ichi2.anki.preferences
 
+import android.graphics.Color
 import android.os.Build
 import android.text.InputType
+import android.text.format.DateFormat
+import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
 import android.view.View
 import androidx.appcompat.app.AlertDialog
+import androidx.core.text.buildSpannedString
+import androidx.core.text.inSpans
 import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
 import androidx.preference.Preference
+import com.google.android.material.color.MaterialColors
 import com.ichi2.anki.CommonString
 import com.ichi2.anki.R
 import com.ichi2.anki.ai.AiError
 import com.ichi2.anki.ai.AiKeyStore
+import com.ichi2.anki.ai.AiModelInfo
 import com.ichi2.anki.ai.AiModelLister
 import com.ichi2.anki.ai.AiProvider
 import com.ichi2.anki.ai.AnthropicProvider
@@ -47,6 +55,8 @@ import com.ichi2.utils.title
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import timber.log.Timber
+import java.util.Date
+import kotlin.math.roundToLong
 
 /** Aggregates every fork-only preference (updater, whiteboard, SFX) in one screen. */
 class DeurimSettingsFragment : SettingsFragment() {
@@ -180,15 +190,16 @@ class DeurimSettingsFragment : SettingsFragment() {
             }
 
         val current = Prefs.aiModelOverride
+        val fetchedIds = fetchedModels.map { it.id }
         val labels =
-            listOf(
+            listOf<CharSequence>(
                 getString(R.string.ai_model_item_default, provider.defaultModel),
                 getString(R.string.ai_model_item_custom),
-            ) + fetchedModels
+            ) + fetchedModels.map { modelLabel(it) }
         val checkedIndex =
             when {
                 current.isNullOrBlank() -> 0
-                current in fetchedModels -> FIXED_MODEL_ITEMS + fetchedModels.indexOf(current)
+                current in fetchedIds -> FIXED_MODEL_ITEMS + fetchedIds.indexOf(current)
                 else -> 1
             }
         AlertDialog.Builder(requireContext()).show {
@@ -198,12 +209,41 @@ class DeurimSettingsFragment : SettingsFragment() {
                 when (which) {
                     0 -> setModel(null)
                     1 -> showCustomModelDialog(current, setModel)
-                    else -> setModel(fetchedModels[which - FIXED_MODEL_ITEMS])
+                    else -> setModel(fetchedIds[which - FIXED_MODEL_ITEMS])
                 }
             }
             negativeButton(CommonString.dialog_cancel)
         }
     }
+
+    /** The model id, followed by a smaller, dimmed line with whatever details the vendor's list gave. */
+    private fun modelLabel(model: AiModelInfo): CharSequence {
+        val details =
+            listOfNotNull(
+                model.displayName?.takeIf { it != model.id },
+                model.description,
+                model.inputTokenLimit?.let { getString(R.string.ai_model_detail_context, formatTokenCount(it)) },
+                model.createdEpochSeconds?.let {
+                    getString(R.string.ai_model_detail_released, DateFormat.getMediumDateFormat(requireContext()).format(Date(it * 1000)))
+                },
+                getString(R.string.ai_model_detail_deprecated).takeIf { model.isDeprecated },
+            ).joinToString(" · ")
+        if (details.isEmpty()) return model.id
+        val detailColor = MaterialColors.getColor(requireContext(), android.R.attr.textColorSecondary, Color.GRAY)
+        return buildSpannedString {
+            append(model.id)
+            append('\n')
+            inSpans(RelativeSizeSpan(DETAIL_TEXT_SCALE), ForegroundColorSpan(detailColor)) { append(details) }
+        }
+    }
+
+    /** e.g. 1048576 -> "1M", 200000 -> "200K". */
+    private fun formatTokenCount(tokens: Long): String =
+        when {
+            tokens >= 1_000_000 -> "${(tokens / 1_000_000.0).roundToLong()}M"
+            tokens >= 1_000 -> "${(tokens / 1_000.0).roundToLong()}K"
+            else -> tokens.toString()
+        }
 
     private fun showCustomModelDialog(
         current: String?,
@@ -237,5 +277,6 @@ class DeurimSettingsFragment : SettingsFragment() {
     companion object {
         /** "Default" and "Custom…" precede the fetched models in the picker. */
         private const val FIXED_MODEL_ITEMS = 2
+        private const val DETAIL_TEXT_SCALE = 0.85f
     }
 }

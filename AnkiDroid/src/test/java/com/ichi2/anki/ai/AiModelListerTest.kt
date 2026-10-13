@@ -45,7 +45,7 @@ private class PagingFakeProvider(
         val json = JSONObject(body)
         val ids = json.getJSONArray("ids")
         return AiModelsPage(
-            modelIds = (0 until ids.length()).map { ids.getString(it) },
+            models = (0 until ids.length()).map { AiModelInfo(ids.getString(it)) },
             nextPageToken = json.optString("next").ifEmpty { null },
         )
     }
@@ -87,7 +87,7 @@ class AiModelListerTest {
 
             val models = lister.listModels(provider, apiKey = "key")
 
-            assertEquals(listOf("a", "b", "c"), models)
+            assertEquals(listOf("a", "b", "c"), models.map { it.id })
             assertEquals("key", server.takeRequest().headers["x-key"])
             assertEquals("p2", server.takeRequest().url.queryParameter("page"))
         }

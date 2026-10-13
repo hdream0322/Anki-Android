@@ -97,7 +97,7 @@ class GeminiProviderTest {
         val body =
             """
             {"models":[
-              {"name":"models/gemini-3.8-flash","supportedGenerationMethods":["generateContent","countTokens"]},
+              {"name":"models/gemini-3.8-flash","displayName":"Gemini 3.8 Flash","description":"Fast model","inputTokenLimit":1048576,"supportedGenerationMethods":["generateContent","countTokens"]},
               {"name":"models/text-embedding-004","supportedGenerationMethods":["embedContent"]},
               {"name":"models/gemini-3.8-pro","supportedGenerationMethods":["generateContent"]}
             ],"nextPageToken":"next"}
@@ -105,7 +105,13 @@ class GeminiProviderTest {
 
         val page = provider.parseModelsPage(body)
 
-        assertEquals(listOf("gemini-3.8-flash", "gemini-3.8-pro"), page.modelIds)
+        assertEquals(
+            listOf(
+                AiModelInfo("gemini-3.8-flash", displayName = "Gemini 3.8 Flash", description = "Fast model", inputTokenLimit = 1_048_576),
+                AiModelInfo("gemini-3.8-pro"),
+            ),
+            page.models,
+        )
         assertEquals("next", page.nextPageToken)
     }
 

@@ -75,13 +75,14 @@ class OpenAiProvider : AiProvider {
         val data = JSONObject(body).getJSONArray("data")
         val models = (0 until data.length()).map { data.getJSONObject(it) }
         // The list also holds embedding, audio, image, moderation and legacy `-instruct` models, none of which
-        // accept chat completions, and its order is unspecified.
-        val chatModelIds =
+        // accept chat completions, and its order is unspecified. It has no name or description,
+        // so the creation time is the only detail worth showing.
+        val chatModels =
             models
                 .filter { isChatModel(it.getString("id")) }
                 .sortedByDescending { it.optLong("created") }
-                .map { it.getString("id") }
-        return AiModelsPage(chatModelIds, nextPageToken = null)
+                .map { AiModelInfo(id = it.getString("id"), createdEpochSeconds = it.optLong("created").takeIf { created -> created > 0 }) }
+        return AiModelsPage(chatModels, nextPageToken = null)
     }
 
     private fun isChatModel(id: String): Boolean = CHAT_MODEL_PREFIX.containsMatchIn(id) && NON_CHAT_MARKERS.none { it in id }

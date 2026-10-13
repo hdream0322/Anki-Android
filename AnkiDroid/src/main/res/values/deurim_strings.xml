@@ -163,6 +163,11 @@
     <string name="ai_model_list_loading">Loading available models…</string>
     <string name="ai_model_list_no_key">Set an API key to see the available models</string>
     <string name="ai_model_list_failed">Couldn\'t load the model list — check your connection and API key</string>
+    <!-- %s = a token count such as "200K" or "1M" -->
+    <string name="ai_model_detail_context">%s context</string>
+    <!-- %s = a localized date -->
+    <string name="ai_model_detail_released">Released %s</string>
+    <string name="ai_model_detail_deprecated">Deprecated</string>
     <string name="ai_chat_title" maxLength="28">Ask AI about this card</string>
     <string name="ai_chat_input_hint">Ask a question about this card…</string>
     <string name="ai_chat_send">Send</string>

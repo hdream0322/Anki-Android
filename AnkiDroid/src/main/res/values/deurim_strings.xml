@@ -149,8 +149,10 @@
     </string-array>
     <string name="pref_ai_api_key_key">deurim_ai_api_key</string>
     <string name="pref_ai_api_key_title" maxLength="41">API key</string>
-    <string name="pref_ai_api_key_summary_set">A key is set (tap to change)</string>
-    <string name="pref_ai_api_key_summary_not_set">Required to use AI chat — stored encrypted on this device only</string>
+    <!-- %s = the selected provider, e.g. "Claude (Anthropic)". Each provider has its own key. -->
+    <string name="pref_ai_api_key_summary_set">A key for %s is set (tap to change)</string>
+    <!-- %s = the selected provider, e.g. "Claude (Anthropic)". Each provider has its own key. -->
+    <string name="pref_ai_api_key_summary_not_set">Required to use AI chat with %s — stored encrypted on this device only</string>
     <string name="pref_ai_model_key">deurim_ai_model</string>
     <string name="pref_ai_model_title" maxLength="41">Model</string>
     <!-- %s = the provider's default model id -->

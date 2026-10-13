@@ -92,7 +92,8 @@ class DeurimSettingsFragment : SettingsFragment() {
         // fragment. On a real device AndroidKeyStore is always present.
         if (isRunningAsUnitTest) return
         val keyStore = AiKeyStore(requireContext())
-        requirePreference<EditTextPreference>(R.string.pref_ai_api_key_key).apply {
+        val keyPref = requirePreference<EditTextPreference>(R.string.pref_ai_api_key_key)
+        keyPref.apply {
             isPersistent = false
             // Write-only: the field always opens blank, even once a key is set — there is no way
             // to view or edit the stored key, only to replace it with a brand-new one.
@@ -106,12 +107,14 @@ class DeurimSettingsFragment : SettingsFragment() {
                     editText.importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
                 }
             }
+            // Each provider has its own key; this one preference shows and replaces the selected provider's.
             summaryProvider =
                 Preference.SummaryProvider<EditTextPreference> {
-                    if (keyStore.hasApiKey()) {
-                        getString(R.string.pref_ai_api_key_summary_set)
+                    val providerKind = Prefs.aiProviderKind
+                    if (keyStore.hasApiKey(providerKind)) {
+                        getString(R.string.pref_ai_api_key_summary_set, providerLabel(providerKind))
                     } else {
-                        getString(R.string.pref_ai_api_key_summary_not_set)
+                        getString(R.string.pref_ai_api_key_summary_not_set, providerLabel(providerKind))
                     }
                 }
             setOnPreferenceChangeListener { preference, newValue ->
@@ -119,13 +122,22 @@ class DeurimSettingsFragment : SettingsFragment() {
                 // An empty submission must not clear an existing key — only a non-blank entry
                 // replaces it.
                 if (trimmed.isNotEmpty()) {
-                    keyStore.apiKey = trimmed
+                    keyStore.setApiKey(Prefs.aiProviderKind, trimmed)
                 }
                 (preference as EditTextPreference).text = null
                 true
             }
         }
+        refreshAiApiKeySummary = { keyPref.summaryProvider = keyPref.summaryProvider }
     }
+
+    /** Re-evaluates the API key summary, which names the selected provider. No-op until the key preference is set up. */
+    private var refreshAiApiKeySummary: () -> Unit = {}
+
+    private fun providerLabel(providerKind: AiProviderKind): String =
+        resources.getStringArray(R.array.ai_provider_labels)[
+            resources.getStringArray(R.array.ai_provider_values).indexOf(getString(providerKind.entryResId)),
+        ]
 
     private fun initAiModelPref() {
         val modelPref = requirePreference<Preference>(R.string.pref_ai_model_key)
@@ -154,13 +166,15 @@ class DeurimSettingsFragment : SettingsFragment() {
 
         // A model id only exists at the provider it came from, so switching provider drops the
         // override instead of sending e.g. a `claude-*` id to OpenAI. The summary also shows the
-        // selected provider's default model, so it must refresh either way.
+        // selected provider's default model, so it must refresh either way, as must the API key
+        // summary, which names the selected provider.
         requirePreference<ListPreference>(R.string.pref_ai_provider_key).setOnPreferenceChangeListener { _, newValue ->
             if (newValue != getString(Prefs.aiProviderKind.entryResId)) {
                 setModel(null)
             } else {
                 modelPref.summaryProvider = modelSummaryProvider
             }
+            refreshAiApiKeySummary()
             true
         }
     }
@@ -174,8 +188,8 @@ class DeurimSettingsFragment : SettingsFragment() {
         val provider = providerFor(Prefs.aiProviderKind)
         val context = requireContext()
         // Opening AiKeyStore touches AndroidKeyStore and disk, so keep it off the main thread.
-        val apiKey = if (isRunningAsUnitTest) null else withContext(Dispatchers.IO) { AiKeyStore(context).apiKey }
-        val fetchedModels =
+        val apiKey = if (isRunningAsUnitTest) null else withContext(Dispatchers.IO) { AiKeyStore(context).getApiKey(Prefs.aiProviderKind) }
+        val fetchedModels: List<AiModelInfo> =
             if (apiKey.isNullOrBlank()) {
                 showThemedToast(requireContext(), R.string.ai_model_list_no_key, false)
                 emptyList()

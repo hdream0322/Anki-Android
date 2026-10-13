@@ -61,7 +61,7 @@ class AiChatBottomSheetFragment : BottomSheetDialogFragment(R.layout.fragment_ai
                     noteId = args.noteId,
                     cardContent = args.cardContent,
                     provider = provider,
-                    apiKey = keyStore.apiKey.orEmpty(),
+                    apiKey = keyStore.getApiKey(providerKind).orEmpty(),
                     model = Prefs.aiModelOverride?.takeIf { it.isNotBlank() } ?: provider.defaultModel,
                     streamingClient = AiStreamingClient(),
                     storeMessage = { message -> MetaDB.storeAiChatMessage(requireContext(), args.noteId, message) },
@@ -114,7 +114,7 @@ class AiChatBottomSheetFragment : BottomSheetDialogFragment(R.layout.fragment_ai
                     .orEmpty()
             if (text.isEmpty()) return@setOnClickListener
             val keyStore = AiKeyStore(requireContext())
-            if (!keyStore.hasApiKey()) {
+            if (!keyStore.hasApiKey(Prefs.aiProviderKind)) {
                 showSnackbar(R.string.ai_chat_missing_api_key)
                 return@setOnClickListener
             }

@@ -9,22 +9,45 @@ import android.content.SharedPreferences
 import androidx.core.content.edit
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.ichi2.anki.settings.Prefs
+import com.ichi2.anki.settings.enums.AiProviderKind
 import timber.log.Timber
 
-/** Stores the user's LLM API key encrypted-at-rest, separate from ordinary [com.ichi2.anki.settings.Prefs]. */
+/**
+ * Stores one LLM API key per provider, encrypted-at-rest, separate from ordinary [Prefs].
+ *
+ * @param legacyKeyOwner the provider a key saved before keys were per-provider belongs to
+ */
 class AiKeyStore(
     context: Context,
     private val prefs: SharedPreferences = buildEncryptedPrefs(context),
+    legacyKeyOwner: () -> AiProviderKind = { Prefs.aiProviderKind },
 ) {
-    var apiKey: String?
-        get() = prefs.getString(KEY_API_KEY, null)
-        set(value) = prefs.edit { putString(KEY_API_KEY, value) }
+    init {
+        // Only one key used to exist; it was for whichever provider was selected.
+        prefs.getString(KEY_LEGACY_API_KEY, null)?.let { legacyKey ->
+            val owner = legacyKeyOwner()
+            prefs.edit {
+                if (!prefs.contains(keyFor(owner))) putString(keyFor(owner), legacyKey)
+                remove(KEY_LEGACY_API_KEY)
+            }
+        }
+    }
 
-    fun hasApiKey(): Boolean = !apiKey.isNullOrBlank()
+    fun getApiKey(provider: AiProviderKind): String? = prefs.getString(keyFor(provider), null)
+
+    fun setApiKey(
+        provider: AiProviderKind,
+        value: String?,
+    ) = prefs.edit { putString(keyFor(provider), value) }
+
+    fun hasApiKey(provider: AiProviderKind): Boolean = !getApiKey(provider).isNullOrBlank()
 
     companion object {
         private const val FILE_NAME = "ai_key_store"
-        private const val KEY_API_KEY = "api_key"
+        private const val KEY_LEGACY_API_KEY = "api_key"
+
+        private fun keyFor(provider: AiProviderKind) = "api_key_${provider.name.lowercase()}"
 
         private fun buildEncryptedPrefs(context: Context): SharedPreferences =
             try {

@@ -20,6 +20,7 @@ private class PagingFakeProvider(
     private val baseUrl: String,
 ) : AiProvider {
     override val defaultModel = "fake-model"
+    override val pricingUrl = "https://example.com/pricing"
 
     override fun buildRequest(
         apiKey: String,

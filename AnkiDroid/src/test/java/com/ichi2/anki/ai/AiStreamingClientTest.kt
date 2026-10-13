@@ -21,6 +21,7 @@ private class FakeProvider(
     private val url: String,
 ) : AiProvider {
     override val defaultModel = "fake-model"
+    override val pricingUrl = "https://example.com/pricing"
 
     override fun buildRequest(
         apiKey: String,
@@ -49,6 +50,7 @@ private class HeaderKeyProvider(
     private val url: String,
 ) : AiProvider {
     override val defaultModel = "fake-model"
+    override val pricingUrl = "https://example.com/pricing"
 
     override fun buildRequest(
         apiKey: String,

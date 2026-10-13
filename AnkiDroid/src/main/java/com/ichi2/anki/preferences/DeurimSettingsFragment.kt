@@ -15,20 +15,14 @@
  */
 package com.ichi2.anki.preferences
 
-import android.graphics.Color
 import android.os.Build
 import android.text.InputType
-import android.text.format.DateFormat
-import android.text.style.ForegroundColorSpan
-import android.text.style.RelativeSizeSpan
 import android.view.View
 import androidx.appcompat.app.AlertDialog
-import androidx.core.text.buildSpannedString
-import androidx.core.text.inSpans
+import androidx.core.net.toUri
 import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
 import androidx.preference.Preference
-import com.google.android.material.color.MaterialColors
 import com.ichi2.anki.CommonString
 import com.ichi2.anki.R
 import com.ichi2.anki.ai.AiError
@@ -46,17 +40,17 @@ import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.settings.enums.AiProviderKind
 import com.ichi2.anki.ui.windows.reviewer.whiteboard.showColorPickerDialog
 import com.ichi2.anki.update.UpdateManager
+import com.ichi2.anki.utils.openUrl
 import com.ichi2.anki.withProgress
 import com.ichi2.utils.input
 import com.ichi2.utils.negativeButton
+import com.ichi2.utils.neutralButton
 import com.ichi2.utils.positiveButton
 import com.ichi2.utils.show
 import com.ichi2.utils.title
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import timber.log.Timber
-import java.util.Date
-import kotlin.math.roundToLong
 
 /** Aggregates every fork-only preference (updater, whiteboard, SFX) in one screen. */
 class DeurimSettingsFragment : SettingsFragment() {
@@ -209,55 +203,52 @@ class DeurimSettingsFragment : SettingsFragment() {
             listOf<CharSequence>(
                 getString(R.string.ai_model_item_default, provider.defaultModel),
                 getString(R.string.ai_model_item_custom),
-            ) + fetchedModels.map { modelLabel(it) }
+            ) + fetchedModels.map { requireContext().aiModelRowLabel(it) }
         val checkedIndex =
             when {
                 current.isNullOrBlank() -> 0
                 current in fetchedIds -> FIXED_MODEL_ITEMS + fetchedIds.indexOf(current)
                 else -> 1
             }
-        AlertDialog.Builder(requireContext()).show {
-            title(R.string.pref_ai_model_title)
-            setSingleChoiceItems(labels.toTypedArray(), checkedIndex) { dialog, which ->
-                dialog.dismiss()
-                when (which) {
-                    0 -> setModel(null)
-                    1 -> showCustomModelDialog(current, setModel)
-                    else -> setModel(fetchedIds[which - FIXED_MODEL_ITEMS])
+        val picker =
+            AlertDialog.Builder(requireContext()).show {
+                title(if (fetchedModels.isEmpty()) R.string.pref_ai_model_title else R.string.ai_model_picker_title_with_hint)
+                setSingleChoiceItems(labels.toTypedArray(), checkedIndex) { dialog, which ->
+                    dialog.dismiss()
+                    when (which) {
+                        0 -> setModel(null)
+                        1 -> showCustomModelDialog(current, setModel)
+                        else -> setModel(fetchedIds[which - FIXED_MODEL_ITEMS])
+                    }
                 }
+                negativeButton(CommonString.dialog_cancel)
             }
-            negativeButton(CommonString.dialog_cancel)
+        picker.listView.setOnItemLongClickListener { _, _, position, _ ->
+            val model = fetchedModels.getOrNull(position - FIXED_MODEL_ITEMS) ?: return@setOnItemLongClickListener false
+            showModelDetails(provider, model) { picker.dismiss() }
+            true
         }
     }
 
-    /** The model id, followed by a smaller, dimmed line with whatever details the vendor's list gave. */
-    private fun modelLabel(model: AiModelInfo): CharSequence {
-        val details =
-            listOfNotNull(
-                model.displayName?.takeIf { it != model.id },
-                model.description,
-                model.inputTokenLimit?.let { getString(R.string.ai_model_detail_context, formatTokenCount(it)) },
-                model.createdEpochSeconds?.let {
-                    getString(R.string.ai_model_detail_released, DateFormat.getMediumDateFormat(requireContext()).format(Date(it * 1000)))
-                },
-                getString(R.string.ai_model_detail_deprecated).takeIf { model.isDeprecated },
-            ).joinToString(" · ")
-        if (details.isEmpty()) return model.id
-        val detailColor = MaterialColors.getColor(requireContext(), android.R.attr.textColorSecondary, Color.GRAY)
-        return buildSpannedString {
-            append(model.id)
-            append('\n')
-            inSpans(RelativeSizeSpan(DETAIL_TEXT_SCALE), ForegroundColorSpan(detailColor)) { append(details) }
+    /** Explains one model: cost, quality and typical use from its tier, plus every fact the vendor reported. */
+    private fun showModelDetails(
+        provider: AiProvider,
+        model: AiModelInfo,
+        onChosen: () -> Unit,
+    ) {
+        AlertDialog.Builder(requireContext()).show {
+            setTitle(model.displayName ?: model.id)
+            setMessage(requireContext().aiModelDetails(model))
+            positiveButton(R.string.ai_model_detail_choose) {
+                onChosen()
+                Prefs.aiModelOverride = model.id
+                // Refreshes the summary the same way setModel does.
+                requirePreference<Preference>(R.string.pref_ai_model_key).let { it.summaryProvider = it.summaryProvider }
+            }
+            neutralButton(R.string.ai_model_detail_pricing) { openUrl(provider.pricingUrl.toUri()) }
+            negativeButton(CommonString.close)
         }
     }
-
-    /** e.g. 1048576 -> "1M", 200000 -> "200K". */
-    private fun formatTokenCount(tokens: Long): String =
-        when {
-            tokens >= 1_000_000 -> "${(tokens / 1_000_000.0).roundToLong()}M"
-            tokens >= 1_000 -> "${(tokens / 1_000.0).roundToLong()}K"
-            else -> tokens.toString()
-        }
 
     private fun showCustomModelDialog(
         current: String?,
@@ -291,6 +282,5 @@ class DeurimSettingsFragment : SettingsFragment() {
     companion object {
         /** "Default" and "Custom…" precede the fetched models in the picker. */
         private const val FIXED_MODEL_ITEMS = 2
-        private const val DETAIL_TEXT_SCALE = 0.85f
     }
 }

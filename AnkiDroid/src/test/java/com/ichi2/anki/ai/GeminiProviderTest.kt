@@ -107,12 +107,39 @@ class GeminiProviderTest {
 
         assertEquals(
             listOf(
-                AiModelInfo("gemini-3.8-flash", displayName = "Gemini 3.8 Flash", description = "Fast model", inputTokenLimit = 1_048_576),
-                AiModelInfo("gemini-3.8-pro"),
+                AiModelInfo(
+                    "gemini-3.8-flash",
+                    displayName = "Gemini 3.8 Flash",
+                    description = "Fast model",
+                    tier = AiModelTier.BALANCED,
+                    inputTokenLimit = 1_048_576,
+                ),
+                AiModelInfo("gemini-3.8-pro", tier = AiModelTier.POWERFUL),
             ),
             page.models,
         )
         assertEquals("next", page.nextPageToken)
+    }
+
+    @Test
+    fun `parseModelsPage reads output limit and thinking, and ranks lite below flash`() {
+        val body =
+            """
+            {"models":[
+              {"name":"models/gemini-3.8-flash-lite","outputTokenLimit":65536,"thinking":true,"supportedGenerationMethods":["generateContent"]},
+              {"name":"models/gemma-4-27b-it","thinking":false,"supportedGenerationMethods":["generateContent"]}
+            ]}
+            """.trimIndent()
+
+        val page = provider.parseModelsPage(body)
+
+        assertEquals(
+            listOf(
+                AiModelInfo("gemini-3.8-flash-lite", tier = AiModelTier.FAST, outputTokenLimit = 65_536, supportsThinking = true),
+                AiModelInfo("gemma-4-27b-it", supportsThinking = false),
+            ),
+            page.models,
+        )
     }
 
     @Test

@@ -9,9 +9,12 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
+import java.time.Instant
+import java.time.format.DateTimeParseException
 
 class AnthropicProvider : AiProvider {
     override val defaultModel = "claude-haiku-5-5"
+    override val pricingUrl = "https://platform.claude.com/docs/en/about-claude/pricing"
 
     override fun buildRequest(
         apiKey: String,
@@ -90,10 +93,18 @@ class AnthropicProvider : AiProvider {
         val models =
             (0 until data.length()).map {
                 val model = data.getJSONObject(it)
+                val capabilities = model.optJSONObject("capabilities")
                 AiModelInfo(
                     id = model.getString("id"),
                     displayName = model.optString("display_name").ifEmpty { null },
+                    tier = LINE_TIERS[model.optString("line")],
                     inputTokenLimit = model.optLong("max_input_tokens").takeIf { limit -> limit > 0 },
+                    outputTokenLimit = model.optLong("max_tokens").takeIf { limit -> limit > 0 },
+                    // The API sends the epoch when the release date is unknown.
+                    createdEpochSeconds = parseEpochSeconds(model.optString("created_at"))?.takeIf { time -> time > 0 },
+                    supportsImageInput = capabilities?.isSupported("image_input"),
+                    supportsPdfInput = capabilities?.isSupported("pdf_input"),
+                    supportsThinking = capabilities?.isSupported("thinking"),
                     isDeprecated = model.optString("lifecycle") == "deprecated",
                 )
             }
@@ -101,7 +112,24 @@ class AnthropicProvider : AiProvider {
         return AiModelsPage(models, nextPageToken)
     }
 
+    private fun JSONObject.isSupported(capability: String): Boolean? = optJSONObject(capability)?.optBoolean("supported")
+
+    private fun parseEpochSeconds(rfc3339: String): Long? =
+        try {
+            Instant.parse(rfc3339).epochSecond
+        } catch (e: DateTimeParseException) {
+            null
+        }
+
     companion object {
         private const val MAX_PAGE_SIZE = 1000
+
+        /** Only the documented lines; the API says not to infer a line, so others get no tier. */
+        private val LINE_TIERS =
+            mapOf(
+                "haiku" to AiModelTier.FAST,
+                "sonnet" to AiModelTier.BALANCED,
+                "opus" to AiModelTier.POWERFUL,
+            )
     }
 }

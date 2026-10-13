@@ -121,6 +121,46 @@ class AnthropicProviderTest {
     }
 
     @Test
+    fun `parseModelsPage reads tier, limits, release date and capabilities`() {
+        val body =
+            """
+            {"data":[
+              {"type":"model","id":"claude-opus-5-5","display_name":"Claude Opus 5.5","line":"opus",
+               "created_at":"2026-09-21T00:00:00Z","max_input_tokens":1000000,"max_tokens":128000,
+               "capabilities":{"image_input":{"supported":true},"pdf_input":{"supported":false},
+                               "thinking":{"supported":true,"types":{}}}},
+              {"type":"model","id":"claude-sonnet-5-5","line":"sonnet"},
+              {"type":"model","id":"claude-haiku-5-5","line":"haiku","created_at":"1970-01-01T00:00:00Z"},
+              {"type":"model","id":"claude-fable-5-1","line":"fable","capabilities":null}
+            ],"has_more":false}
+            """.trimIndent()
+
+        val page = provider.parseModelsPage(body)
+
+        assertEquals(
+            listOf(
+                AiModelInfo(
+                    "claude-opus-5-5",
+                    displayName = "Claude Opus 5.5",
+                    tier = AiModelTier.POWERFUL,
+                    inputTokenLimit = 1_000_000,
+                    outputTokenLimit = 128_000,
+                    createdEpochSeconds = 1_789_948_800,
+                    supportsImageInput = true,
+                    supportsPdfInput = false,
+                    supportsThinking = true,
+                ),
+                AiModelInfo("claude-sonnet-5-5", tier = AiModelTier.BALANCED),
+                // An epoch created_at means the release date is unknown.
+                AiModelInfo("claude-haiku-5-5", tier = AiModelTier.FAST),
+                // The API says not to infer anything from a line it does not document as a tier.
+                AiModelInfo("claude-fable-5-1"),
+            ),
+            page.models,
+        )
+    }
+
+    @Test
     fun `parseModelsPage returns no next page when has_more is false`() {
         val body = """{"data":[{"type":"model","id":"claude-haiku-5-5"}],"has_more":false,"last_id":"claude-haiku-5-5"}"""
 

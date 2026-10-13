@@ -11,6 +11,7 @@ import org.json.JSONObject
 
 class OpenAiProvider : AiProvider {
     override val defaultModel = "gpt-5.6-luna"
+    override val pricingUrl = "https://platform.openai.com/docs/pricing"
 
     override fun buildRequest(
         apiKey: String,
@@ -76,13 +77,38 @@ class OpenAiProvider : AiProvider {
         val models = (0 until data.length()).map { data.getJSONObject(it) }
         // The list also holds embedding, audio, image, moderation and legacy `-instruct` models, none of which
         // accept chat completions, and its order is unspecified. It has no name or description,
-        // so the creation time is the only detail worth showing.
+        // so beyond the creation time all that can be told is the tier its id implies.
         val chatModels =
             models
                 .filter { isChatModel(it.getString("id")) }
-                .sortedByDescending { it.optLong("created") }
-                .map { AiModelInfo(id = it.getString("id"), createdEpochSeconds = it.optLong("created").takeIf { created -> created > 0 }) }
+                .map {
+                    val id = it.getString("id")
+                    AiModelInfo(
+                        id = id,
+                        tier = tierOf(id),
+                        createdEpochSeconds = it.optLong("created").takeIf { created -> created > 0 },
+                    )
+                }
+                // Untiered ids are mostly older generations, often scheduled for shutdown, so
+                // they go below the current lineup.
+                .sortedWith(compareBy<AiModelInfo> { it.tier == null }.thenByDescending { it.createdEpochSeconds ?: 0 })
         return AiModelsPage(chatModels, nextPageToken = null)
+    }
+
+    /**
+     * Reads the tier from the lineup codename in the id (https://developers.openai.com/api/docs/models):
+     * Astra and `-pro` are the most capable, Sol and Terra sit in the middle, and Luna, `-mini`
+     * and `-nano` are the cheap, fast cuts. Ids with none of these (e.g. `gpt-4o`, `gpt-3.5-turbo`,
+     * plain `gpt-5`) are left untiered rather than guessed at.
+     */
+    private fun tierOf(id: String): AiModelTier? {
+        val parts = id.split('-')
+        return when {
+            parts.any { it == "astra" || it == "pro" } -> AiModelTier.POWERFUL
+            parts.any { it == "sol" || it == "terra" } -> AiModelTier.BALANCED
+            parts.any { it == "luna" || it == "mini" || it == "nano" } -> AiModelTier.FAST
+            else -> null
+        }
     }
 
     private fun isChatModel(id: String): Boolean = CHAT_MODEL_PREFIX.containsMatchIn(id) && NON_CHAT_MARKERS.none { it in id }

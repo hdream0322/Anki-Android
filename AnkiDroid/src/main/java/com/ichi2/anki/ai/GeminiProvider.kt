@@ -12,6 +12,7 @@ import org.json.JSONObject
 
 class GeminiProvider : AiProvider {
     override val defaultModel = "gemini-3.8-flash"
+    override val pricingUrl = "https://ai.google.dev/gemini-api/docs/pricing"
 
     override fun buildRequest(
         apiKey: String,
@@ -95,15 +96,28 @@ class GeminiProvider : AiProvider {
                     val methods = model.optJSONArray("supportedGenerationMethods") ?: JSONArray()
                     (0 until methods.length()).any { methods.getString(it) == "generateContent" }
                 }.map { model ->
+                    val id = model.getString("name").removePrefix("models/")
                     AiModelInfo(
-                        id = model.getString("name").removePrefix("models/"),
+                        id = id,
                         displayName = model.optString("displayName").ifEmpty { null },
                         description = model.optString("description").ifEmpty { null },
+                        tier = tierOf(id),
                         inputTokenLimit = model.optLong("inputTokenLimit").takeIf { it > 0 },
+                        outputTokenLimit = model.optLong("outputTokenLimit").takeIf { it > 0 },
+                        supportsThinking = if (model.has("thinking")) model.optBoolean("thinking") else null,
                     )
                 }
         return AiModelsPage(chatModels, json.optString("nextPageToken").ifEmpty { null })
     }
+
+    // The list has no tier field; Google's lineup runs Flash-Lite < Flash < Pro.
+    private fun tierOf(id: String): AiModelTier? =
+        when {
+            "lite" in id -> AiModelTier.FAST
+            "flash" in id -> AiModelTier.BALANCED
+            "pro" in id -> AiModelTier.POWERFUL
+            else -> null
+        }
 
     companion object {
         private const val MAX_PAGE_SIZE = 1000

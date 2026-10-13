@@ -29,6 +29,7 @@ private class FakeProvider(
     private val events: List<AiSseEvent>,
 ) : AiProvider {
     override val defaultModel = "fake-model"
+    override val pricingUrl = "https://example.com/pricing"
 
     override fun buildRequest(
         apiKey: String,

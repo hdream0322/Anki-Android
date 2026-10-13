@@ -5,6 +5,7 @@ package com.ichi2.anki.ai.chat
 import app.cash.turbine.test
 import com.ichi2.anki.ai.AiChatMessage
 import com.ichi2.anki.ai.AiChatRole
+import com.ichi2.anki.ai.AiModelsPage
 import com.ichi2.anki.ai.AiProvider
 import com.ichi2.anki.ai.AiSseEvent
 import com.ichi2.anki.ai.AiStreamingClient
@@ -42,6 +43,13 @@ private class FakeProvider(
             .build()
 
     override fun parseSseEvent(data: String): AiSseEvent = AiSseEvent.Ignored
+
+    override fun buildListModelsRequest(
+        apiKey: String,
+        pageToken: String?,
+    ): Request = throw UnsupportedOperationException()
+
+    override fun parseModelsPage(body: String): AiModelsPage = throw UnsupportedOperationException()
 
     fun asFlow(): Flow<AiSseEvent> = flowOf(*events.toTypedArray())
 }

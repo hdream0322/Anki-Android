@@ -154,9 +154,15 @@
     <string name="pref_ai_model_key">deurim_ai_model</string>
     <string name="pref_ai_model_title" maxLength="41">Model</string>
     <!-- %s = the provider's default model id -->
-    <string name="pref_ai_model_summary_not_set">Using the default model (%s) — tap to override</string>
-    <!-- %s = the custom model id the user entered -->
-    <string name="pref_ai_model_summary_set">Custom: %s</string>
+    <string name="pref_ai_model_summary_not_set">Using the default model (%s) — tap to choose</string>
+    <!-- %s = the model id the user chose or entered -->
+    <string name="pref_ai_model_summary_set">Selected: %s</string>
+    <!-- %s = the provider's default model id -->
+    <string name="ai_model_item_default">Default (%s)</string>
+    <string name="ai_model_item_custom" maxLength="41">Enter manually…</string>
+    <string name="ai_model_list_loading">Loading available models…</string>
+    <string name="ai_model_list_no_key">Set an API key to see the available models</string>
+    <string name="ai_model_list_failed">Couldn\'t load the model list — check your connection and API key</string>
     <string name="ai_chat_title" maxLength="28">Ask AI about this card</string>
     <string name="ai_chat_input_hint">Ask a question about this card…</string>
     <string name="ai_chat_send">Send</string>

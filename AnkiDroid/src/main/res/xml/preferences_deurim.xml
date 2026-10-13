@@ -117,7 +117,7 @@
             android:key="@string/pref_ai_api_key_key"
             android:title="@string/pref_ai_api_key_title"
             android:summary="@string/pref_ai_api_key_summary_not_set"/>
-        <EditTextPreference
+        <Preference
             android:key="@string/pref_ai_model_key"
             android:title="@string/pref_ai_model_title"/>
     </PreferenceCategory>

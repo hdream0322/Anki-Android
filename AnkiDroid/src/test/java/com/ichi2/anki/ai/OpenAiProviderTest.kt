@@ -8,6 +8,7 @@ import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.test.assertNull
 
 class OpenAiProviderTest {
     private val provider = OpenAiProvider()
@@ -67,5 +68,38 @@ class OpenAiProviderTest {
     fun `parseSseEvent ignores chunks without content delta`() {
         val data = """{"choices":[{"delta":{"role":"assistant"}}]}"""
         assertEquals(AiSseEvent.Ignored, provider.parseSseEvent(data))
+    }
+
+    @Test
+    fun `buildListModelsRequest targets the models endpoint with bearer auth`() {
+        val request = provider.buildListModelsRequest(apiKey = "sk-test", pageToken = null)
+
+        assertEquals("GET", request.method)
+        assertEquals("https://api.openai.com/v1/models", request.url.toString())
+        assertEquals("Bearer sk-test", request.header("Authorization"))
+    }
+
+    @Test
+    fun `parseModelsPage keeps only chat models, newest first, with no next page`() {
+        val body =
+            """
+            {"object":"list","data":[
+              {"id":"gpt-4o","object":"model","created":100,"owned_by":"openai"},
+              {"id":"text-embedding-3-small","object":"model","created":300,"owned_by":"openai"},
+              {"id":"gpt-5.6-luna","object":"model","created":400,"owned_by":"openai"},
+              {"id":"o3","object":"model","created":200,"owned_by":"openai"},
+              {"id":"gpt-4o-mini-tts","object":"model","created":500,"owned_by":"openai"},
+              {"id":"gpt-4o-realtime-preview","object":"model","created":500,"owned_by":"openai"},
+              {"id":"gpt-image-1","object":"model","created":500,"owned_by":"openai"},
+              {"id":"whisper-1","object":"model","created":500,"owned_by":"openai"},
+              {"id":"omni-moderation-latest","object":"model","created":500,"owned_by":"openai"},
+              {"id":"gpt-3.5-turbo-instruct","object":"model","created":500,"owned_by":"openai"}
+            ]}
+            """.trimIndent()
+
+        val page = provider.parseModelsPage(body)
+
+        assertEquals(listOf("gpt-5.6-luna", "o3", "gpt-4o"), page.modelIds)
+        assertNull(page.nextPageToken)
     }
 }

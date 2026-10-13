@@ -8,6 +8,7 @@ import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
+import kotlin.test.assertNull
 
 class AnthropicProviderTest {
     private val provider = AnthropicProvider()
@@ -78,5 +79,45 @@ class AnthropicProviderTest {
     fun `parseSseEvent ignores unrelated event types`() {
         val data = """{"type":"message_start"}"""
         assertEquals(AiSseEvent.Ignored, provider.parseSseEvent(data))
+    }
+
+    @Test
+    fun `buildListModelsRequest targets the models endpoint with max page size`() {
+        val request = provider.buildListModelsRequest(apiKey = "sk-ant-test", pageToken = null)
+
+        assertEquals("GET", request.method)
+        assertEquals("https://api.anthropic.com/v1/models?limit=1000", request.url.toString())
+        assertEquals("sk-ant-test", request.header("x-api-key"))
+        assertEquals("2023-06-01", request.header("anthropic-version"))
+    }
+
+    @Test
+    fun `buildListModelsRequest passes the page token as after_id`() {
+        val request = provider.buildListModelsRequest(apiKey = "sk-ant-test", pageToken = "claude-x")
+
+        assertEquals("claude-x", request.url.queryParameter("after_id"))
+    }
+
+    @Test
+    fun `parseModelsPage keeps API order and returns last_id while has_more`() {
+        val body =
+            """
+            {"data":[
+              {"type":"model","id":"claude-opus-5-5","display_name":"Claude Opus 5.5"},
+              {"type":"model","id":"claude-haiku-5-5","display_name":"Claude Haiku 5.5"}
+            ],"first_id":"claude-opus-5-5","has_more":true,"last_id":"claude-haiku-5-5"}
+            """.trimIndent()
+
+        val page = provider.parseModelsPage(body)
+
+        assertEquals(listOf("claude-opus-5-5", "claude-haiku-5-5"), page.modelIds)
+        assertEquals("claude-haiku-5-5", page.nextPageToken)
+    }
+
+    @Test
+    fun `parseModelsPage returns no next page when has_more is false`() {
+        val body = """{"data":[{"type":"model","id":"claude-haiku-5-5"}],"has_more":false,"last_id":"claude-haiku-5-5"}"""
+
+        assertNull(provider.parseModelsPage(body).nextPageToken)
     }
 }

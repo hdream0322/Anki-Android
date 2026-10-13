@@ -8,6 +8,7 @@ import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.test.assertNull
 
 class GeminiProviderTest {
     private val provider = GeminiProvider()
@@ -73,5 +74,45 @@ class GeminiProviderTest {
     @Test
     fun `parseSseEvent ignores malformed payloads`() {
         assertEquals(AiSseEvent.Ignored, provider.parseSseEvent("not json"))
+    }
+
+    @Test
+    fun `buildListModelsRequest targets the models endpoint with the key in a header`() {
+        val request = provider.buildListModelsRequest(apiKey = "g-test", pageToken = null)
+
+        assertEquals("GET", request.method)
+        assertEquals("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000", request.url.toString())
+        assertEquals("g-test", request.header("x-goog-api-key"))
+    }
+
+    @Test
+    fun `buildListModelsRequest passes the page token`() {
+        val request = provider.buildListModelsRequest(apiKey = "g-test", pageToken = "abc")
+
+        assertEquals("abc", request.url.queryParameter("pageToken"))
+    }
+
+    @Test
+    fun `parseModelsPage keeps generateContent models and strips the models prefix`() {
+        val body =
+            """
+            {"models":[
+              {"name":"models/gemini-3.8-flash","supportedGenerationMethods":["generateContent","countTokens"]},
+              {"name":"models/text-embedding-004","supportedGenerationMethods":["embedContent"]},
+              {"name":"models/gemini-3.8-pro","supportedGenerationMethods":["generateContent"]}
+            ],"nextPageToken":"next"}
+            """.trimIndent()
+
+        val page = provider.parseModelsPage(body)
+
+        assertEquals(listOf("gemini-3.8-flash", "gemini-3.8-pro"), page.modelIds)
+        assertEquals("next", page.nextPageToken)
+    }
+
+    @Test
+    fun `parseModelsPage returns no next page when the token is absent`() {
+        val body = """{"models":[{"name":"models/gemini-3.8-flash","supportedGenerationMethods":["generateContent"]}]}"""
+
+        assertNull(provider.parseModelsPage(body).nextPageToken)
     }
 }

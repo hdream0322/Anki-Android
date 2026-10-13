@@ -18,19 +18,35 @@ package com.ichi2.anki.preferences
 import android.os.Build
 import android.text.InputType
 import android.view.View
+import androidx.appcompat.app.AlertDialog
 import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
 import androidx.preference.Preference
+import com.ichi2.anki.CommonString
 import com.ichi2.anki.R
+import com.ichi2.anki.ai.AiError
 import com.ichi2.anki.ai.AiKeyStore
+import com.ichi2.anki.ai.AiModelLister
+import com.ichi2.anki.ai.AiProvider
 import com.ichi2.anki.ai.AnthropicProvider
 import com.ichi2.anki.ai.GeminiProvider
 import com.ichi2.anki.ai.OpenAiProvider
+import com.ichi2.anki.common.utils.android.showThemedToast
 import com.ichi2.anki.common.utils.isRunningAsUnitTest
+import com.ichi2.anki.launchCatchingTask
 import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.settings.enums.AiProviderKind
 import com.ichi2.anki.ui.windows.reviewer.whiteboard.showColorPickerDialog
 import com.ichi2.anki.update.UpdateManager
+import com.ichi2.anki.withProgress
+import com.ichi2.utils.input
+import com.ichi2.utils.negativeButton
+import com.ichi2.utils.positiveButton
+import com.ichi2.utils.show
+import com.ichi2.utils.title
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import timber.log.Timber
 
 /** Aggregates every fork-only preference (updater, whiteboard, SFX) in one screen. */
 class DeurimSettingsFragment : SettingsFragment() {
@@ -102,38 +118,124 @@ class DeurimSettingsFragment : SettingsFragment() {
     }
 
     private fun initAiModelPref() {
-        val modelPref = requirePreference<EditTextPreference>(R.string.pref_ai_model_key)
+        val modelPref = requirePreference<Preference>(R.string.pref_ai_model_key)
         val modelSummaryProvider =
-            Preference.SummaryProvider<EditTextPreference> {
+            Preference.SummaryProvider<Preference> {
                 val override = Prefs.aiModelOverride
                 if (override.isNullOrBlank()) {
-                    getString(R.string.pref_ai_model_summary_not_set, defaultModelFor(Prefs.aiProviderKind))
+                    getString(R.string.pref_ai_model_summary_not_set, providerFor(Prefs.aiProviderKind).defaultModel)
                 } else {
                     getString(R.string.pref_ai_model_summary_set, override)
                 }
             }
+        // Re-setting the same SummaryProvider is the public-API way to force Preference to
+        // re-evaluate it (notifyChanged() itself is protected).
+        val setModel = { model: String? ->
+            Prefs.aiModelOverride = model
+            modelPref.summaryProvider = modelSummaryProvider
+        }
         modelPref.apply {
-            text = Prefs.aiModelOverride
             summaryProvider = modelSummaryProvider
-            setOnPreferenceChangeListener { _, newValue ->
-                Prefs.aiModelOverride = (newValue as String).trim().ifBlank { null }
+            setOnPreferenceClickListener {
+                launchCatchingTask { showModelPicker(setModel) }
                 true
             }
         }
 
-        // The "not set" summary shows the selected provider's default model, so it must refresh
-        // whenever the provider changes. Re-setting the same SummaryProvider is the public-API
-        // way to force Preference to re-evaluate it (notifyChanged() itself is protected).
-        requirePreference<ListPreference>(R.string.pref_ai_provider_key).setOnPreferenceChangeListener { _, _ ->
-            modelPref.summaryProvider = modelSummaryProvider
+        // A model id only exists at the provider it came from, so switching provider drops the
+        // override instead of sending e.g. a `claude-*` id to OpenAI. The summary also shows the
+        // selected provider's default model, so it must refresh either way.
+        requirePreference<ListPreference>(R.string.pref_ai_provider_key).setOnPreferenceChangeListener { _, newValue ->
+            if (newValue != getString(Prefs.aiProviderKind.entryResId)) {
+                setModel(null)
+            } else {
+                modelPref.summaryProvider = modelSummaryProvider
+            }
             true
         }
     }
 
-    private fun defaultModelFor(providerKind: AiProviderKind): String =
-        when (providerKind) {
-            AiProviderKind.OPENAI -> OpenAiProvider().defaultModel
-            AiProviderKind.ANTHROPIC -> AnthropicProvider().defaultModel
-            AiProviderKind.GEMINI -> GeminiProvider().defaultModel
+    /**
+     * Offers the models the user's key can access, fetched live from the provider's official
+     * model-list API. Without a key, or if the fetch fails, only "default" and "custom" remain
+     * so the setting is never blocked by connectivity.
+     */
+    private suspend fun showModelPicker(setModel: (String?) -> Unit) {
+        val provider = providerFor(Prefs.aiProviderKind)
+        val context = requireContext()
+        // Opening AiKeyStore touches AndroidKeyStore and disk, so keep it off the main thread.
+        val apiKey = if (isRunningAsUnitTest) null else withContext(Dispatchers.IO) { AiKeyStore(context).apiKey }
+        val fetchedModels =
+            if (apiKey.isNullOrBlank()) {
+                showThemedToast(requireContext(), R.string.ai_model_list_no_key, false)
+                emptyList()
+            } else {
+                try {
+                    withProgress(R.string.ai_model_list_loading) { AiModelLister().listModels(provider, apiKey) }
+                } catch (e: AiError) {
+                    Timber.w(e, "Could not fetch the AI model list")
+                    showThemedToast(requireContext(), R.string.ai_model_list_failed, false)
+                    emptyList()
+                }
+            }
+
+        val current = Prefs.aiModelOverride
+        val labels =
+            listOf(
+                getString(R.string.ai_model_item_default, provider.defaultModel),
+                getString(R.string.ai_model_item_custom),
+            ) + fetchedModels
+        val checkedIndex =
+            when {
+                current.isNullOrBlank() -> 0
+                current in fetchedModels -> FIXED_MODEL_ITEMS + fetchedModels.indexOf(current)
+                else -> 1
+            }
+        AlertDialog.Builder(requireContext()).show {
+            title(R.string.pref_ai_model_title)
+            setSingleChoiceItems(labels.toTypedArray(), checkedIndex) { dialog, which ->
+                dialog.dismiss()
+                when (which) {
+                    0 -> setModel(null)
+                    1 -> showCustomModelDialog(current, setModel)
+                    else -> setModel(fetchedModels[which - FIXED_MODEL_ITEMS])
+                }
+            }
+            negativeButton(CommonString.dialog_cancel)
         }
+    }
+
+    private fun showCustomModelDialog(
+        current: String?,
+        setModel: (String?) -> Unit,
+    ) {
+        AlertDialog
+            .Builder(requireContext())
+            .show {
+                title(R.string.ai_model_item_custom)
+                positiveButton(CommonString.dialog_ok)
+                negativeButton(CommonString.dialog_cancel)
+                setView(R.layout.dialog_generic_text_input)
+            }.input(
+                prefill = current,
+                allowEmpty = true,
+                displayKeyboard = true,
+            ) { dialog, text ->
+                // Blank means "use the provider's default model".
+                setModel(text.toString().trim().ifBlank { null })
+                dialog.dismiss()
+            }
+    }
+
+    private fun providerFor(providerKind: AiProviderKind): AiProvider =
+        when (providerKind) {
+            AiProviderKind.OPENAI -> OpenAiProvider()
+            AiProviderKind.ANTHROPIC -> AnthropicProvider()
+            AiProviderKind.GEMINI -> GeminiProvider()
+        }
+
+    companion object {
+        /** "Default" and "Custom…" precede the fetched models in the picker. */
+        private const val FIXED_MODEL_ITEMS = 2
+    }
 }

@@ -64,7 +64,7 @@ open class AiStreamingClient(
     ): Flow<AiSseEvent> =
         callbackFlow {
             var sawDone = false
-            val request = provider.buildRequest(apiKey, model, systemPrompt, messages)
+            val request = buildRequestWithoutLeakingKey { provider.buildRequest(apiKey, model, systemPrompt, messages) }
             val factory = EventSources.createFactory(client)
             val listener =
                 object : EventSourceListener() {

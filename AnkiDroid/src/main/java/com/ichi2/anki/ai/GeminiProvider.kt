@@ -2,6 +2,7 @@
 
 package com.ichi2.anki.ai
 
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -64,4 +65,40 @@ class GeminiProvider : AiProvider {
         } catch (e: JSONException) {
             AiSseEvent.Ignored
         }
+
+    override fun buildListModelsRequest(
+        apiKey: String,
+        pageToken: String?,
+    ): Request {
+        val url =
+            "https://generativelanguage.googleapis.com/v1beta/models"
+                .toHttpUrl()
+                .newBuilder()
+                .addQueryParameter("pageSize", MAX_PAGE_SIZE.toString())
+                .apply { if (pageToken != null) addQueryParameter("pageToken", pageToken) }
+                .build()
+        return Request
+            .Builder()
+            .url(url)
+            .addHeader("x-goog-api-key", apiKey)
+            .get()
+            .build()
+    }
+
+    override fun parseModelsPage(body: String): AiModelsPage {
+        val json = JSONObject(body)
+        val models = json.optJSONArray("models") ?: JSONArray()
+        val chatModelIds =
+            (0 until models.length())
+                .map { models.getJSONObject(it) }
+                .filter { model ->
+                    val methods = model.optJSONArray("supportedGenerationMethods") ?: JSONArray()
+                    (0 until methods.length()).any { methods.getString(it) == "generateContent" }
+                }.map { it.getString("name").removePrefix("models/") }
+        return AiModelsPage(chatModelIds, json.optString("nextPageToken").ifEmpty { null })
+    }
+
+    companion object {
+        private const val MAX_PAGE_SIZE = 1000
+    }
 }

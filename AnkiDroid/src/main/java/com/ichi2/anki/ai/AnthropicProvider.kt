@@ -2,6 +2,7 @@
 
 package com.ichi2.anki.ai
 
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -61,4 +62,37 @@ class AnthropicProvider : AiProvider {
         } catch (e: JSONException) {
             AiSseEvent.Ignored
         }
+
+    override fun buildListModelsRequest(
+        apiKey: String,
+        pageToken: String?,
+    ): Request {
+        val url =
+            "https://api.anthropic.com/v1/models"
+                .toHttpUrl()
+                .newBuilder()
+                .addQueryParameter("limit", MAX_PAGE_SIZE.toString())
+                .apply { if (pageToken != null) addQueryParameter("after_id", pageToken) }
+                .build()
+        return Request
+            .Builder()
+            .url(url)
+            .addHeader("x-api-key", apiKey)
+            .addHeader("anthropic-version", "2023-06-01")
+            .get()
+            .build()
+    }
+
+    // The API already lists the newest models first, so its order is kept.
+    override fun parseModelsPage(body: String): AiModelsPage {
+        val json = JSONObject(body)
+        val data = json.getJSONArray("data")
+        val modelIds = (0 until data.length()).map { data.getJSONObject(it).getString("id") }
+        val nextPageToken = if (json.optBoolean("has_more")) json.optString("last_id").ifEmpty { null } else null
+        return AiModelsPage(modelIds, nextPageToken)
+    }
+
+    companion object {
+        private const val MAX_PAGE_SIZE = 1000
+    }
 }

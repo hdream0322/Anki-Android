@@ -10,9 +10,11 @@ import mockwebserver3.SocketEffect
 import okhttp3.Request
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 
 private class FakeProvider(
@@ -33,6 +35,42 @@ private class FakeProvider(
             .build()
 
     override fun parseSseEvent(data: String): AiSseEvent = if (data == "[DONE]") AiSseEvent.Done else AiSseEvent.Token(data)
+
+    override fun buildListModelsRequest(
+        apiKey: String,
+        pageToken: String?,
+    ): Request = throw UnsupportedOperationException()
+
+    override fun parseModelsPage(body: String): AiModelsPage = throw UnsupportedOperationException()
+}
+
+/** Sends the key in a non-standard header, as Anthropic and Gemini do. */
+private class HeaderKeyProvider(
+    private val url: String,
+) : AiProvider {
+    override val defaultModel = "fake-model"
+
+    override fun buildRequest(
+        apiKey: String,
+        model: String,
+        systemPrompt: String?,
+        messages: List<AiChatMessage>,
+    ): Request =
+        Request
+            .Builder()
+            .url(url)
+            .header("x-api-key", apiKey)
+            .get()
+            .build()
+
+    override fun parseSseEvent(data: String): AiSseEvent = AiSseEvent.Ignored
+
+    override fun buildListModelsRequest(
+        apiKey: String,
+        pageToken: String?,
+    ): Request = throw UnsupportedOperationException()
+
+    override fun parseModelsPage(body: String): AiModelsPage = throw UnsupportedOperationException()
 }
 
 class AiStreamingClientTest {
@@ -243,5 +281,21 @@ class AiStreamingClientTest {
                 awaitError()
             }
             assertEquals(1, server.requestCount)
+        }
+
+    @Test
+    fun `a key OkHttp rejects as a header value fails fast without exposing the key`() =
+        runTest {
+            val provider = HeaderKeyProvider(server.url("/").toString())
+
+            val error =
+                assertFailsWith<AiError.MissingApiKey> {
+                    AiStreamingClient()
+                        .stream(provider, apiKey = "secret\u200Bkey", model = "fake-model", systemPrompt = null, messages = emptyList())
+                        .collect {}
+                }
+
+            assertFalse(error.toString().contains("secret"))
+            assertEquals(0, server.requestCount)
         }
 }

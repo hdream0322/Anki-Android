@@ -58,4 +58,36 @@ class OpenAiProvider : AiProvider {
             AiSseEvent.Ignored
         }
     }
+
+    // The endpoint returns every model in one unpaginated response.
+    override fun buildListModelsRequest(
+        apiKey: String,
+        pageToken: String?,
+    ): Request =
+        Request
+            .Builder()
+            .url("https://api.openai.com/v1/models")
+            .addHeader("Authorization", "Bearer $apiKey")
+            .get()
+            .build()
+
+    override fun parseModelsPage(body: String): AiModelsPage {
+        val data = JSONObject(body).getJSONArray("data")
+        val models = (0 until data.length()).map { data.getJSONObject(it) }
+        // The list also holds embedding, audio, image, moderation and legacy `-instruct` models, none of which
+        // accept chat completions, and its order is unspecified.
+        val chatModelIds =
+            models
+                .filter { isChatModel(it.getString("id")) }
+                .sortedByDescending { it.optLong("created") }
+                .map { it.getString("id") }
+        return AiModelsPage(chatModelIds, nextPageToken = null)
+    }
+
+    private fun isChatModel(id: String): Boolean = CHAT_MODEL_PREFIX.containsMatchIn(id) && NON_CHAT_MARKERS.none { it in id }
+
+    companion object {
+        private val CHAT_MODEL_PREFIX = Regex("^(gpt-|chatgpt-|o\\d)")
+        private val NON_CHAT_MARKERS = listOf("audio", "realtime", "tts", "transcribe", "image", "instruct")
+    }
 }

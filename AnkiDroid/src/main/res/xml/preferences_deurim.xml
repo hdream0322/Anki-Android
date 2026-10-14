@@ -39,12 +39,19 @@
             android:summary="@string/pref_wifi_only_update_summ"/>
     </PreferenceCategory>
     <PreferenceCategory android:title="@string/pref_cat_deurim_reviewer">
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="@string/pref_review_progress_bar_enabled_key"
+            android:title="@string/pref_review_progress_bar_enabled"
+            android:summary="@string/pref_review_progress_bar_enabled_summ"/>
         <Preference
+            android:dependency="@string/pref_review_progress_bar_enabled_key"
             android:key="@string/pref_review_progress_bar_color_key"
             android:title="@string/pref_review_progress_bar_color"
             android:summary="@string/pref_review_progress_bar_color_summ"/>
         <SwitchPreferenceCompat
             android:defaultValue="true"
+            android:dependency="@string/pref_review_progress_bar_enabled_key"
             android:key="@string/pref_review_progress_bar_glow_key"
             android:title="@string/pref_review_progress_bar_glow"
             android:summary="@string/pref_review_progress_bar_glow_summ"/>

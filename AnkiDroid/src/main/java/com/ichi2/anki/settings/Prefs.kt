@@ -369,6 +369,9 @@ open class PrefsRepository protected constructor(
     val doubleTapInterval by intPref(R.string.double_tap_timeout_pref_key, defaultValue = 200)
     val newStudyScreenAnswerButtonSize by intPref(R.string.answer_button_size_pref_key, defaultValue = 100)
 
+    /** Whether the legacy reviewer shows its session progress bar below the top bar. */
+    val reviewProgressBarEnabled by booleanPref(R.string.pref_review_progress_bar_enabled_key, defaultValue = true)
+
     /** Fill color of the legacy reviewer's session progress bar. */
     var reviewProgressBarColor: Int by intPref(
         R.string.pref_review_progress_bar_color_key,

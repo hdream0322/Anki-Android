@@ -61,6 +61,9 @@
     <!-- Review progress bar color -->
     <string name="pref_review_progress_bar_color_key">deurim_review_progress_bar_color</string>
     <string name="pref_cat_deurim_reviewer" maxLength="41">Reviewer</string>
+    <string name="pref_review_progress_bar_enabled_key">deurim_review_progress_bar_enabled</string>
+    <string name="pref_review_progress_bar_enabled" maxLength="41">Show progress bar</string>
+    <string name="pref_review_progress_bar_enabled_summ">Shows the session progress bar below the top bar (legacy reviewer)</string>
     <string name="pref_review_progress_bar_color" maxLength="41">Progress bar color</string>
     <string name="pref_review_progress_bar_color_summ">Changes the color of the session progress bar (legacy reviewer)</string>
     <string name="pref_review_progress_bar_glow_key">deurim_review_progress_bar_glow</string>

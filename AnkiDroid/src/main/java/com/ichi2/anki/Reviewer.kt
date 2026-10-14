@@ -64,6 +64,7 @@ import androidx.core.view.WindowInsetsCompat.Type.navigationBars
 import androidx.core.view.WindowInsetsCompat.Type.systemBars
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.isGone
+import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updateMargins
 import androidx.core.view.updatePadding
@@ -326,8 +327,9 @@ open class Reviewer :
         textBarReview = findViewById(R.id.review_number)
         reviewProgressBar =
             findViewById<ProgressBar>(R.id.review_progress_bar).apply {
+                isVisible = Prefs.reviewProgressBarEnabled
                 progressTintList = ColorStateList.valueOf(Prefs.reviewProgressBarColor)
-                setGlowEnabled(Prefs.reviewProgressBarGlow, Prefs.reviewProgressBarGlowSpeed)
+                setGlowEnabled(isVisible && Prefs.reviewProgressBarGlow, Prefs.reviewProgressBarGlowSpeed)
             }
         toolbar = findViewById(R.id.toolbar)
         micToolBarLayer = findViewById(R.id.mic_tool_bar_layer)

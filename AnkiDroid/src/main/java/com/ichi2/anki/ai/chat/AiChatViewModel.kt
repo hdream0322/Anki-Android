@@ -25,17 +25,22 @@ class AiChatViewModel(
     private val cardContent: String,
     private val provider: AiProvider,
     private val apiKey: String,
-    private val model: String,
+    private var model: String,
     private val streamingClient: AiStreamingClient,
     private val storeMessage: (AiChatMessage) -> Unit,
     private val loadHistory: () -> List<AiChatMessage>,
     private val onClearHistory: () -> Unit = {},
+    /** Called with the user's chosen model once the provider reports it no longer exists. */
+    private val onModelUnavailable: (String) -> Unit = {},
 ) : ViewModel() {
     private val _messages = MutableStateFlow(loadHistory())
     val messages: StateFlow<List<AiChatMessage>> = _messages.asStateFlow()
 
     private val _errorFlow = MutableSharedFlow<AiError>()
     val errorFlow = _errorFlow.asSharedFlow()
+
+    private val _modelFallbackFlow = MutableSharedFlow<ModelFallback>()
+    val modelFallbackFlow = _modelFallbackFlow.asSharedFlow()
 
     private val _isStreaming = MutableStateFlow(false)
     val isStreaming: StateFlow<Boolean> = _isStreaming.asStateFlow()
@@ -56,7 +61,15 @@ class AiChatViewModel(
                     .catch { throwable ->
                         val error = throwable as? AiError ?: AiError.Network(throwable)
                         Timber.w(error, "AI chat request failed")
-                        _errorFlow.emit(error)
+                        // Endpoints are fixed, so a 404 means the model id itself is gone, e.g. retired.
+                        if (error is AiError.Http && error.code == HTTP_NOT_FOUND && model != provider.defaultModel) {
+                            val fallback = ModelFallback(unavailable = model, fallback = provider.defaultModel)
+                            model = fallback.fallback
+                            onModelUnavailable(fallback.unavailable)
+                            _modelFallbackFlow.emit(fallback)
+                        } else {
+                            _errorFlow.emit(error)
+                        }
                     }.collect { event ->
                         when (event) {
                             is AiSseEvent.Token -> {
@@ -101,7 +114,14 @@ class AiChatViewModel(
             }
     }
 
+    data class ModelFallback(
+        val unavailable: String,
+        val fallback: String,
+    )
+
     companion object {
+        private const val HTTP_NOT_FOUND = 404
+
         /** Upper bound on how many past messages accompany a request, to cap the user's API spend. */
         const val MAX_HISTORY_MESSAGES = 20
 

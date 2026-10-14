@@ -17,6 +17,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+import com.ichi2.anki.CommonString
 import com.ichi2.anki.MetaDB
 import com.ichi2.anki.R
 import com.ichi2.anki.ai.AiError
@@ -62,11 +63,12 @@ class AiChatBottomSheetFragment : BottomSheetDialogFragment(R.layout.fragment_ai
                     cardContent = args.cardContent,
                     provider = provider,
                     apiKey = keyStore.getApiKey(providerKind).orEmpty(),
-                    model = Prefs.aiModelOverride?.takeIf { it.isNotBlank() } ?: provider.defaultModel,
+                    model = Prefs.getAiModelOverride(providerKind)?.takeIf { it.isNotBlank() } ?: provider.defaultModel,
                     streamingClient = AiStreamingClient(),
                     storeMessage = { message -> MetaDB.storeAiChatMessage(requireContext(), args.noteId, message) },
                     loadHistory = { MetaDB.getAiChatMessages(requireContext(), args.noteId) },
                     onClearHistory = { MetaDB.deleteAiChatMessages(requireContext(), args.noteId) },
+                    onModelUnavailable = { Prefs.setAiModelOverride(providerKind, null) },
                 ) as T
             }
         }
@@ -93,6 +95,10 @@ class AiChatBottomSheetFragment : BottomSheetDialogFragment(R.layout.fragment_ai
 
         viewModel.errorFlow.collectIn(viewLifecycleOwner.lifecycleScope) { error ->
             showSnackbar(errorMessage(error))
+        }
+
+        viewModel.modelFallbackFlow.collectIn(viewLifecycleOwner.lifecycleScope) { fallback ->
+            showSnackbar(getString(R.string.ai_chat_model_unavailable, fallback.unavailable, fallback.fallback))
         }
 
         viewModel.isStreaming.collectIn(viewLifecycleOwner.lifecycleScope) { isStreaming ->
@@ -130,7 +136,7 @@ class AiChatBottomSheetFragment : BottomSheetDialogFragment(R.layout.fragment_ai
                     viewModel.clearHistory()
                     showSnackbar(R.string.ai_chat_history_cleared)
                 }
-                negativeButton(R.string.dialog_cancel)
+                negativeButton(CommonString.dialog_cancel)
             }
         }
     }

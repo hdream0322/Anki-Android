@@ -33,11 +33,11 @@ import com.ichi2.anki.ai.AiProvider
 import com.ichi2.anki.ai.AnthropicProvider
 import com.ichi2.anki.ai.GeminiProvider
 import com.ichi2.anki.ai.OpenAiProvider
-import com.ichi2.anki.common.utils.android.showThemedToast
 import com.ichi2.anki.common.utils.isRunningAsUnitTest
 import com.ichi2.anki.launchCatchingTask
 import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.settings.enums.AiProviderKind
+import com.ichi2.anki.snackbar.showSnackbar
 import com.ichi2.anki.ui.windows.reviewer.whiteboard.showColorPickerDialog
 import com.ichi2.anki.update.UpdateManager
 import com.ichi2.anki.utils.openUrl
@@ -137,7 +137,7 @@ class DeurimSettingsFragment : SettingsFragment() {
         val modelPref = requirePreference<Preference>(R.string.pref_ai_model_key)
         val modelSummaryProvider =
             Preference.SummaryProvider<Preference> {
-                val override = Prefs.aiModelOverride
+                val override = Prefs.getAiModelOverride(Prefs.aiProviderKind)
                 if (override.isNullOrBlank()) {
                     getString(R.string.pref_ai_model_summary_not_set, providerFor(Prefs.aiProviderKind).defaultModel)
                 } else {
@@ -147,7 +147,7 @@ class DeurimSettingsFragment : SettingsFragment() {
         // Re-setting the same SummaryProvider is the public-API way to force Preference to
         // re-evaluate it (notifyChanged() itself is protected).
         val setModel = { model: String? ->
-            Prefs.aiModelOverride = model
+            Prefs.setAiModelOverride(Prefs.aiProviderKind, model)
             modelPref.summaryProvider = modelSummaryProvider
         }
         modelPref.apply {
@@ -158,17 +158,14 @@ class DeurimSettingsFragment : SettingsFragment() {
             }
         }
 
-        // A model id only exists at the provider it came from, so switching provider drops the
-        // override instead of sending e.g. a `claude-*` id to OpenAI. The summary also shows the
-        // selected provider's default model, so it must refresh either way, as must the API key
-        // summary, which names the selected provider.
-        requirePreference<ListPreference>(R.string.pref_ai_provider_key).setOnPreferenceChangeListener { _, newValue ->
-            if (newValue != getString(Prefs.aiProviderKind.entryResId)) {
-                setModel(null)
-            } else {
+        // Each provider keeps its own model, so switching provider only changes which one is shown,
+        // as it does for the API key. The new provider is persisted only after this listener
+        // returns, so the summaries refresh once it has been.
+        requirePreference<ListPreference>(R.string.pref_ai_provider_key).setOnPreferenceChangeListener { _, _ ->
+            listView.post {
                 modelPref.summaryProvider = modelSummaryProvider
+                refreshAiApiKeySummary()
             }
-            refreshAiApiKeySummary()
             true
         }
     }
@@ -185,19 +182,19 @@ class DeurimSettingsFragment : SettingsFragment() {
         val apiKey = if (isRunningAsUnitTest) null else withContext(Dispatchers.IO) { AiKeyStore(context).getApiKey(Prefs.aiProviderKind) }
         val fetchedModels: List<AiModelInfo> =
             if (apiKey.isNullOrBlank()) {
-                showThemedToast(requireContext(), R.string.ai_model_list_no_key, false)
+                showSnackbar(R.string.ai_model_list_no_key)
                 emptyList()
             } else {
                 try {
                     withProgress(R.string.ai_model_list_loading) { AiModelLister().listModels(provider, apiKey) }
                 } catch (e: AiError) {
                     Timber.w(e, "Could not fetch the AI model list")
-                    showThemedToast(requireContext(), R.string.ai_model_list_failed, false)
+                    showSnackbar(R.string.ai_model_list_failed)
                     emptyList()
                 }
             }
 
-        val current = Prefs.aiModelOverride
+        val current = Prefs.getAiModelOverride(Prefs.aiProviderKind)
         val fetchedIds = fetchedModels.map { it.id }
         val labels =
             listOf<CharSequence>(
@@ -241,7 +238,7 @@ class DeurimSettingsFragment : SettingsFragment() {
             setMessage(requireContext().aiModelDetails(model))
             positiveButton(R.string.ai_model_detail_choose) {
                 onChosen()
-                Prefs.aiModelOverride = model.id
+                Prefs.setAiModelOverride(Prefs.aiProviderKind, model.id)
                 // Refreshes the summary the same way setModel does.
                 requirePreference<Preference>(R.string.pref_ai_model_key).let { it.summaryProvider = it.summaryProvider }
             }

@@ -463,8 +463,35 @@ open class PrefsRepository protected constructor(
 
     var aiProviderKind: AiProviderKind by enumPref(R.string.pref_ai_provider_key, AiProviderKind.OPENAI)
 
-    /** User-entered override for the selected provider's model id. Blank/unset means "use [AiProvider.defaultModel]". */
-    var aiModelOverride: String? by stringPref(R.string.pref_ai_model_key)
+    /**
+     * User-chosen model id for [provider], kept per provider so switching provider and back
+     * restores it. Blank/unset means "use [AiProvider.defaultModel]".
+     */
+    fun getAiModelOverride(provider: AiProviderKind): String? {
+        migrateLegacyAiModelOverride()
+        return sharedPrefs.getString(aiModelKey(provider), null)
+    }
+
+    fun setAiModelOverride(
+        provider: AiProviderKind,
+        model: String?,
+    ) {
+        migrateLegacyAiModelOverride()
+        sharedPrefs.edit { putString(aiModelKey(provider), model) }
+    }
+
+    private fun aiModelKey(provider: AiProviderKind) = "${key(R.string.pref_ai_model_key)}_${provider.name.lowercase()}"
+
+    /** Only one model used to be stored; it was for whichever provider was selected. */
+    private fun migrateLegacyAiModelOverride() {
+        val legacyKey = key(R.string.pref_ai_model_key)
+        val legacyModel = sharedPrefs.getString(legacyKey, null) ?: return
+        val ownerKey = aiModelKey(aiProviderKind)
+        sharedPrefs.edit {
+            if (!sharedPrefs.contains(ownerKey)) putString(ownerKey, legacyModel)
+            remove(legacyKey)
+        }
+    }
 
     // **************************************** UI Config *************************************** //
 

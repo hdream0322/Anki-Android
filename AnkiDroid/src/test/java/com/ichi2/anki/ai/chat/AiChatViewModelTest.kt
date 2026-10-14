@@ -5,6 +5,7 @@ package com.ichi2.anki.ai.chat
 import app.cash.turbine.test
 import com.ichi2.anki.ai.AiChatMessage
 import com.ichi2.anki.ai.AiChatRole
+import com.ichi2.anki.ai.AiError
 import com.ichi2.anki.ai.AiModelsPage
 import com.ichi2.anki.ai.AiProvider
 import com.ichi2.anki.ai.AiSseEvent
@@ -14,6 +15,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -299,12 +301,71 @@ class AiChatViewModelTest {
             // the full history is still displayed: 40 loaded + "latest" + the assistant reply
             assertEquals(42, viewModel.messages.value.size)
         }
+
+    @Test
+    fun `an unavailable chosen model falls back to the default and tells the user`() =
+        runTest {
+            val provider = FakeProvider(listOf(AiSseEvent.Token("Hi"), AiSseEvent.Done))
+            val client = FakeStreamingClient(flow { throw AiError.Http(404, "model not found") })
+            val unavailable = mutableListOf<String>()
+            val viewModel =
+                AiChatViewModel(
+                    noteId = 1L,
+                    cardContent = "",
+                    provider = provider,
+                    apiKey = "key",
+                    model = "gone-model",
+                    streamingClient = client,
+                    storeMessage = {},
+                    loadHistory = { emptyList() },
+                    onModelUnavailable = { unavailable += it },
+                )
+
+            viewModel.modelFallbackFlow.test {
+                viewModel.sendMessage("Q")
+                dispatcher.scheduler.advanceUntilIdle()
+                assertEquals(AiChatViewModel.ModelFallback(unavailable = "gone-model", fallback = "fake-model"), awaitItem())
+            }
+            assertEquals(listOf("gone-model"), unavailable)
+
+            client.flow = provider.asFlow()
+            viewModel.sendMessage("Q again")
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals("fake-model", client.lastModel)
+        }
+
+    @Test
+    fun `a 404 for the default model is reported as an error`() =
+        runTest {
+            val provider = FakeProvider(emptyList())
+            val unavailable = mutableListOf<String>()
+            val viewModel =
+                AiChatViewModel(
+                    noteId = 1L,
+                    cardContent = "",
+                    provider = provider,
+                    apiKey = "key",
+                    model = "fake-model",
+                    streamingClient = FakeStreamingClient(flow { throw AiError.Http(404, "model not found") }),
+                    storeMessage = {},
+                    loadHistory = { emptyList() },
+                    onModelUnavailable = { unavailable += it },
+                )
+
+            viewModel.errorFlow.test {
+                viewModel.sendMessage("Q")
+                dispatcher.scheduler.advanceUntilIdle()
+                assertEquals(404, (awaitItem() as AiError.Http).code)
+            }
+            assertEquals(emptyList<String>(), unavailable)
+        }
 }
 
 private class FakeStreamingClient(
-    private val flow: Flow<AiSseEvent>,
+    var flow: Flow<AiSseEvent>,
 ) : AiStreamingClient() {
     var lastMessages: List<AiChatMessage>? = null
+    var lastModel: String? = null
 
     override fun stream(
         provider: AiProvider,
@@ -314,6 +375,7 @@ private class FakeStreamingClient(
         messages: List<AiChatMessage>,
     ): Flow<AiSseEvent> {
         lastMessages = messages
+        lastModel = model
         return flow
     }
 }

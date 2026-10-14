@@ -3,13 +3,16 @@
 package com.ichi2.anki.progress
 
 import android.os.Looper
+import android.view.WindowManager
 import android.widget.TextView
 import androidx.fragment.app.DialogFragment
+import androidx.lifecycle.lifecycleScope
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ichi2.anki.CommonString
 import com.ichi2.anki.R
 import com.ichi2.anki.RobolectricTest
 import com.ichi2.anki.dialogs.LoadingDialogFragment
+import com.ichi2.anki.withProgress
 import com.ichi2.testutils.EmptyAnkiActivity
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -21,8 +24,10 @@ import org.robolectric.Robolectric
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.android.controller.ActivityController
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.toJavaDuration
@@ -33,6 +38,10 @@ class ProgressObserverTest : RobolectricTest() {
     private val viewModel =
         object : HasProgress<String> {
             override val progressManager = this@ProgressObserverTest.progressManager
+        }
+    private val otherViewModel =
+        object : HasProgress<String> {
+            override val progressManager = ProgressManager<String>()
         }
 
     @Test
@@ -160,12 +169,151 @@ class ProgressObserverTest : RobolectricTest() {
         op.cancel()
     }
 
+    @Test
+    fun `an idle observer does not dismiss another observer's dialog after a restart`() {
+        val controller = startActivity()
+        val activity = controller.get()
+        activity.observeProgress(viewModel, delayMillis = SHOW_DELAY) { it }
+        activity.observeProgress(otherViewModel, delayMillis = SHOW_DELAY) { it }
+
+        val gate = CompletableDeferred<Unit>()
+        val op = launchOp(gate)
+        idleMainLooper(SHOW_DELAY * 2)
+        assertNotNull(activity.loadingDialog(), "dialog must show for the running op")
+
+        controller.pause().stop()
+        controller.start().resume()
+        idleMainLooper(SHOW_DELAY)
+
+        assertNotNull(activity.loadingDialog(), "the idle observer must not dismiss the running op's dialog")
+
+        gate.complete(Unit)
+        idleMainLooper(SHOW_DELAY)
+        assertNull(activity.loadingDialog(), "dialog must be dismissed once the op ends")
+        op.cancel()
+    }
+
+    @Test
+    fun `an observer whose op ends does not dismiss another observer's dialog`() {
+        val activity = startActivity().get()
+        activity.observeProgress(viewModel, delayMillis = SHOW_DELAY) { it }
+        activity.observeProgress(otherViewModel, delayMillis = SHOW_DELAY) { it }
+
+        val gate = CompletableDeferred<Unit>()
+        val otherGate = CompletableDeferred<Unit>()
+        val op = launchOp(gate)
+        val otherOp = launchOp(otherGate, manager = otherViewModel.progressManager)
+        idleMainLooper(SHOW_DELAY * 2)
+
+        otherGate.complete(Unit)
+        idleMainLooper(SHOW_DELAY)
+
+        assertNotNull(activity.loadingDialog(), "the running op's dialog must stay")
+
+        gate.complete(Unit)
+        idleMainLooper(SHOW_DELAY)
+        assertNull(activity.loadingDialog(), "dialog must be dismissed once both ops end")
+        op.cancel()
+        otherOp.cancel()
+    }
+
+    @Test
+    fun `touches are blocked as soon as an op starts and restored when it ends`() {
+        val activity = startActivity().get()
+        activity.observeProgress(viewModel, delayMillis = SHOW_DELAY) { it }
+
+        val gate = CompletableDeferred<Unit>()
+        val op = launchOp(gate)
+        assertTrue(activity.touchesBlocked(), "touches must be blocked before the dialog shows")
+
+        gate.complete(Unit)
+        idleMainLooper(SHOW_DELAY)
+        assertFalse(activity.touchesBlocked(), "touches must be restored once the op ends")
+        op.cancel()
+    }
+
+    @Test
+    fun `an observer whose op ends does not restore touches while another op runs`() {
+        val activity = startActivity().get()
+        activity.observeProgress(viewModel, delayMillis = SHOW_DELAY) { it }
+        activity.observeProgress(otherViewModel, delayMillis = SHOW_DELAY) { it }
+
+        val gate = CompletableDeferred<Unit>()
+        val otherGate = CompletableDeferred<Unit>()
+        val op = launchOp(gate)
+        val otherOp = launchOp(otherGate, manager = otherViewModel.progressManager)
+
+        otherGate.complete(Unit)
+        idleMainLooper(SHOW_DELAY)
+        assertTrue(activity.touchesBlocked(), "touches must stay blocked while an op runs")
+
+        gate.complete(Unit)
+        idleMainLooper(SHOW_DELAY)
+        assertFalse(activity.touchesBlocked(), "touches must be restored once both ops end")
+        op.cancel()
+        otherOp.cancel()
+    }
+
+    @Test
+    fun `an idle observer leaves touches blocked by someone else`() {
+        val activity = startActivity().get()
+        activity.window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
+
+        activity.observeProgress(viewModel, delayMillis = SHOW_DELAY) { it }
+        idleMainLooper(SHOW_DELAY)
+
+        assertTrue(activity.touchesBlocked(), "the observer must only restore touches it blocked")
+    }
+
+    @Test
+    fun `a legacy withProgress ending does not restore touches while an op runs`() {
+        val activity = startActivity().get()
+        activity.observeProgress(viewModel, delayMillis = SHOW_DELAY) { it }
+
+        val gate = CompletableDeferred<Unit>()
+        val op = launchOp(gate)
+        val legacyGate = CompletableDeferred<Unit>()
+        val legacyOp = activity.lifecycleScope.launch { activity.withProgress { legacyGate.await() } }
+
+        legacyGate.complete(Unit)
+        idleMainLooper(Duration.ZERO)
+        assertTrue(activity.touchesBlocked(), "touches must stay blocked while the op runs")
+
+        gate.complete(Unit)
+        idleMainLooper(Duration.ZERO)
+        assertFalse(activity.touchesBlocked(), "touches must be restored once both end")
+        op.cancel()
+        legacyOp.cancel()
+    }
+
+    @Test
+    fun `an op ending does not restore touches while a legacy withProgress runs`() {
+        val activity = startActivity().get()
+        activity.observeProgress(viewModel, delayMillis = SHOW_DELAY) { it }
+
+        val legacyGate = CompletableDeferred<Unit>()
+        val legacyOp = activity.lifecycleScope.launch { activity.withProgress { legacyGate.await() } }
+        val gate = CompletableDeferred<Unit>()
+        val op = launchOp(gate)
+
+        gate.complete(Unit)
+        idleMainLooper(Duration.ZERO)
+        assertTrue(activity.touchesBlocked(), "touches must stay blocked while the legacy op runs")
+
+        legacyGate.complete(Unit)
+        idleMainLooper(Duration.ZERO)
+        assertFalse(activity.touchesBlocked(), "touches must be restored once both end")
+        op.cancel()
+        legacyOp.cancel()
+    }
+
     private fun launchOp(
         gate: CompletableDeferred<Unit>,
         message: String = "op",
         onCancel: (() -> Unit)? = null,
+        manager: ProgressManager<String> = progressManager,
     ) = CoroutineScope(Dispatchers.Unconfined).launch {
-        progressManager.withProgress(message = message, onCancel = onCancel) { gate.await() }
+        manager.withProgress(message = message, onCancel = onCancel) { gate.await() }
     }
 
     private fun startActivity(): ActivityController<EmptyAnkiActivity> =
@@ -174,7 +322,8 @@ class ProgressObserverTest : RobolectricTest() {
             .setup()
             .also { saveControllerForCleanup(it) }
 
-    private fun EmptyAnkiActivity.loadingDialog() = supportFragmentManager.findFragmentByTag(LoadingDialogFragment.TAG)
+    private fun EmptyAnkiActivity.loadingDialog() =
+        supportFragmentManager.fragments.filterIsInstance<LoadingDialogFragment>().singleOrNull()
 
     private fun EmptyAnkiActivity.loadingDialogText() =
         (loadingDialog() as? DialogFragment)
@@ -182,6 +331,8 @@ class ProgressObserverTest : RobolectricTest() {
             ?.findViewById<TextView>(R.id.text)
             ?.text
             ?.toString()
+
+    private fun EmptyAnkiActivity.touchesBlocked() = window.attributes.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE != 0
 
     private fun idleMainLooper(duration: Duration) = shadowOf(Looper.getMainLooper()).idleFor(duration.toJavaDuration())
 

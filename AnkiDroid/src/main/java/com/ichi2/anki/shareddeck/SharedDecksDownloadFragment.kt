@@ -44,6 +44,7 @@ import com.ichi2.anki.compat.CompatHelper.Companion.getSerializableCompat
 import com.ichi2.anki.compat.CompatHelper.Companion.registerReceiverCompat
 import com.ichi2.anki.shareddeck.SharedDecksActivity.Companion.DOWNLOAD_FILE
 import com.ichi2.anki.snackbar.showSnackbar
+import com.ichi2.anki.utils.ext.launchCollectionInLifecycleScope
 import com.ichi2.anki.utils.openUrl
 import com.ichi2.compose.theme.AnkiDroidTheme
 import com.ichi2.utils.ImportUtils
@@ -175,7 +176,29 @@ class SharedDecksDownloadFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         downloadManager = (activity as SharedDecksActivity).downloadManager
         registerDownloadReceiver()
+        observeLoginRequired()
         downloadFile(fileToBeDownloaded)
+    }
+
+    /**
+     * Handles the [DownloadPhase.LoginRequired] phase: shows the login prompt and returns to
+     * the shared decks WebView, opened on its login page, so the prompt is actionable even
+     * without a sign-up action.
+     *
+     * Handled in this collector rather than in the broadcast receiver which records the
+     * state: the receiver can fire while the activity is backgrounded, where
+     * FragmentManager work would throw, while this only runs while the screen is showing.
+     */
+    private fun observeLoginRequired() {
+        viewModel.uiState.launchCollectionInLifecycleScope { state ->
+            if (state.phase == DownloadPhase.LoginRequired) {
+                Timber.i("Download requires login, returning to shared decks")
+                val sharedDecksActivity = activity as SharedDecksActivity
+                sharedDecksActivity.showLoginRequiredSnackbar()
+                sharedDecksActivity.redirectToLogin()
+                parentFragmentManager.popBackStack()
+            }
+        }
     }
 
     override fun onDestroyView() {
@@ -309,7 +332,7 @@ class SharedDecksDownloadFragment : Fragment() {
                     // Halt execution if file doesn't have extension as 'apkg' or 'colpkg'
                     if (!ImportUtils.isFileAValidDeck(fileName!!)) {
                         Timber.i("File does not have 'apkg' or 'colpkg' extension, abort the deck opening task")
-                        onDownloadFinished(isSuccessful = false, isInvalidDeckFile = true)
+                        onDownloadFinished(DownloadOutcome.InvalidDeckFile)
                         return null
                     }
 
@@ -321,7 +344,7 @@ class SharedDecksDownloadFragment : Fragment() {
                         // Return if cursor is empty.
                         if (!it.moveToFirst()) {
                             Timber.i("Empty cursor, cannot continue further with success check and deck import")
-                            onDownloadFinished(isSuccessful = false)
+                            onDownloadFinished(DownloadOutcome.Failed)
                             return null
                         }
 
@@ -331,8 +354,18 @@ class SharedDecksDownloadFragment : Fragment() {
                         // Return if download was not successful.
                         if (it.getInt(columnStatusIndex) != DownloadManager.STATUS_SUCCESSFUL) {
                             Timber.i("Download could not be successful, update UI")
-                            Timber.d("Status code -> ${it.getIntOrNull(columnStatusIndex)}, reason ${it.getIntOrNull(columnReasonIndex)}")
-                            onDownloadFinished(isSuccessful = false)
+                            val reason = it.getIntOrNull(columnReasonIndex)
+                            Timber.d("Status code -> ${it.getIntOrNull(columnStatusIndex)}, reason $reason")
+                            // DownloadManager reports the HTTP status code in COLUMN_REASON for 4xx/5xx
+                            // failures: AnkiWeb replies 429 when an anonymous user has used up its
+                            // download limit, asking them to log in (19876)
+                            // a logged-in user is rate limited too ('Daily limit exceeded'), but cannot
+                            // fix that by logging in, so only a logged-out user is sent the login prompt
+                            val isLoginRequired =
+                                reason == SharedDecksActivity.HTTP_STATUS_TOO_MANY_REQUESTS && !isLoggedInToAnkiWeb()
+                            onDownloadFinished(
+                                if (isLoginRequired) DownloadOutcome.LoginRequired else DownloadOutcome.Failed,
+                            )
                             return null
                         }
 
@@ -340,7 +373,7 @@ class SharedDecksDownloadFragment : Fragment() {
                         val localUri = it.getString(it.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI))
                         if (localUri == null) {
                             Timber.w("Completed download has no local URI")
-                            onDownloadFinished(isSuccessful = false)
+                            onDownloadFinished(DownloadOutcome.Failed)
                             return null
                         }
                         return localUri.toUri().toFile()
@@ -352,7 +385,7 @@ class SharedDecksDownloadFragment : Fragment() {
                         getImportableDeck()
                     } catch (exception: Exception) {
                         Timber.w(exception)
-                        onDownloadFinished(isSuccessful = false)
+                        onDownloadFinished(DownloadOutcome.Failed)
                         return
                     }
 
@@ -372,7 +405,7 @@ class SharedDecksDownloadFragment : Fragment() {
                 openDownloadedDeck(context, downloadedFile)
 
                 Timber.d("Download finished")
-                onDownloadFinished(isSuccessful = true)
+                onDownloadFinished(DownloadOutcome.Success)
             }
         }
 
@@ -487,7 +520,7 @@ class SharedDecksDownloadFragment : Fragment() {
         // A successful DownloadManager entry can outlive its file, e.g. after another import.
         if (!downloadedFile.isFile) {
             Timber.w("Downloaded shared deck no longer exists")
-            onDownloadFinished(isSuccessful = false)
+            onDownloadFinished(DownloadOutcome.Failed)
             return
         }
 
@@ -513,22 +546,46 @@ class SharedDecksDownloadFragment : Fragment() {
         }
     }
 
+    /** How a download ended, deciding what [onDownloadFinished] does next. */
+    private enum class DownloadOutcome {
+        /** The download completed and the deck import was started. */
+        Success,
+
+        /** The completed file was not a deck. */
+        InvalidDeckFile,
+
+        /** AnkiWeb rate-limited a logged-out user, so a login is required. */
+        LoginRequired,
+
+        /** The download failed for any other reason; retry is offered. */
+        Failed,
+    }
+
     /**
      * Updates the UI after download completion or failure and marks the download as inactive.
      */
-    private fun onDownloadFinished(
-        isSuccessful: Boolean,
-        isInvalidDeckFile: Boolean = false,
-    ) {
-        if (!isSuccessful) {
-            if (isInvalidDeckFile) {
+    private fun onDownloadFinished(outcome: DownloadOutcome) {
+        when (outcome) {
+            DownloadOutcome.Success -> {}
+
+            DownloadOutcome.InvalidDeckFile -> {
                 Timber.i("File is not a valid deck, hence return from the download screen")
                 if (isVisible) {
                     context?.let { showThemedToast(it, CommonString.import_log_no_apkg, false) }
                     // Go back if file is not a deck and cannot be imported
                     activity?.onBackPressedDispatcher?.onBackPressed()
                 }
-            } else {
+            }
+
+            DownloadOutcome.LoginRequired -> {
+                Timber.i("Download failed: AnkiWeb requires login to download more decks")
+                // discard the failed download: the login path offers no retry button,
+                // so nothing else would remove it (or its failed-download notification)
+                downloadManager.remove(downloadId)
+                viewModel.onLoginRequired()
+            }
+
+            DownloadOutcome.Failed -> {
                 Timber.i("Download failed, offer a retry")
                 if (isVisible) {
                     context?.let { showThemedToast(it, CommonString.something_wrong, false) }

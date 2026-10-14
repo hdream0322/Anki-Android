@@ -9,7 +9,9 @@ import androidx.core.content.edit
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import anki.card_rendering.EmptyCardsReport
 import anki.card_rendering.emptyCardsReport
+import anki.decks.SetDeckCollapsedRequest
 import app.cash.turbine.test
+import com.ichi2.anki.CollectionManager
 import com.ichi2.anki.CollectionManager.withCol
 import com.ichi2.anki.InitialActivity
 import com.ichi2.anki.RobolectricTest
@@ -23,10 +25,16 @@ import com.ichi2.anki.libanki.DeckId
 import com.ichi2.anki.libanki.Note
 import com.ichi2.anki.libanki.emptyCids
 import com.ichi2.anki.observability.ensureOpsExecuted
+import com.ichi2.anki.progress.ViewModelProgress
 import com.ichi2.testutils.publicCollectionPath
 import com.ichi2.testutils.withAllFilesAccess
 import com.ichi2.testutils.withManageExternalStorageInManifest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.setMain
 import org.hamcrest.CoreMatchers.not
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.equalTo
@@ -38,6 +46,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTime
@@ -45,7 +54,7 @@ import kotlin.time.measureTime
 /** Test of [DeckPickerViewModel] */
 @RunWith(AndroidJUnit4::class)
 class DeckPickerViewModelTest : RobolectricTest() {
-    private val viewModel = DeckPickerViewModel()
+    private val viewModel: DeckPickerViewModel by lazy { DeckPickerViewModel() }
 
     @Test
     fun `delete confirmation uses focused deck and includes cards in subdecks`() =
@@ -300,6 +309,87 @@ class DeckPickerViewModelTest : RobolectricTest() {
             override fun initializeAnkiDroidFolder(): Boolean = CollectionHelper.isCurrentAnkiDroidDirAccessible(targetContext)
         }
 
+    @Test
+    fun `deleteDeck reports progress`() =
+        runProgressTest {
+            val deckId = addDeck("Deleted")
+
+            assertProgressAround(DeckPickerProgress.DELETING_DECK) { deleteDeck(deckId).join() }
+        }
+
+    @Test
+    fun `deleteSelectedDeck reports progress before reading the selected deck`() =
+        runTest {
+            col.decks.select(addDeck("Deleted"))
+
+            DeckPickerViewModel().run {
+                withQueuedCollectionAccess {
+                    val deletion = deleteSelectedDeck()
+                    val active = assertIs<ViewModelProgress.Active<DeckPickerProgress>>(progressManager.progress.value)
+                    assertEquals(DeckPickerProgress.DELETING_DECK, active.message)
+                    deletion.join()
+                }
+                assertIs<ViewModelProgress.Idle>(progressManager.progress.value)
+            }
+        }
+
+    @Test
+    fun `rebuildFilteredDeck reports progress`() =
+        runProgressTest {
+            val filteredDeckId = moveAllCardsToFilteredDeck()
+
+            assertProgressAround(DeckPickerProgress.REBUILDING_FILTERED_DECK) { rebuildFilteredDeck(filteredDeckId).join() }
+        }
+
+    @Test
+    fun `emptyFilteredDeck reports progress`() =
+        runProgressTest {
+            val filteredDeckId = moveAllCardsToFilteredDeck()
+
+            assertProgressAround { emptyFilteredDeck(filteredDeckId).join() }
+        }
+
+    @Test
+    fun `deleteEmptyCards reports progress`() =
+        runProgressTest {
+            val cardsToEmpty = createEmptyCards()
+
+            assertProgressAround(DeckPickerProgress.DELETING_EMPTY_CARDS) { deleteEmptyCards(cardsToEmpty).join() }
+        }
+
+    /**
+     * [runTest] with a ViewModel built after Main becomes a [StandardTestDispatcher]. The ViewModel's
+     * scope captures Main when it is built, and an inline Main would hide the Active state.
+     */
+    private fun runProgressTest(testBody: suspend DeckPickerViewModel.() -> Unit) =
+        runTest {
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            DeckPickerViewModel().testBody()
+        }
+
+    private suspend fun TestScope.withQueuedCollectionAccess(block: suspend () -> Unit) {
+        val previousQueue = CollectionManager.setTestDispatcher(StandardTestDispatcher(testScheduler), useReentrantLock = false)
+        try {
+            block()
+        } finally {
+            CollectionManager.setTestDispatcher(previousQueue)
+        }
+    }
+
+    private suspend fun DeckPickerViewModel.assertProgressAround(
+        message: DeckPickerProgress? = null,
+        op: suspend () -> Unit,
+    ) {
+        progressManager.progress.test {
+            assertIs<ViewModelProgress.Idle>(awaitItem())
+            op()
+            val active = assertIs<ViewModelProgress.Active<DeckPickerProgress>>(awaitItem())
+            assertEquals(message, active.message)
+            assertIs<ViewModelProgress.Idle>(awaitItem())
+            expectNoEvents()
+        }
+    }
+
     /**
      * Creates a note with 3 cards, all empty
      *
@@ -391,6 +481,96 @@ class DeckPickerViewModelTest : RobolectricTest() {
             }
         }
     }
+
+    @Test
+    fun `deleteDeck selects the next visible deck matching the filter`() =
+        runTest {
+            // 'A hidden' is first alphabetically but does not match the filter.
+            // The 'skip empty default' fallback would select it, so this test fails
+            // if the visible deck list is not applied
+            addDeck("A hidden")
+            val deleted = addDeck("B match", setAsSelected = true)
+            val expected = addDeck("C match")
+
+            viewModel.updateDeckFilter("match")
+            viewModel.reloadDeckCounts().join()
+            // the deck list is built from a flow, so await a value containing the deck to delete
+            viewModel.flowOfDeckList.first { list -> list.data.any { it.did == deleted } }
+
+            ensureOpsExecuted(1) {
+                viewModel.deleteDeck(deleted).join()
+            }
+
+            assertEquals(expected, col.decks.selected(), "a filtered deck list is not respected")
+            assertEquals(expected, viewModel.focusedDeck)
+            assertEquals("Delete Deck", col.undoStatus().undo)
+        }
+
+    @Test
+    fun `deleteDeck does not select the hidden Default when its last child is deleted`() =
+        runTest {
+            val expected = addDeck("Other")
+            // Default is only visible because it is the parent of 'Default::Child'
+            val child = addDeck("Default::Child", setAsSelected = true)
+            // a fresh deck tree reports decks as collapsed: expand Default so its child is visible
+            col.decks.setCollapsed(Consts.DEFAULT_DECK_ID, collapsed = false, SetDeckCollapsedRequest.Scope.REVIEWER)
+
+            viewModel.reloadDeckCounts().join()
+            viewModel.flowOfDeckList.first { list -> list.data.any { it.did == child } }
+
+            ensureOpsExecuted(1) {
+                viewModel.deleteDeck(child).join()
+            }
+
+            assertEquals(
+                expected,
+                col.decks.selected(),
+                "Default is empty after its last child is deleted, so it must not be selected",
+            )
+            assertEquals(expected, viewModel.focusedDeck)
+        }
+
+    @Test
+    fun `deleteDeck skips a parent that no longer matches the filter`() =
+        runTest {
+            addDeck("A hidden")
+            val expected = addDeck("B match")
+            val parent = addDeck("C")
+            val deleted = addDeck("C::Child match", setAsSelected = true)
+
+            viewModel.updateDeckFilter("match")
+            viewModel.reloadDeckCounts().join()
+            val displayed = viewModel.flowOfDeckList.first { list -> list.data.any { it.did == deleted } }
+            assertEquals(listOf(expected, parent, deleted), displayed.data.map { it.did })
+
+            ensureOpsExecuted(1) {
+                viewModel.deleteDeck(deleted).join()
+            }
+
+            // C was visible only because its child matched. An empty filter would select C.
+            assertEquals(expected, col.decks.selected())
+            assertEquals(expected, viewModel.focusedDeck)
+        }
+
+    @Test
+    fun `deleteDeck skips hidden Default when selecting the previous deck`() =
+        runTest {
+            val expected = addDeck("A")
+            val child = addDeck("Default::Child", setAsSelected = true)
+            col.decks.setCollapsed(Consts.DEFAULT_DECK_ID, collapsed = false, SetDeckCollapsedRequest.Scope.REVIEWER)
+
+            viewModel.reloadDeckCounts().join()
+            val displayed = viewModel.flowOfDeckList.first { list -> list.data.any { it.did == child } }
+            assertEquals(listOf(expected, Consts.DEFAULT_DECK_ID, child), displayed.data.map { it.did })
+
+            ensureOpsExecuted(1) {
+                viewModel.deleteDeck(child).join()
+            }
+
+            // Default is the nearest previous row, but deleting its last child hides it.
+            assertEquals(expected, col.decks.selected())
+            assertEquals(expected, viewModel.focusedDeck)
+        }
 
     @Test
     fun `handleStartup does not block while a hung sync holds the collection queue`() {

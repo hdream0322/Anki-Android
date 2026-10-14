@@ -4,6 +4,8 @@
 package com.ichi2.anki.progress
 
 import android.content.Context
+import android.view.Window
+import android.view.WindowManager
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -16,11 +18,12 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.util.WeakHashMap
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
- * Shows/dismisses a loading dialog driven by [viewModel]'s progress flow.
+ * Blocks touches and shows/dismisses a loading dialog driven by [viewModel]'s progress flow.
  * [delayMillis] defers the initial show so quick operations don't flash a dialog.
  * [resolveMessage] maps the ViewModel's message to the text shown in the dialog.
  */
@@ -29,8 +32,9 @@ fun <M : Any> AnkiActivity.observeProgress(
     delayMillis: Duration = 600.milliseconds,
     resolveMessage: Context.(M) -> String,
 ) {
-    var dialogVisible =
-        supportFragmentManager.findFragmentByTag(LoadingDialogFragment.TAG) != null
+    val dialogTag = "${LoadingDialogFragment.TAG}:${viewModel.javaClass.name}"
+    var dialogVisible = supportFragmentManager.findFragmentByTag(dialogTag) != null
+    var blockingTouches = false
 
     lifecycleScope.launch {
         repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -44,15 +48,24 @@ fun <M : Any> AnkiActivity.observeProgress(
                         pendingShow?.cancel()
                         pendingShow = null
                         dialogVisible = false
-                        dismissLoadingDialog()
+                        dismissLoadingDialog(dialogTag)
+                        if (blockingTouches) {
+                            blockingTouches = false
+                            window.unblockTouches()
+                        }
                     }
                     is ViewModelProgress.Active -> {
+                        if (!blockingTouches) {
+                            blockingTouches = true
+                            window.blockTouches()
+                        }
                         if (dialogVisible) {
                             showLoadingDialog(
                                 message = formatMessage(state, resolveMessage),
                                 cancellable = state.cancellable,
+                                tag = dialogTag,
                             )
-                            if (state.cancellable) wireCancelListener(viewModel)
+                            if (state.cancellable) wireCancelListener(viewModel, dialogTag)
                         } else if (pendingShow == null) {
                             pendingShow =
                                 launch {
@@ -63,8 +76,9 @@ fun <M : Any> AnkiActivity.observeProgress(
                                         showLoadingDialog(
                                             message = formatMessage(latest, resolveMessage),
                                             cancellable = latest.cancellable,
+                                            tag = dialogTag,
                                         )
-                                        if (latest.cancellable) wireCancelListener(viewModel)
+                                        if (latest.cancellable) wireCancelListener(viewModel, dialogTag)
                                     }
                                     pendingShow = null
                                 }
@@ -76,10 +90,31 @@ fun <M : Any> AnkiActivity.observeProgress(
     }
 }
 
-private fun AnkiActivity.wireCancelListener(viewModel: HasProgress<*>) {
+private val touchBlockCounts = WeakHashMap<Window, Int>()
+
+internal fun Window.blockTouches() {
+    val count = touchBlockCounts[this] ?: 0
+    if (count == 0) addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
+    touchBlockCounts[this] = count + 1
+}
+
+internal fun Window.unblockTouches() {
+    val count = touchBlockCounts[this] ?: return
+    if (count > 1) {
+        touchBlockCounts[this] = count - 1
+        return
+    }
+    touchBlockCounts.remove(this)
+    clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
+}
+
+private fun AnkiActivity.wireCancelListener(
+    viewModel: HasProgress<*>,
+    dialogTag: String,
+) {
     supportFragmentManager.executePendingTransactions()
     val fragment =
-        supportFragmentManager.findFragmentByTag(LoadingDialogFragment.TAG)
+        supportFragmentManager.findFragmentByTag(dialogTag)
             as? LoadingDialogFragment
     fragment?.dialog?.setOnCancelListener {
         viewModel.progressManager.requestCancel()

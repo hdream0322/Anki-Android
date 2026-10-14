@@ -23,6 +23,7 @@ import android.os.Bundle
 import androidx.core.os.BundleCompat
 import com.ichi2.anki.AnkiActivity
 import com.ichi2.anki.CollectionManager.TR
+import com.ichi2.anki.CommonString
 import com.ichi2.anki.R
 import com.ichi2.anki.common.android.AnkiBroadcastReceiver
 import com.ichi2.anki.common.utils.android.showThemedToast
@@ -97,7 +98,7 @@ class HeatmapWidgetConfig : AnkiActivity(R.layout.activity_heatmap_widget_config
 
     private fun onDeckSelected(deck: SelectableDeck?) {
         if (deck == null || deck !is SelectableDeck.Deck?) {
-            showThemedToast(this, R.string.something_wrong, false)
+            showThemedToast(this, CommonString.something_wrong, false)
             setResult(RESULT_CANCELED)
             finish()
             return
@@ -114,7 +115,7 @@ class HeatmapWidgetConfig : AnkiActivity(R.layout.activity_heatmap_widget_config
         launchCatchingTask {
             withProgress {
                 if (isCollectionEmpty()) {
-                    showThemedToast(this@HeatmapWidgetConfig, R.string.no_cards_placeholder_title, false)
+                    showThemedToast(this@HeatmapWidgetConfig, CommonString.no_cards_placeholder_title, false)
                     finish()
                     return@withProgress
                 }
@@ -131,7 +132,7 @@ class HeatmapWidgetConfig : AnkiActivity(R.layout.activity_heatmap_widget_config
 
     private fun showDeckSelectionDialog() {
         startDeckSelection(
-            title = getString(R.string.select_deck_title),
+            title = getString(CommonString.select_deck_title),
             allowAll = false,
             skipEmptyDefault = true,
         )

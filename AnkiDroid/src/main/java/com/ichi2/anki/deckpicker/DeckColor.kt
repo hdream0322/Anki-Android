@@ -27,6 +27,7 @@ import androidx.annotation.ColorInt
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.edit
+import com.ichi2.anki.CommonString
 import com.ichi2.anki.R
 import com.ichi2.anki.libanki.DeckId
 import com.ichi2.themes.Themes
@@ -113,7 +114,7 @@ fun Context.showDeckColorPicker(
             onPicked(choices[index])
             dialog.dismiss()
         }
-        negativeButton(R.string.dialog_cancel)
+        negativeButton(CommonString.dialog_cancel)
     }
 }
 

@@ -41,6 +41,7 @@ import androidx.core.content.edit
 import androidx.core.view.isVisible
 import androidx.fragment.app.FragmentActivity
 import com.ichi2.anki.BuildConfig
+import com.ichi2.anki.CommonString
 import com.ichi2.anki.NOTIFICATION_MIN_DELAY
 import com.ichi2.anki.NotificationChannel
 import com.ichi2.anki.R
@@ -294,7 +295,7 @@ object UpdateManager {
                 Timber.w(e, "Update download failed")
                 progressDialog.dismiss()
                 nm.cancel(NOTIFICATION_ID)
-                showMessage(activity, R.string.download_failed)
+                showMessage(activity, CommonString.download_failed)
             } finally {
                 isDownloading = false
             }
@@ -305,7 +306,7 @@ object UpdateManager {
         AlertDialog.Builder(activity).show {
             title(R.string.update_available_title)
             message(R.string.update_need_install_permission)
-            positiveButton(R.string.open_settings) {
+            positiveButton(CommonString.open_settings) {
                 leftAppToInstall = true
                 UpdateInstaller.openUnknownAppSourcesSettings(activity)
             }
@@ -335,8 +336,8 @@ object UpdateManager {
         AlertDialog.Builder(activity).show {
             title(R.string.update_play_protect_guide_title)
             message(R.string.update_play_protect_guide_message)
-            checkBoxPrompt(R.string.button_do_not_show_again) { dontShowAgain = it }
-            positiveButton(R.string.dialog_continue) {
+            checkBoxPrompt(CommonString.button_do_not_show_again) { dontShowAgain = it }
+            positiveButton(CommonString.dialog_continue) {
                 if (dontShowAgain) prefs.edit { putBoolean(hideKey, true) }
                 launch()
             }
@@ -597,7 +598,7 @@ object UpdateManager {
         AlertDialog.Builder(activity).show {
             title(text = activity.getString(R.string.whats_new_title, tag))
             message(text = formatReleaseNotes(body))
-            positiveButton(R.string.dialog_ok)
+            positiveButton(CommonString.dialog_ok)
         }
     }
 

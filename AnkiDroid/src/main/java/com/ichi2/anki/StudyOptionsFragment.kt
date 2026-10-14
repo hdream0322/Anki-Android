@@ -554,7 +554,7 @@ class StudyOptionsFragment :
             ),
         )
         // 일단 기본 문구를 보여 두고, 비동기로 다음 학습 시각이 반영된 문구로 교체한다.
-        congratsMessage.text = CONGRATS_EMOJI_PREFIX + getString(R.string.studyoptions_congrats_finished)
+        congratsMessage.text = CONGRATS_EMOJI_PREFIX + getString(CommonString.studyoptions_congrats_finished)
         launchCatchingTask {
             val activity = activity ?: return@launchCatchingTask
             val message = CongratsPage.getDeckFinishedMessage(activity)

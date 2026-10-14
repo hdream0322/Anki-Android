@@ -262,7 +262,7 @@ enum class ViewerAction(
                 SUSPEND_MENU -> TR.studyingSuspend()
                 DELETE -> TR.sentenceCase.deleteNote
                 TOGGLE_WHITEBOARD -> getString(CommonString.gesture_toggle_whiteboard)
-                AI_CHAT -> getString(CommonString.ai_chat_title)
+                AI_CHAT -> getString(R.string.ai_chat_title)
                 DECK_OPTIONS -> TR.sentenceCase.deckOptions
                 CARD_INFO -> TR.sentenceCase.cardInfo
                 ADD_NOTE -> getString(CommonString.menu_add_note)

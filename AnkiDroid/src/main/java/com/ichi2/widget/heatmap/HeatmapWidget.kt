@@ -24,6 +24,7 @@ import android.content.Intent
 import android.view.View
 import android.widget.RemoteViews
 import com.ichi2.anki.CollectionManager.withCol
+import com.ichi2.anki.CommonString
 import com.ichi2.anki.DeckPicker
 import com.ichi2.anki.R
 import com.ichi2.anki.common.coroutines.applicationScope
@@ -142,7 +143,7 @@ class HeatmapWidget : AnalyticsWidgetProvider() {
             appWidgetId: AppWidgetId,
             remoteViews: RemoteViews,
         ) {
-            remoteViews.setTextViewText(R.id.empty_widget, context.getString(R.string.empty_widget_state))
+            remoteViews.setTextViewText(R.id.empty_widget, context.getString(CommonString.empty_widget_state))
             remoteViews.setViewVisibility(R.id.empty_widget, View.VISIBLE)
             remoteViews.setViewVisibility(R.id.heatmap_widget_image, View.GONE)
             remoteViews.setViewVisibility(R.id.heatmap_widget_deck_name, View.GONE)

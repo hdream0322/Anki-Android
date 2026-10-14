@@ -13,6 +13,7 @@ import androidx.fragment.app.FragmentManager
 import com.ichi2.anki.CollectionManager.TR
 import com.ichi2.anki.CollectionManager.withCol
 import com.ichi2.anki.CommonString
+import com.ichi2.anki.R
 import com.ichi2.anki.analytics.AnalyticsDialogFragment
 import com.ichi2.anki.compat.requireSerializableCompat
 import com.ichi2.anki.contextmenu.DeckPickerMenuContentProvider
@@ -86,7 +87,7 @@ class DeckPickerContextMenu : AnalyticsDialogFragment() {
                     EDIT_DESCRIPTION -> getString(CommonString.edit_deck_description)
                     ADD_CARD -> TR.actionsAdd()
                     SCHEDULE_REMINDERS -> getString(CommonString.schedule_reminders_title)
-                    SET_COLOR -> getString(CommonString.deck_color)
+                    SET_COLOR -> getString(R.string.deck_color)
                 }
             }
     }

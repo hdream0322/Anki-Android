@@ -1317,7 +1317,7 @@ open class Reviewer :
     private fun openAiChat() {
         val card = currentCard
         if (card == null) {
-            showSnackbar(getString(R.string.multimedia_editor_something_wrong), Snackbar.LENGTH_SHORT)
+            showSnackbar(getString(CommonString.multimedia_editor_something_wrong), Snackbar.LENGTH_SHORT)
             return
         }
         Timber.i("opening AI chat")

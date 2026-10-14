@@ -1699,7 +1699,7 @@ open class Reviewer :
                     val remaining = counts.count()
                     val total = reviewedToday + remaining
                     val timeStr = remainingTime(this@Reviewer, (eta * 60).toLong())
-                    actionBar.subtitle = "$timeStr($reviewedToday/$total)"
+                    actionBar.subtitle = "$timeStr · ${reviewProgressText(reviewedToday, total)}"
                     if (total > sessionMaxCount) {
                         sessionMaxCount = total
                     }
@@ -2528,4 +2528,17 @@ private fun ViewGroup.touchBoundsOf(button: View): Rect {
     if (bounds.right >= width - paddingRight) bounds.right = width
     if (bounds.bottom >= height - paddingBottom) bounds.bottom = height
     return bounds
+}
+
+/**
+ * Appbar subtitle progress text: `학습한 카드/전체 카드 (학습률%)`, e.g. `30/50 (60%)`.
+ * The percentage is rounded down so 100% is only shown once every card is done.
+ */
+@VisibleForTesting
+internal fun reviewProgressText(
+    reviewed: Int,
+    total: Int,
+): String {
+    val percent = if (total > 0) reviewed * 100 / total else 0
+    return "$reviewed/$total ($percent%)"
 }

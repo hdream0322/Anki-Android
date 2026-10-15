@@ -43,6 +43,9 @@ import com.ichi2.utils.positiveButton
 import com.ichi2.utils.show
 import com.ichi2.utils.title
 import dev.androidbroadcast.vbpd.viewBinding
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 
 class AiChatBottomSheetFragment : BottomSheetDialogFragment(R.layout.fragment_ai_chat) {
     private val binding by viewBinding(FragmentAiChatBinding::bind)
@@ -120,11 +123,25 @@ class AiChatBottomSheetFragment : BottomSheetDialogFragment(R.layout.fragment_ai
             binding.sendButton.isEnabled = !isStreaming
             binding.messageInput.isEnabled = !isStreaming
             binding.clearHistoryButton.isEnabled = !isStreaming
-            binding.generatingIndicator.isVisible = isStreaming
             // Prevent an accidental swipe-down/back-press/outside-tap from dropping an in-flight
             // request during the network delay before the first token arrives.
             isCancelable = !isStreaming
             behavior.isDraggable = !isStreaming
+        }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.isAwaitingFirstToken.collectLatest { isAwaiting ->
+                binding.generatingIndicator.isVisible = isAwaiting
+                if (!isAwaiting) return@collectLatest
+                val base = getString(R.string.ai_chat_generating)
+                // Cycles "." → ".." → "..." until the first token arrives
+                var dots = 0
+                while (true) {
+                    binding.generatingIndicator.text = base + ".".repeat(dots + 1)
+                    dots = (dots + 1) % 3
+                    delay(GENERATING_DOTS_INTERVAL_MILLIS)
+                }
+            }
         }
 
         binding.sendButton.setOnClickListener {
@@ -221,6 +238,7 @@ class AiChatBottomSheetFragment : BottomSheetDialogFragment(R.layout.fragment_ai
         /** Fragment result key sent when the sheet is dismissed. */
         const val REQUEST_KEY_DISMISSED = "aiChatDismissed"
         private const val ARG_LAUNCH_ARGS = "launchArgs"
+        private const val GENERATING_DOTS_INTERVAL_MILLIS = 400L
 
         fun newInstance(args: AiChatLaunchArgs): AiChatBottomSheetFragment =
             AiChatBottomSheetFragment().apply {

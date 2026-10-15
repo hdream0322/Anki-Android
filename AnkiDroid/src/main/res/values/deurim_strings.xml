@@ -234,7 +234,7 @@
     <string name="ai_chat_no_reply">No reply received</string>
     <string name="ai_chat_model_unavailable">%1$s is no longer available, so the default model %2$s will be used. Tap Retry to ask again</string>
     <string name="ai_chat_missing_api_key">Set an AI API key in Settings → Useful features → AI first</string>
-    <string name="ai_chat_generating">Generating…</string>
+    <string name="ai_chat_generating">Generating</string>
     <string name="ai_chat_clear_history">Clear chat history</string>
     <string name="ai_chat_clear_history_confirm">Delete all AI chat messages for this note? This can\'t be undone.</string>
     <string name="ai_chat_history_cleared">Chat history cleared</string>

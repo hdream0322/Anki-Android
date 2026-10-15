@@ -446,6 +446,39 @@ class AiChatViewModelTest {
             assertEquals(true, viewModel.canRetry.value)
         }
 
+    @Test
+    fun `isAwaitingFirstToken lasts only until the first token arrives`() =
+        runTest {
+            val provider = FakeProvider(emptyList())
+            val client =
+                FakeStreamingClient(
+                    flow {
+                        emit(AiSseEvent.Token("A"))
+                        kotlinx.coroutines.awaitCancellation()
+                    },
+                )
+            val viewModel = viewModel(provider, client)
+
+            viewModel.sendMessage("Q")
+            assertEquals(true, viewModel.isAwaitingFirstToken.value)
+
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(false, viewModel.isAwaitingFirstToken.value)
+            assertEquals(true, viewModel.isStreaming.value)
+        }
+
+    @Test
+    fun `isAwaitingFirstToken clears when the request fails`() =
+        runTest {
+            val provider = FakeProvider(emptyList())
+            val viewModel = viewModel(provider, FakeStreamingClient(flow { throw AiError.Http(500, "") }))
+
+            viewModel.sendMessage("Q")
+            dispatcher.scheduler.advanceUntilIdle()
+
+            assertEquals(false, viewModel.isAwaitingFirstToken.value)
+        }
+
     private fun viewModel(
         provider: FakeProvider,
         client: FakeStreamingClient,

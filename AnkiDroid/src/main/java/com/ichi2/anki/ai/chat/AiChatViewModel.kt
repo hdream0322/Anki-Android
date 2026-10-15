@@ -48,6 +48,11 @@ class AiChatViewModel(
     private val _isStreaming = MutableStateFlow(false)
     val isStreaming: StateFlow<Boolean> = _isStreaming.asStateFlow()
 
+    private val _isAwaitingFirstToken = MutableStateFlow(false)
+
+    /** True from sending a request until the first token of the reply arrives. */
+    val isAwaitingFirstToken: StateFlow<Boolean> = _isAwaitingFirstToken.asStateFlow()
+
     /** True when the last question went unanswered, e.g. because the request failed. */
     val canRetry: StateFlow<Boolean> =
         combine(_messages, _isStreaming) { messages, isStreaming ->
@@ -71,6 +76,7 @@ class AiChatViewModel(
 
     private fun requestReply() {
         _isStreaming.value = true
+        _isAwaitingFirstToken.value = true
         viewModelScope.launch {
             try {
                 var assistantText = ""
@@ -96,6 +102,7 @@ class AiChatViewModel(
                             is AiSseEvent.Token -> {
                                 assistantText += event.text
                                 hasReceivedToken = true
+                                _isAwaitingFirstToken.value = false
                                 replaceStreamingAssistantMessage(assistantText)
                             }
                             AiSseEvent.Done -> {
@@ -109,6 +116,7 @@ class AiChatViewModel(
                         }
                     }
             } finally {
+                _isAwaitingFirstToken.value = false
                 _isStreaming.value = false
             }
         }

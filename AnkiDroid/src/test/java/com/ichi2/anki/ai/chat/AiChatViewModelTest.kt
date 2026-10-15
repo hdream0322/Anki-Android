@@ -359,6 +359,108 @@ class AiChatViewModelTest {
             }
             assertEquals(emptyList<String>(), unavailable)
         }
+
+    @Test
+    fun `retry resends the unanswered question without adding it again`() =
+        runTest {
+            val provider = FakeProvider(listOf(AiSseEvent.Token("A"), AiSseEvent.Done))
+            val client = FakeStreamingClient(flow { throw AiError.Http(500, "") })
+            val stored = mutableListOf<AiChatMessage>()
+            val viewModel = viewModel(provider, client, stored)
+
+            viewModel.sendMessage("Q")
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(listOf(AiChatMessage(AiChatRole.USER, "Q")), viewModel.messages.value)
+            assertEquals(true, viewModel.canRetry.value)
+
+            client.flow = provider.asFlow()
+            viewModel.retry()
+            dispatcher.scheduler.advanceUntilIdle()
+
+            assertEquals(listOf(AiChatMessage(AiChatRole.USER, "Q")), client.lastMessages)
+            val expected = listOf(AiChatMessage(AiChatRole.USER, "Q"), AiChatMessage(AiChatRole.ASSISTANT, "A"))
+            assertEquals(expected, viewModel.messages.value)
+            assertEquals(expected, stored)
+            assertEquals(false, viewModel.canRetry.value)
+        }
+
+    @Test
+    fun `retry is offered for an unanswered question loaded from history`() =
+        runTest {
+            val provider = FakeProvider(emptyList())
+            val viewModel =
+                viewModel(provider, FakeStreamingClient(provider.asFlow()), history = listOf(AiChatMessage(AiChatRole.USER, "old")))
+            dispatcher.scheduler.advanceUntilIdle()
+
+            assertEquals(true, viewModel.canRetry.value)
+        }
+
+    @Test
+    fun `retry does nothing once the last question has been answered`() =
+        runTest {
+            val provider = FakeProvider(emptyList())
+            val client = FakeStreamingClient(provider.asFlow())
+            val history = listOf(AiChatMessage(AiChatRole.USER, "Q"), AiChatMessage(AiChatRole.ASSISTANT, "A"))
+            val viewModel = viewModel(provider, client, history = history)
+
+            viewModel.retry()
+            dispatcher.scheduler.advanceUntilIdle()
+
+            assertEquals(null, client.lastMessages)
+            assertEquals(false, viewModel.canRetry.value)
+        }
+
+    @Test
+    fun `a reply that ends without any text is reported as empty`() =
+        runTest {
+            val provider = FakeProvider(listOf(AiSseEvent.Done))
+            val viewModel = viewModel(provider, FakeStreamingClient(provider.asFlow()))
+
+            viewModel.errorFlow.test {
+                viewModel.sendMessage("Q")
+                dispatcher.scheduler.advanceUntilIdle()
+                assertEquals(AiError.EmptyResponse, awaitItem())
+            }
+            assertEquals(true, viewModel.canRetry.value)
+        }
+
+    @Test
+    fun `a stream failing mid-reply drops the unsaved partial answer so it can be retried`() =
+        runTest {
+            val provider = FakeProvider(emptyList())
+            val client =
+                FakeStreamingClient(
+                    flow {
+                        emit(AiSseEvent.Token("Hal"))
+                        throw AiError.Network(java.io.IOException("reset"))
+                    },
+                )
+            val stored = mutableListOf<AiChatMessage>()
+            val viewModel = viewModel(provider, client, stored)
+
+            viewModel.sendMessage("Q")
+            dispatcher.scheduler.advanceUntilIdle()
+
+            assertEquals(listOf(AiChatMessage(AiChatRole.USER, "Q")), viewModel.messages.value)
+            assertEquals(listOf(AiChatMessage(AiChatRole.USER, "Q")), stored)
+            assertEquals(true, viewModel.canRetry.value)
+        }
+
+    private fun viewModel(
+        provider: FakeProvider,
+        client: FakeStreamingClient,
+        stored: MutableList<AiChatMessage> = mutableListOf(),
+        history: List<AiChatMessage> = emptyList(),
+    ) = AiChatViewModel(
+        noteId = 1L,
+        cardContent = "",
+        provider = provider,
+        apiKey = "key",
+        model = "fake-model",
+        streamingClient = client,
+        storeMessage = { stored += it },
+        loadHistory = { history },
+    )
 }
 
 private class FakeStreamingClient(

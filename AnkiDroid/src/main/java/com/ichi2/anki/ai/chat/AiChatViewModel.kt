@@ -13,10 +13,13 @@ import com.ichi2.anki.ai.AiStreamingClient
 import com.ichi2.anki.libanki.NoteId
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
 
@@ -45,12 +48,28 @@ class AiChatViewModel(
     private val _isStreaming = MutableStateFlow(false)
     val isStreaming: StateFlow<Boolean> = _isStreaming.asStateFlow()
 
+    /** True when the last question went unanswered, e.g. because the request failed. */
+    val canRetry: StateFlow<Boolean> =
+        combine(_messages, _isStreaming) { messages, isStreaming ->
+            !isStreaming && messages.lastOrNull()?.role == AiChatRole.USER
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, _messages.value.lastOrNull()?.role == AiChatRole.USER)
+
     fun sendMessage(text: String) {
         if (_isStreaming.value) return
 
         val userMessage = AiChatMessage(AiChatRole.USER, text)
         appendAndPersist(userMessage)
+        requestReply()
+    }
 
+    /** Asks again for a reply to the unanswered last question, without adding it a second time. */
+    fun retry() {
+        if (_isStreaming.value) return
+        if (_messages.value.lastOrNull()?.role != AiChatRole.USER) return
+        requestReply()
+    }
+
+    private fun requestReply() {
         _isStreaming.value = true
         viewModelScope.launch {
             try {
@@ -61,6 +80,8 @@ class AiChatViewModel(
                     .catch { throwable ->
                         val error = throwable as? AiError ?: AiError.Network(throwable)
                         Timber.w(error, "AI chat request failed")
+                        // The partial reply was never persisted: drop it so the question can be retried
+                        if (hasReceivedToken) dropStreamingAssistantMessage()
                         // Endpoints are fixed, so a 404 means the model id itself is gone, e.g. retired.
                         if (error is AiError.Http && error.code == HTTP_NOT_FOUND && model != provider.defaultModel) {
                             val fallback = ModelFallback(unavailable = model, fallback = provider.defaultModel)
@@ -80,6 +101,8 @@ class AiChatViewModel(
                             AiSseEvent.Done -> {
                                 if (hasReceivedToken) {
                                     storeMessage(AiChatMessage(AiChatRole.ASSISTANT, assistantText))
+                                } else {
+                                    _errorFlow.emit(AiError.EmptyResponse)
                                 }
                             }
                             AiSseEvent.Ignored -> {}
@@ -112,6 +135,11 @@ class AiChatViewModel(
             } else {
                 current + AiChatMessage(AiChatRole.ASSISTANT, text)
             }
+    }
+
+    private fun dropStreamingAssistantMessage() {
+        val current = _messages.value
+        if (current.lastOrNull()?.role == AiChatRole.ASSISTANT) _messages.value = current.dropLast(1)
     }
 
     data class ModelFallback(

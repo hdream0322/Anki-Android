@@ -21,14 +21,18 @@ import com.ichi2.anki.CommonString
 import com.ichi2.anki.MetaDB
 import com.ichi2.anki.R
 import com.ichi2.anki.ai.AiError
+import com.ichi2.anki.ai.AiFailureKind
 import com.ichi2.anki.ai.AiKeyStore
 import com.ichi2.anki.ai.AiStreamingClient
 import com.ichi2.anki.ai.AnthropicProvider
 import com.ichi2.anki.ai.GeminiProvider
 import com.ichi2.anki.ai.OpenAiProvider
+import com.ichi2.anki.ai.kind
+import com.ichi2.anki.ai.providerMessage
 import com.ichi2.anki.databinding.FragmentAiChatBinding
 import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.settings.enums.AiProviderKind
+import com.ichi2.anki.snackbar.setMaxLines
 import com.ichi2.anki.snackbar.showSnackbar
 import com.ichi2.anki.ui.windows.reviewer.AiChatLaunchArgs
 import com.ichi2.anki.utils.ext.behavior
@@ -94,7 +98,18 @@ class AiChatBottomSheetFragment : BottomSheetDialogFragment(R.layout.fragment_ai
         }
 
         viewModel.errorFlow.collectIn(viewLifecycleOwner.lifecycleScope) { error ->
-            showSnackbar(errorMessage(error))
+            val message = errorMessage(error)
+            binding.retryReason.text = message
+            val details = technicalDetails(error)
+            showSnackbar(message) {
+                setMaxLines(4)
+                if (details != null) setAction(R.string.ai_chat_error_details) { showErrorDetails(message, details) }
+            }
+        }
+
+        viewModel.canRetry.collectIn(viewLifecycleOwner.lifecycleScope) { canRetry ->
+            binding.retryBar.isVisible = canRetry
+            if (!canRetry) binding.retryReason.setText(R.string.ai_chat_no_reply)
         }
 
         viewModel.modelFallbackFlow.collectIn(viewLifecycleOwner.lifecycleScope) { fallback ->
@@ -128,6 +143,14 @@ class AiChatBottomSheetFragment : BottomSheetDialogFragment(R.layout.fragment_ai
             binding.messageInput.text?.clear()
         }
 
+        binding.retryButton.setOnClickListener {
+            if (!AiKeyStore(requireContext()).hasApiKey(Prefs.aiProviderKind)) {
+                showSnackbar(R.string.ai_chat_missing_api_key)
+                return@setOnClickListener
+            }
+            viewModel.retry()
+        }
+
         binding.clearHistoryButton.setOnClickListener {
             AlertDialog.Builder(requireContext()).show {
                 title(R.string.ai_chat_clear_history)
@@ -147,22 +170,50 @@ class AiChatBottomSheetFragment : BottomSheetDialogFragment(R.layout.fragment_ai
     }
 
     private fun errorMessage(error: AiError): CharSequence =
-        when (error) {
-            is AiError.RateLimited ->
-                if (error.retryAfterSeconds != null) {
-                    getString(R.string.ai_chat_error_rate_limited_with_wait, error.retryAfterSeconds)
+        when (error.kind) {
+            AiFailureKind.RATE_LIMITED -> {
+                val waitSeconds = (error as? AiError.RateLimited)?.retryAfterSeconds
+                if (waitSeconds != null) {
+                    getString(R.string.ai_chat_error_rate_limited_with_wait, waitSeconds)
                 } else {
                     getString(R.string.ai_chat_error_rate_limited)
                 }
-            is AiError.Http ->
-                when (error.code) {
-                    HTTP_UNAUTHORIZED, HTTP_FORBIDDEN -> getString(R.string.ai_chat_error_invalid_key)
-                    in 500..599 -> getString(R.string.ai_chat_error_server)
-                    else -> getString(R.string.ai_chat_error)
-                }
-            is AiError.Network -> getString(R.string.ai_chat_error_network)
-            AiError.MissingApiKey -> getString(R.string.ai_chat_missing_api_key)
+            }
+            AiFailureKind.MISSING_API_KEY -> getString(R.string.ai_chat_missing_api_key)
+            AiFailureKind.INVALID_API_KEY -> getString(R.string.ai_chat_error_invalid_key)
+            AiFailureKind.PERMISSION_DENIED -> getString(R.string.ai_chat_error_permission_denied)
+            AiFailureKind.OUT_OF_CREDIT -> getString(R.string.ai_chat_error_out_of_credit)
+            AiFailureKind.MODEL_NOT_FOUND -> getString(R.string.ai_chat_error_model_not_found)
+            AiFailureKind.INPUT_TOO_LONG -> getString(R.string.ai_chat_error_input_too_long)
+            AiFailureKind.BAD_REQUEST -> getString(R.string.ai_chat_error_bad_request)
+            AiFailureKind.OVERLOADED -> getString(R.string.ai_chat_error_overloaded)
+            AiFailureKind.SERVER_ERROR -> getString(R.string.ai_chat_error_server)
+            AiFailureKind.TIMEOUT -> getString(R.string.ai_chat_error_timeout)
+            AiFailureKind.NO_CONNECTION -> getString(R.string.ai_chat_error_no_connection)
+            AiFailureKind.NETWORK -> getString(R.string.ai_chat_error_network)
+            AiFailureKind.EMPTY_RESPONSE -> getString(R.string.ai_chat_error_empty_response)
+            AiFailureKind.UNKNOWN -> getString(R.string.ai_chat_error)
         }
+
+    /** What the provider or the network stack reported, for the "Details" dialog; `null` if nothing useful. */
+    private fun technicalDetails(error: AiError): String? =
+        when (error) {
+            is AiError.Http -> listOfNotNull("HTTP ${error.code}", error.providerMessage).joinToString("\n")
+            is AiError.RateLimited -> listOfNotNull("HTTP 429", error.providerMessage).joinToString("\n")
+            is AiError.Network -> error.cause?.let { "${it.javaClass.simpleName}: ${it.message}" }
+            AiError.MissingApiKey, AiError.EmptyResponse -> null
+        }
+
+    private fun showErrorDetails(
+        message: CharSequence,
+        details: String,
+    ) {
+        AlertDialog.Builder(requireContext()).show {
+            title(R.string.ai_chat_error_details_title)
+            message(text = "$message\n\n$details")
+            positiveButton(CommonString.dialog_ok)
+        }
+    }
 
     companion object {
         private const val TAG = "AiChatBottomSheetFragment"
@@ -170,8 +221,6 @@ class AiChatBottomSheetFragment : BottomSheetDialogFragment(R.layout.fragment_ai
         /** Fragment result key sent when the sheet is dismissed. */
         const val REQUEST_KEY_DISMISSED = "aiChatDismissed"
         private const val ARG_LAUNCH_ARGS = "launchArgs"
-        private const val HTTP_UNAUTHORIZED = 401
-        private const val HTTP_FORBIDDEN = 403
 
         fun newInstance(args: AiChatLaunchArgs): AiChatBottomSheetFragment =
             AiChatBottomSheetFragment().apply {

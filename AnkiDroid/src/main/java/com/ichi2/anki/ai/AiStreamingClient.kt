@@ -91,7 +91,7 @@ open class AiStreamingClient(
                         val error =
                             when {
                                 response != null && response.code == HTTP_TOO_MANY_REQUESTS ->
-                                    AiError.RateLimited(response.header("Retry-After")?.toIntOrNull())
+                                    AiError.RateLimited(response.header("Retry-After")?.toIntOrNull(), response.body.string())
                                 response != null && !response.isSuccessful ->
                                     AiError.Http(response.code, response.body.string())
                                 else -> AiError.Network(t ?: Exception("Unknown streaming failure"))
@@ -133,7 +133,7 @@ open class AiStreamingClient(
                     } else {
                         null
                     }
-                AiError.MissingApiKey -> null
+                AiError.MissingApiKey, AiError.EmptyResponse -> null
             }
     }
 }

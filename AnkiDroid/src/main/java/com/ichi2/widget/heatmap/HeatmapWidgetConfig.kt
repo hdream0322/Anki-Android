@@ -39,6 +39,7 @@ import com.ichi2.anki.ui.internationalization.sentenceCase
 import com.ichi2.anki.withProgress
 import com.ichi2.widget.AppWidgetId.Companion.INVALID_APPWIDGET_ID
 import com.ichi2.widget.AppWidgetId.Companion.getAppWidgetId
+import com.ichi2.widget.getAppWidgetManager
 import com.ichi2.widget.heatmap.HeatmapWidget.Companion.EXTRA_SELECTED_DECK_ID
 import dev.androidbroadcast.vbpd.viewBinding
 import timber.log.Timber
@@ -146,7 +147,7 @@ class HeatmapWidgetConfig : AnkiActivity(R.layout.activity_heatmap_widget_config
                 putExtra(EXTRA_SELECTED_DECK_ID, deck?.deckId)
             }
         sendBroadcast(updateIntent)
-        HeatmapWidget.updateWidget(this, AppWidgetManager.getInstance(this), appWidgetId)
+        getAppWidgetManager(this)?.let { HeatmapWidget.updateWidget(this, it, appWidgetId) }
     }
 
     private fun close() {

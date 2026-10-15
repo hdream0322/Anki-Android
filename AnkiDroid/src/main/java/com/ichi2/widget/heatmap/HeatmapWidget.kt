@@ -40,6 +40,7 @@ import com.ichi2.widget.AppWidgetIds
 import com.ichi2.widget.DayRolloverAlarm
 import com.ichi2.widget.cancelRecurringAlarm
 import com.ichi2.widget.getAppWidgetIdsEx
+import com.ichi2.widget.getAppWidgetManager
 import com.ichi2.widget.setRecurringAlarm
 import com.ichi2.widget.updateAppWidget
 import kotlinx.coroutines.launch
@@ -166,7 +167,7 @@ class HeatmapWidget : AnalyticsWidgetProvider() {
         }
 
         fun updateHeatmapWidgets(context: Context) {
-            val appWidgetManager = AppWidgetManager.getInstance(context)
+            val appWidgetManager = getAppWidgetManager(context) ?: return
             val provider = ComponentName(context, HeatmapWidget::class.java)
             val appWidgetIds = appWidgetManager.getAppWidgetIdsEx(provider)
             for (appWidgetId in appWidgetIds) {
@@ -201,20 +202,20 @@ class HeatmapWidget : AnalyticsWidgetProvider() {
             ACTION_APPWIDGET_UPDATE -> {
                 val appWidgetId = intent.getAppWidgetId()
                 if (appWidgetId != INVALID_APPWIDGET_ID) {
-                    updateWidget(context, AppWidgetManager.getInstance(context), appWidgetId)
+                    getAppWidgetManager(context)?.let { updateWidget(context, it, appWidgetId) }
                 }
             }
             ACTION_UPDATE_WIDGET -> {
                 val appWidgetId = intent.getAppWidgetId()
                 if (appWidgetId != INVALID_APPWIDGET_ID) {
-                    updateWidget(context, AppWidgetManager.getInstance(context), appWidgetId)
+                    getAppWidgetManager(context)?.let { updateWidget(context, it, appWidgetId) }
                 }
             }
             AppWidgetManager.ACTION_APPWIDGET_OPTIONS_CHANGED -> {
                 // 사용자가 위젯 크기를 바꾸면 새 폭으로 다시 렌더한다.
                 val appWidgetId = intent.getAppWidgetId()
                 if (appWidgetId != INVALID_APPWIDGET_ID) {
-                    updateWidget(context, AppWidgetManager.getInstance(context), appWidgetId)
+                    getAppWidgetManager(context)?.let { updateWidget(context, it, appWidgetId) }
                 }
             }
             AppWidgetManager.ACTION_APPWIDGET_DELETED -> {

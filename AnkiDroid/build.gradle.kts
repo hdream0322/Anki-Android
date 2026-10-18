@@ -12,11 +12,11 @@ plugins {
     // Gradle plugin portal
     alias(libs.plugins.tripletPlay)
     id("ankidroid.android.app")
+    id("ankidroid.android.compose")
     id("ankidroid.plugins.jacoco")
     id("ankidroid.plugins.robolectric-downloader")
     alias(libs.plugins.androidx.baselineprofile)
     alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.keeper)
     alias(libs.plugins.roborazzi)
     id("idea")
@@ -120,7 +120,7 @@ val forkReleaseDate =
         .orElse(providers.environmentVariable("FORK_RELEASE_DATE"))
         .orElse("0")
 
-val upstreamVersionName = "2.26.0alpha4"
+val upstreamVersionName = "2.26.0alpha6"
 
 android {
     namespace = "com.ichi2.anki"
@@ -130,7 +130,6 @@ android {
         aidl = true
         viewBinding = true
         resValues = true
-        compose = true
     }
 
     if (testReleaseBuild) {
@@ -177,7 +176,7 @@ android {
         // This ensures the correct ordering between the various types of releases (dev < alpha < beta < release) which is
         // needed for upgrades to be offered correctly.
         // Upstream baseline: keep this a plain literal, upstream's validateVersionCode parses it.
-        versionCode = 22600104
+        versionCode = 22600106
         // Deurim: add the per-fork build counter (see forkBuild above). Must not start with
         // `versionCode`, or validateVersionCode sees two declarations and fails.
         this.versionCode = versionCode!! + forkBuild
@@ -805,6 +804,7 @@ dependencies {
     implementation(project(":common:android"))
     implementation(project(":compat"))
     implementation(project(":libanki"))
+    implementation(project(":note-editor"))
     implementation(project(":vbpd"))
     "baselineProfile"(project(":baselineprofile"))
     implementation(project(":widgets"))
@@ -812,17 +812,9 @@ dependencies {
     implementation(libs.google.analytics.kt)
 
     implementation(libs.androidx.activity)
-    // TODO: hoist the Compose enablement (kotlin.compose plugin, buildFeatures.compose,
-    // and the dependencies below) into a convention plugin under `buildSrc/` once the
-    // Kotlin-DSL migration of this build script lands
     implementation(libs.androidx.activity.compose)
-    implementation(platform(libs.androidx.compose.bom))
-    implementation(libs.androidx.compose.ui)
-    implementation(libs.androidx.compose.ui.tooling.preview)
-    implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
-    debugImplementation(libs.androidx.compose.ui.tooling)
     implementation(libs.androidx.annotation)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.browser)
@@ -912,9 +904,6 @@ dependencies {
     // ankidroid.plugins.robolectric-downloader may need a new SDK jar entry
     // when Robolectric or targetSdk changes. See the instructions in that plugin.
     testImplementation(libs.robolectric)
-    testImplementation(libs.androidx.compose.ui.test.junit4)
-    // Needed for createComposeRule(), but not for createAndroidComposeRule<YourActivity>()
-    debugImplementation(libs.androidx.compose.ui.test.manifest)
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.androidx.test.junit)
     testImplementation(libs.kotlin.reflect)
@@ -966,10 +955,4 @@ dependencies {
     // Required so the ExperimentalCoroutinesApi opt-in (applied globally) doesn't cause
     // an "unresolved" warning, which is treated as an error due to allWarningsAsErrors
     testFixturesImplementation(libs.kotlinx.coroutines.core)
-    // The Kotlin Compose Compiler plugin attaches to every Kotlin compilation in the
-    // module including testFixtures, which has no @Composable code and refuses to
-    // run unless the Compose Runtime is on the classpath. compileOnly satisfies the
-    // plugin's version check without shipping the runtime in the testFixtures output.
-    testFixturesCompileOnly(platform(libs.androidx.compose.bom))
-    testFixturesCompileOnly(libs.androidx.compose.runtime)
 }

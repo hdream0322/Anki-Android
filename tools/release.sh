@@ -112,14 +112,22 @@ then
   exit 1
 fi
 
-# If any changes go in during the release process, pushing fails, so push immediately.
-# Worst case this burns a version number despite a failure later, and we have a version/tag
-# that never launched. That's better than having to manually patch up build.gradle.kts and push a tag
-# for a release that did launch, but the push failed
+# Push the version bump before Play. A merge during the upload rejects the push,
+# and the script would otherwise carry on after Play had already accepted the build,
+# leaving main without the version that shipped.
+# If this push fails, nothing has been published yet and the release stops.
+# Worst case a later failure burns a version on main. That is better than
+# hand-patching a release that did launch but whose push failed.
+# The tag is pushed only after Play accepts, so a Play failure does not create a GitHub release.
 echo "Committing changelog and version bump via git"
 git add $GRADLEFILE $CHANGELOG
 git commit -m "Bumped version to $VERSION"
 git tag v"$VERSION"
+if ! git push
+then
+  echo "Failed to push the version bump. Nothing was published yet."
+  exit 1
+fi
 
 . tools/check-keystore.sh
 
@@ -134,9 +142,12 @@ then
   exit 1
 fi
 
-# If the Play Store accepted the builds, the version bump should be pushed / made concrete
-git push
-git push --tags
+# If the Play Store accepted the builds, the tag should be pushed / made concrete
+if ! git push --tags
+then
+  echo "Failed to push the v$VERSION tag. Play already has this build."
+  exit 1
+fi
 
 # Build the full set of release APKs for all flavors, with universals
 UCFLAVORS='Full Amazon Play'
@@ -199,8 +210,10 @@ export GITHUB_REPO="Anki-Android"
 
 if [ "$PUBLIC" = "public" ]; then
   RELEASE_TYPE="--latest"
+  RELEASE_KIND="Public release"
 else
   RELEASE_TYPE="--prerelease"
+  RELEASE_KIND="Pre-release"
 fi
 
 # Get the directory of the current script
@@ -208,7 +221,11 @@ SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 # Read the content of the markdown file using the absolute path
 RELEASE_NOTES="$SCRIPT_DIR/release-description.md"
 echo "Creating new Github release"
-gh release create v"$VERSION" --title "AnkiDroid $VERSION" -F "$RELEASE_NOTES" $RELEASE_TYPE --draft
+if ! gh release create v"$VERSION" --verify-tag --title "AnkiDroid $VERSION" -F "$RELEASE_NOTES" $RELEASE_TYPE --draft
+then
+  echo "Failed to create the GitHub release for v$VERSION"
+  exit 1
+fi
 
 echo "Sleeping 30s to make sure the release exists, see issue 11746"
 sleep 30
@@ -276,3 +293,9 @@ then
   exit 1
 fi
 echo "Release published successfully"
+
+cat <<EOF >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
+### [AnkiDroid $VERSION](https://github.com/ankidroid/Anki-Android/releases/tag/v$VERSION)
+
+$RELEASE_KIND
+EOF

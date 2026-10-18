@@ -65,6 +65,7 @@ import androidx.fragment.app.commitNow
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import androidx.work.NetworkType
@@ -224,6 +225,7 @@ import com.ichi2.utils.showDialogIfWebViewOutdated
 import com.ichi2.utils.title
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
@@ -304,6 +306,7 @@ open class DeckPicker :
 
     private lateinit var decksLayoutManager: LinearLayoutManager
     private lateinit var deckListAdapter: DeckAdapter
+    private var backgroundImageErrorShown = false
     private lateinit var pullToSyncWrapper: SwipeRefreshLayout
 
     @VisibleForTesting
@@ -528,7 +531,7 @@ open class DeckPicker :
             return
         }
         Timber.d("Not displaying app intro")
-        if (intent.hasExtra(INTENT_SYNC_FROM_LOGIN)) {
+        if (intent.hasExtra(EXTRA_SYNC_FROM_LOGIN)) {
             Timber.d("launched from introduction activity login: syncing")
             syncOnResume = true
         }
@@ -599,7 +602,16 @@ open class DeckPicker :
 
         deckPickerBinding.deckSortBar.setOnClickListener { viewModel.cycleDeckSortOrder() }
 
-        lifecycleScope.launch { applyDeckPickerBackground() }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                applyDeckPickerBackground()
+                try {
+                    awaitCancellation()
+                } finally {
+                    deckPickerBinding.background.setImageDrawable(null)
+                }
+            }
+        }
 
         setupPullToSync()
         // Setup the FloatingActionButtons
@@ -1253,15 +1265,21 @@ open class DeckPicker :
     private suspend fun applyDeckPickerBackground() {
         val result = BackgroundImage.resolve(this)
         if (result is BackgroundImage.ResolveResult.Failure) {
-            showThemedToast(this, result.message(this), shortLength = false)
+            showBackgroundImageError(result.message(this))
         }
         val drawable = (result as? BackgroundImage.ResolveResult.Ready)?.drawable
         val applied =
             deckPickerBinding.background.setImageDrawableSafe(drawable) {
-                showThemedToast(this, getString(CommonString.background_image_too_large), shortLength = false)
+                showBackgroundImageError(getString(CommonString.background_image_too_large))
             }
         // activityHasBackground calls notifyDataSetChanged, ensure only 1 call
         deckListAdapter.activityHasBackground = applied && drawable != null
+    }
+
+    private fun showBackgroundImageError(message: String) {
+        if (backgroundImageErrorShown) return
+        backgroundImageErrorShown = true
+        showThemedToast(this, message, shortLength = false)
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -1616,7 +1634,7 @@ open class DeckPicker :
         // Due to the App Introduction, this may be called before permission has been granted.
         if (syncOnResume && hasCollectionStoragePermissions()) {
             syncOnResume = false
-            intent.removeExtra(INTENT_SYNC_FROM_LOGIN)
+            intent.removeExtra(EXTRA_SYNC_FROM_LOGIN)
             Timber.i("Performing Sync on Resume")
             Permissions.requestNotificationPermissionsForSyncing(this)
             sync()
@@ -2161,11 +2179,15 @@ open class DeckPicker :
     private fun tryShowStudyOptionsPanel(): Boolean {
         val containerId = binding.studyoptionsFragment?.id ?: return false
 
-        // Close other panels before looking for restored study options.
-        supportFragmentManager.popBackStackImmediate(
-            null,
-            FragmentManager.POP_BACK_STACK_INCLUSIVE,
-        )
+        // Only clear navigation when closing another side panel. Import dialogs can already
+        // be on the back stack when startup finishes, and must survive panel initialization.
+        val sidePanel = supportFragmentManager.findFragmentById(containerId)
+        if (sidePanel != null && sidePanel !is StudyOptionsFragment) {
+            supportFragmentManager.popBackStackImmediate(
+                null,
+                FragmentManager.POP_BACK_STACK_INCLUSIVE,
+            )
+        }
 
         val studyOptions = fragment
         if (studyOptions != null) {
@@ -2535,7 +2557,7 @@ open class DeckPicker :
          *
          * This is for the 'download existing collection from AnkiWeb' use case
          */
-        const val INTENT_SYNC_FROM_LOGIN = "syncFromLogin"
+        const val EXTRA_SYNC_FROM_LOGIN = "syncFromLogin"
 
         /** If passed into the intent, DeckPicker will scroll to and select this deck without starting study. */
         const val EXTRA_DECK_ID_TO_SELECT = "EXTRA_DECK_ID_TO_SELECT"
@@ -2565,7 +2587,7 @@ open class DeckPicker :
             autoSync: Boolean = false,
         ) = Intent(context, DeckPicker::class.java).apply {
             if (autoSync) {
-                putExtra(INTENT_SYNC_FROM_LOGIN, true)
+                putExtra(EXTRA_SYNC_FROM_LOGIN, true)
             }
         }
     }
@@ -2573,7 +2595,7 @@ open class DeckPicker :
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         this.intent = intent
-        if (intent.hasExtra(INTENT_SYNC_FROM_LOGIN)) {
+        if (intent.hasExtra(EXTRA_SYNC_FROM_LOGIN)) {
             Timber.i("Sync requested from Login")
             this.syncOnResume = true
         }

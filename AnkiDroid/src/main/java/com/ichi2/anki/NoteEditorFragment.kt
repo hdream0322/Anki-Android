@@ -145,6 +145,7 @@ import com.ichi2.anki.noteeditor.NoteEditorMultimediaController
 import com.ichi2.anki.noteeditor.Toolbar
 import com.ichi2.anki.noteeditor.Toolbar.TextFormatListener
 import com.ichi2.anki.noteeditor.Toolbar.TextWrapper
+import com.ichi2.anki.noteeditor.data.ToolbarPreferences
 import com.ichi2.anki.observability.undoableOp
 import com.ichi2.anki.pages.ImageOcclusion
 import com.ichi2.anki.pages.viewmodel.ImageOcclusionArgs
@@ -168,7 +169,7 @@ import com.ichi2.anki.utils.ext.showDialogFragment
 import com.ichi2.anki.utils.insetsOf
 import com.ichi2.anki.utils.openUrl
 import com.ichi2.imagecropper.ImageCropper
-import com.ichi2.imagecropper.ImageCropper.Companion.CROP_IMAGE_RESULT
+import com.ichi2.imagecropper.ImageCropper.Companion.EXTRA_CROP_IMAGE_RESULT
 import com.ichi2.imagecropper.ImageCropperLauncher
 import com.ichi2.utils.AndroidUiUtils.showSoftInput
 import com.ichi2.utils.ClipboardUtil
@@ -199,6 +200,7 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 import com.ichi2.anki.common.android.R as CommonR
+import com.ichi2.anki.noteeditor.R as NoteEditorR
 
 const val CALLER_KEY = "caller"
 
@@ -299,6 +301,7 @@ class NoteEditorFragment :
     private var sourceText: Array<String?>? = null
     private val fieldState = FieldState.fromEditor(this)
     private lateinit var toolbar: Toolbar
+    private val toolbarPreferences by lazy { ToolbarPreferences(sharedPrefs()) }
 
     // save field index as key and text as value when toggle sticky clicked in Field Edit Text
     @VisibleForTesting
@@ -323,7 +326,7 @@ class NoteEditorFragment :
      * If true, this fragment is on the trailing side of the card browser.
      */
     private val inCardBrowserActivity
-        get() = requireArguments().getBoolean(IN_CARD_BROWSER_ACTIVITY)
+        get() = requireArguments().getBoolean(EXTRA_IN_CARD_BROWSER_ACTIVITY)
 
     private val requestAddLauncher =
         registerForActivityResult(
@@ -926,7 +929,7 @@ class NoteEditorFragment :
 
                     result.data?.let {
                         val cropResultData =
-                            it.getParcelableExtraCompat<ImageCropper.CropResultData>(CROP_IMAGE_RESULT)
+                            it.getParcelableExtraCompat<ImageCropper.CropResultData>(EXTRA_CROP_IMAGE_RESULT)
                         Timber.d("Cropped image data: $cropResultData")
                         if (cropResultData?.uriPath == null) return@registerForActivityResult
                         setupImageOcclusionEditor(cropResultData.uriPath)
@@ -1499,15 +1502,12 @@ class NoteEditorFragment :
                 }
             }
         }
-        menu.findItem(R.id.action_show_toolbar).isChecked =
-            !shouldHideToolbar()
+        menu.findItem(R.id.action_show_toolbar).isChecked = toolbarPreferences.isVisible
         menu.findItem(R.id.action_capitalize).isChecked =
             sharedPrefs().getBoolean(PREF_NOTE_EDITOR_CAPITALIZE, true)
         menu.findItem(R.id.action_scroll_toolbar).apply {
-            isChecked =
-                sharedPrefs().getBoolean(PREF_NOTE_EDITOR_SCROLL_TOOLBAR, true)
-            isEnabled =
-                !shouldHideToolbar()
+            isChecked = toolbarPreferences.isScrollable
+            isEnabled = toolbarPreferences.isVisible
         }
     }
 
@@ -1585,9 +1585,7 @@ class NoteEditorFragment :
             }
             R.id.action_show_toolbar -> {
                 item.isChecked = !item.isChecked
-                this.sharedPrefs().edit {
-                    putBoolean(PREF_NOTE_EDITOR_SHOW_TOOLBAR, item.isChecked)
-                }
+                toolbarPreferences.isVisible = item.isChecked
                 updateToolbar()
 
                 // Update the overflow action menu in order to switch the enable/disable status of the "Scroll toolbar" item on the spot
@@ -1601,9 +1599,7 @@ class NoteEditorFragment :
             }
             R.id.action_scroll_toolbar -> {
                 item.isChecked = !item.isChecked
-                this.sharedPrefs().edit {
-                    putBoolean(PREF_NOTE_EDITOR_SCROLL_TOOLBAR, item.isChecked)
-                }
+                toolbarPreferences.isScrollable = item.isChecked
                 updateToolbar()
             }
         }
@@ -2350,7 +2346,7 @@ class NoteEditorFragment :
     }
 
     private fun updateToolbar() {
-        toolbar.isVisible = !shouldHideToolbar()
+        toolbar.isVisible = toolbarPreferences.isVisible
         applyBottomInset()
         if (!toolbar.isVisible) return
         toolbar.clearCustomItems()
@@ -2396,7 +2392,7 @@ class NoteEditorFragment :
 
         // Let the user add more buttons (always at the end).
         // Sets the add custom tag icon color.
-        val drawable = ResourcesCompat.getDrawable(resources, R.drawable.ic_add_toolbar_icon, null)
+        val drawable = ResourcesCompat.getDrawable(resources, NoteEditorR.drawable.ic_add_toolbar_icon, null)
         drawable!!.setTint(MaterialColors.getColor(requireContext(), R.attr.toolbarIconColor, 0))
         val addButton = toolbar.insertItem(0, drawable) { displayAddToolbarDialog() }
         addButton.contentDescription = resources.getString(CommonString.add_toolbar_item)
@@ -2851,7 +2847,7 @@ class NoteEditorFragment :
         const val EXTRA_NOTE_CHANGED = "noteChanged"
         const val EXTRA_RELOAD_REQUIRED = "reloadRequired"
         const val EXTRA_IMG_OCCLUSION = "image_uri"
-        const val IN_CARD_BROWSER_ACTIVITY = "inCardBrowserActivity"
+        const val EXTRA_IN_CARD_BROWSER_ACTIVITY = "inCardBrowserActivity"
         const val EXTRA_CARD_IDS = "EXTRA_CARD_IDS"
         const val REQUEST_DECK_SELECTION_NOTE_EDITOR = "request_deck_selection_note_editor"
 
@@ -2881,8 +2877,6 @@ class NoteEditorFragment :
         const val RESULT_UPDATED_IO_NOTE = 11
 
         // preferences keys
-        const val PREF_NOTE_EDITOR_SCROLL_TOOLBAR = "noteEditorScrollToolbar"
-        private const val PREF_NOTE_EDITOR_SHOW_TOOLBAR = "noteEditorShowToolbar"
         private const val PREF_NOTE_EDITOR_NEWLINE_REPLACE = "noteEditorNewlineReplace"
         private const val PREF_NOTE_EDITOR_CAPITALIZE = "note_editor_capitalize"
         private const val PREF_NOTE_EDITOR_FONT_SIZE = "note_editor_font_size"
@@ -2911,10 +2905,5 @@ class NoteEditorFragment :
             if (ImportUtils.isInvalidViewIntent(intent)) return false
             return intent.resolveMimeType()?.startsWith("image/") == true
         }
-
-        private fun shouldHideToolbar(): Boolean =
-            !appContext
-                .sharedPrefs()
-                .getBoolean(PREF_NOTE_EDITOR_SHOW_TOOLBAR, true)
     }
 }

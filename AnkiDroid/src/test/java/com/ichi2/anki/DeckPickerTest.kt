@@ -1437,6 +1437,24 @@ class DeckPickerTest : RobolectricTest() {
         }
 
     @Test
+    fun `FAB menu closes when clicking background inside menu container`() =
+        deckPicker {
+            floatingActionMenu.showFloatingActionMenu()
+            assertThat("menu is open", floatingActionMenu.isFABOpen, equalTo(true))
+
+            // Click the background inside the FAB menu container
+            // (simulating, for example, tapping to the left of narrower buttons such as the "Add" button)
+            val linearLayout = floatingActionButtonBinding.fabLinearLayout
+            linearLayout.performClick()
+
+            assertThat(
+                "clicking the background inside the FAB menu container closes the menu",
+                floatingActionMenu.isFABOpen,
+                equalTo(false),
+            )
+        }
+
+    @Test
     fun `expanded FAB menu is restored after recreation`() {
         ActivityScenario.launch(DeckPicker::class.java).use { scenario ->
             lateinit var originalActivity: DeckPicker
@@ -1665,7 +1683,7 @@ class DeckPickerTest : RobolectricTest() {
                     browser.childFragmentManager.setFragmentResult(
                         DeckSelectionDialog.REQUEST_SELECT_DECK,
                         Bundle().apply {
-                            putParcelable(DeckSelectionDialog.ARG_SELECTED_DECK, SelectableDeck.AllDecks)
+                            putParcelable(DeckSelectionDialog.RESULT_SELECTED_DECK, SelectableDeck.AllDecks)
                         },
                     )
                 }

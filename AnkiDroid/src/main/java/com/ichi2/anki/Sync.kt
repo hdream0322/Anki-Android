@@ -19,6 +19,7 @@ import com.ichi2.anki.observability.ChangeManager.notifySubscribersAllValuesChan
 import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.settings.enums.ShouldFetchMedia
 import com.ichi2.anki.snackbar.showSnackbar
+import com.ichi2.anki.sync.MediaSync
 import com.ichi2.anki.sync.MeteredSyncPermission
 import com.ichi2.anki.sync.MeteredSyncPolicy
 import com.ichi2.anki.sync.SyncAuth
@@ -284,7 +285,12 @@ private suspend fun handleDownload(
                     Timber.i("Sync: Backup skipped before full download: collection unchanged")
                 }
                 close(downgrade = false, forFullSync = true)
-                fullUploadOrDownload(auth, upload = false, serverUsn = mediaUsn)
+                // Media starts through SyncMediaWorker so WorkManager can enforce network constraints.
+                fullUploadOrDownload(
+                    auth,
+                    upload = false,
+                    mediaSync = MediaSync.Skip,
+                )
             } finally {
                 reopen(afterFullSync = true)
             }
@@ -318,7 +324,12 @@ private suspend fun handleUpload(
         ) {
             close(downgrade = false, forFullSync = true)
             try {
-                fullUploadOrDownload(auth, upload = true, serverUsn = mediaUsn)
+                // Media starts through SyncMediaWorker so WorkManager can enforce network constraints.
+                fullUploadOrDownload(
+                    auth,
+                    upload = true,
+                    mediaSync = MediaSync.Skip,
+                )
             } finally {
                 reopen(afterFullSync = true)
             }

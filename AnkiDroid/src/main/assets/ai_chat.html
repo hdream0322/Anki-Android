@@ -1,0 +1,209 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        :root {
+            --text: #000;
+            --text-secondary: #666;
+            --bubble: #eee;
+            --link: #1565c0;
+            --code-background: rgba(0, 0, 0, 0.1);
+        }
+        html, body {
+            margin: 0;
+            background: transparent;
+            color: var(--text);
+            font-family: sans-serif;
+            font-size: 15px;
+            line-height: 1.45;
+            overflow-wrap: anywhere;
+        }
+        #messages {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 4px 12px 8px;
+        }
+        .bubble {
+            max-width: 85%;
+            padding: 10px;
+            border-radius: 12px;
+            background: var(--bubble);
+            box-sizing: border-box;
+        }
+        .bubble.user { align-self: flex-end; }
+        .bubble.assistant { align-self: flex-start; }
+        .bubble > :first-child { margin-top: 0; }
+        .bubble > :last-child { margin-bottom: 0; }
+        p, ul, ol, pre, blockquote, table { margin: 0.5em 0; }
+        h1, h2, h3, h4, h5, h6 { margin: 0.7em 0 0.4em; line-height: 1.25; }
+        h1 { font-size: 1.3em; }
+        h2 { font-size: 1.2em; }
+        h3 { font-size: 1.1em; }
+        h4, h5, h6 { font-size: 1em; }
+        ul, ol { padding-left: 1.4em; }
+        a { color: var(--link); }
+        code {
+            font-family: monospace;
+            font-size: 0.92em;
+            padding: 0.1em 0.3em;
+            border-radius: 4px;
+            background: var(--code-background);
+        }
+        pre {
+            overflow-x: auto;
+            padding: 8px;
+            border-radius: 6px;
+            background: var(--code-background);
+        }
+        pre code { padding: 0; background: none; }
+        blockquote {
+            margin-left: 0;
+            padding-left: 0.8em;
+            border-left: 3px solid var(--text-secondary);
+            color: var(--text-secondary);
+        }
+        table {
+            display: block;
+            overflow-x: auto;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 4px 8px;
+            border: 1px solid var(--text-secondary);
+        }
+        hr {
+            border: none;
+            border-top: 1px solid var(--text-secondary);
+        }
+        mjx-container[display="true"] {
+            overflow-x: auto;
+            overflow-y: hidden;
+        }
+        #staging {
+            position: absolute;
+            left: -10000px;
+            visibility: hidden;
+        }
+    </style>
+</head>
+<body>
+<div id="messages"></div>
+<div id="staging"></div>
+<script>
+    "use strict";
+
+    const MATHJAX_PATH = "backend/js/vendor/mathjax";
+    const list = document.getElementById("messages");
+    const staging = document.getElementById("staging");
+
+    let mathJaxLoad = null;
+    // Messages received while a render is in flight; only the newest set is rendered
+    let pendingMessages = null;
+    let renderQueue = Promise.resolve();
+
+    /** Loads MathJax on first use, with the same TeX configuration as card rendering. */
+    function loadMathJax() {
+        if (mathJaxLoad === null) {
+            window.MathJax = {
+                tex: {
+                    displayMath: [["\\[", "\\]"]],
+                    processEscapes: false,
+                    processEnvironments: false,
+                    processRefs: false,
+                    packages: { "[+]": ["noerrors", "mathtools"], "[-]": ["textmacros"] },
+                },
+                loader: { paths: { mathjax: MATHJAX_PATH } },
+                startup: { typeset: false },
+            };
+            mathJaxLoad = new Promise((resolve, reject) => {
+                const script = document.createElement("script");
+                script.src = MATHJAX_PATH + "/tex-chtml-full.js";
+                script.onload = () => MathJax.startup.promise.then(resolve, reject);
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+        return mathJaxLoad;
+    }
+
+    function containsMath(html) {
+        return html.includes("\\(") || html.includes("\\[");
+    }
+
+    function isNearBottom() {
+        const page = document.scrollingElement;
+        return page.scrollHeight - page.scrollTop - page.clientHeight < 48;
+    }
+
+    /** Typesets off-screen first, so a streaming reply never flashes raw TeX. */
+    async function fillBubble(bubble, html) {
+        if (!containsMath(html)) {
+            bubble.innerHTML = html;
+            return;
+        }
+        const staged = document.createElement("div");
+        staged.innerHTML = html;
+        staging.appendChild(staged);
+        try {
+            await loadMathJax();
+            await MathJax.typesetPromise([staged]);
+            // Bubbles are rebuilt rather than re-typeset, so MathJax need not track old formulas
+            MathJax.typesetClear();
+        } catch (e) {
+            console.warn("MathJax rendering failed", e);
+        }
+        bubble.textContent = "";
+        bubble.append(...staged.childNodes);
+        staged.remove();
+    }
+
+    async function render(messages) {
+        const grew = messages.length > list.children.length;
+        const stickToBottom = grew || isNearBottom();
+        while (list.children.length > messages.length) {
+            list.lastElementChild.remove();
+        }
+        for (let i = 0; i < messages.length; i++) {
+            const { role, html } = messages[i];
+            let bubble = list.children[i];
+            if (!bubble) {
+                bubble = document.createElement("div");
+                list.appendChild(bubble);
+            }
+            bubble.className = "bubble " + role;
+            if (bubble.dataset.html === html) continue;
+            await fillBubble(bubble, html);
+            bubble.dataset.html = html;
+        }
+        if (stickToBottom) {
+            const page = document.scrollingElement;
+            page.scrollTop = page.scrollHeight;
+        }
+    }
+
+    /** Called by AiChatBottomSheetFragment with `[{role: "user" | "assistant", html}]`. */
+    window.setMessages = (messages) => {
+        pendingMessages = messages;
+        renderQueue = renderQueue.then(() => {
+            if (pendingMessages === null) return;
+            const latest = pendingMessages;
+            pendingMessages = null;
+            return render(latest);
+        });
+    };
+
+    /** Called by AiChatBottomSheetFragment with CSS colors taken from the app theme. */
+    window.setTheme = (theme) => {
+        const style = document.documentElement.style;
+        style.setProperty("--text", theme.text);
+        style.setProperty("--text-secondary", theme.textSecondary);
+        style.setProperty("--bubble", theme.bubble);
+        style.setProperty("--link", theme.link);
+        style.setProperty("--code-background", theme.codeBackground);
+    };
+</script>
+</body>
+</html>

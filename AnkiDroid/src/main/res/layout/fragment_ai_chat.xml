@@ -25,13 +25,11 @@
             android:src="@drawable/ic_delete_white"/>
     </FrameLayout>
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/messageList"
+    <com.ichi2.anki.workarounds.NestedScrollingSafeWebViewLayout
+        android:id="@+id/messageWebView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:clipToPadding="false"
-        android:paddingBottom="8dp"/>
+        android:layout_weight="1"/>
 
     <LinearLayout
         android:id="@+id/retryBar"

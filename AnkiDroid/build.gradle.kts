@@ -873,6 +873,9 @@ dependencies {
     implementation(libs.androidx.security.crypto)
     implementation(libs.slf4j.api)
     implementation(libs.jakewharton.timber)
+    implementation(libs.commonmark)
+    implementation(libs.commonmark.ext.gfm.strikethrough)
+    implementation(libs.commonmark.ext.gfm.tables)
     implementation(libs.jsoup)
     implementation(libs.java.semver) // For AnkiDroid JS API Versioning
     implementation(libs.drakeet.drawer)

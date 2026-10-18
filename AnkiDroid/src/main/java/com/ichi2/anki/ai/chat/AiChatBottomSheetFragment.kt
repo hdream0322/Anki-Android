@@ -3,8 +3,12 @@
 package com.ichi2.anki.ai.chat
 
 import android.content.DialogInterface
+import android.graphics.Color
 import android.os.Bundle
 import android.view.View
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import androidx.annotation.AttrRes
 import androidx.appcompat.app.AlertDialog
 import androidx.core.os.BundleCompat
 import androidx.core.view.isVisible
@@ -14,12 +18,14 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+import com.google.android.material.color.MaterialColors
 import com.ichi2.anki.CommonString
 import com.ichi2.anki.MetaDB
 import com.ichi2.anki.R
+import com.ichi2.anki.ai.AiChatMessage
+import com.ichi2.anki.ai.AiChatRole
 import com.ichi2.anki.ai.AiError
 import com.ichi2.anki.ai.AiFailureKind
 import com.ichi2.anki.ai.AiKeyStore
@@ -37,6 +43,9 @@ import com.ichi2.anki.snackbar.showSnackbar
 import com.ichi2.anki.ui.windows.reviewer.AiChatLaunchArgs
 import com.ichi2.anki.utils.ext.behavior
 import com.ichi2.anki.utils.ext.collectIn
+import com.ichi2.anki.utils.openUrl
+import com.ichi2.anki.workarounds.OnWebViewRecreatedListener
+import com.ichi2.anki.workarounds.SafeWebViewClient
 import com.ichi2.utils.message
 import com.ichi2.utils.negativeButton
 import com.ichi2.utils.positiveButton
@@ -46,10 +55,16 @@ import dev.androidbroadcast.vbpd.viewBinding
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
 
-class AiChatBottomSheetFragment : BottomSheetDialogFragment(R.layout.fragment_ai_chat) {
+class AiChatBottomSheetFragment :
+    BottomSheetDialogFragment(R.layout.fragment_ai_chat),
+    OnWebViewRecreatedListener {
     private val binding by viewBinding(FragmentAiChatBinding::bind)
-    private val adapter = AiChatMessageAdapter()
+
+    /** Messages pushed before the page has loaded would be lost; [onPageFinished] sends the latest instead. */
+    private var isMessagePageLoaded = false
 
     private val viewModel: AiChatViewModel by viewModels {
         object : ViewModelProvider.Factory {
@@ -92,12 +107,10 @@ class AiChatBottomSheetFragment : BottomSheetDialogFragment(R.layout.fragment_ai
             skipCollapsed = true
         }
 
-        binding.messageList.layoutManager = LinearLayoutManager(requireContext())
-        binding.messageList.adapter = adapter
+        setupMessageWebView()
 
         viewModel.messages.collectIn(viewLifecycleOwner.lifecycleScope) { messages ->
-            adapter.submitList(messages)
-            if (messages.isNotEmpty()) binding.messageList.scrollToPosition(messages.size - 1)
+            if (isMessagePageLoaded) showMessages(messages)
         }
 
         viewModel.errorFlow.collectIn(viewLifecycleOwner.lifecycleScope) { error ->
@@ -181,6 +194,77 @@ class AiChatBottomSheetFragment : BottomSheetDialogFragment(R.layout.fragment_ai
         }
     }
 
+    override fun onDestroyView() {
+        binding.messageWebView.safeDestroy()
+        super.onDestroyView()
+    }
+
+    override fun onWebViewRecreated(webView: WebView) {
+        setupMessageWebView()
+    }
+
+    private fun setupMessageWebView() {
+        isMessagePageLoaded = false
+        with(binding.messageWebView) {
+            setWebViewClient(
+                object : SafeWebViewClient() {
+                    override fun shouldOverrideUrlLoading(
+                        view: WebView,
+                        request: WebResourceRequest,
+                    ): Boolean {
+                        val scheme = request.url.scheme
+                        if (scheme == "http" || scheme == "https") requireContext().openUrl(request.url)
+                        return true
+                    }
+
+                    override fun onPageFinished(
+                        view: WebView,
+                        url: String?,
+                    ) {
+                        isMessagePageLoaded = true
+                        evaluateJavascript("setTheme(${themeColors()})")
+                        showMessages(viewModel.messages.value)
+                    }
+                },
+            )
+            setBackgroundColor(Color.TRANSPARENT)
+            settings.javaScriptEnabled = true
+            // Replies are untrusted: stop them from loading remote images, e.g. to leak card content
+            settings.blockNetworkLoads = true
+            loadUrl(MESSAGE_PAGE_URL)
+        }
+    }
+
+    private fun showMessages(messages: List<AiChatMessage>) {
+        val payload =
+            JSONArray(
+                messages.map { message ->
+                    JSONObject()
+                        .put("role", if (message.role == AiChatRole.USER) "user" else "assistant")
+                        .put("html", ChatMarkdown.toHtml(message.content))
+                },
+            )
+        binding.messageWebView.evaluateJavascript("setMessages($payload)")
+    }
+
+    private fun themeColors(): JSONObject {
+        val view = binding.messageWebView
+
+        fun cssColor(
+            @AttrRes attr: Int,
+            alpha: Float = 1f,
+        ): String {
+            val color = MaterialColors.getColor(view, attr)
+            return "rgba(${Color.red(color)}, ${Color.green(color)}, ${Color.blue(color)}, ${Color.alpha(color) / 255f * alpha})"
+        }
+        return JSONObject()
+            .put("text", cssColor(android.R.attr.textColorPrimary))
+            .put("textSecondary", cssColor(android.R.attr.textColorSecondary))
+            .put("bubble", cssColor(com.google.android.material.R.attr.colorSurfaceVariant))
+            .put("link", cssColor(androidx.appcompat.R.attr.colorPrimary))
+            .put("codeBackground", cssColor(android.R.attr.textColorPrimary, alpha = 0.1f))
+    }
+
     override fun onDismiss(dialog: DialogInterface) {
         super.onDismiss(dialog)
         setFragmentResult(REQUEST_KEY_DISMISSED, Bundle.EMPTY)
@@ -239,6 +323,7 @@ class AiChatBottomSheetFragment : BottomSheetDialogFragment(R.layout.fragment_ai
         const val REQUEST_KEY_DISMISSED = "aiChatDismissed"
         private const val ARG_LAUNCH_ARGS = "launchArgs"
         private const val GENERATING_DOTS_INTERVAL_MILLIS = 400L
+        private const val MESSAGE_PAGE_URL = "file:///android_asset/ai_chat.html"
 
         fun newInstance(args: AiChatLaunchArgs): AiChatBottomSheetFragment =
             AiChatBottomSheetFragment().apply {

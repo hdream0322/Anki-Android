@@ -6,12 +6,14 @@ import android.content.DialogInterface
 import android.graphics.Color
 import android.os.Bundle
 import android.view.View
+import android.view.ViewGroup
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import androidx.annotation.AttrRes
 import androidx.appcompat.app.AlertDialog
 import androidx.core.os.BundleCompat
 import androidx.core.view.isVisible
+import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.setFragmentResult
 import androidx.fragment.app.viewModels
@@ -106,6 +108,8 @@ class AiChatBottomSheetFragment :
             state = BottomSheetBehavior.STATE_EXPANDED
             skipCollapsed = true
         }
+        // The message WebView has no intrinsic height: in a wrap_content sheet it would collapse to 0px
+        (view.parent as View).updateLayoutParams { height = ViewGroup.LayoutParams.MATCH_PARENT }
 
         setupMessageWebView()
 

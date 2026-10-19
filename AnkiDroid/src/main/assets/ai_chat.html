@@ -184,6 +184,9 @@
         }
     }
 
+    // The app sizes this WebView to the conversation, so a short one does not fill the screen
+    new ResizeObserver(() => AiChatBridge.onContentHeight(list.getBoundingClientRect().height)).observe(list);
+
     /** Called by AiChatBottomSheetFragment with `[{role: "user" | "assistant", html}]`. */
     window.setMessages = (messages) => {
         pendingMessages = messages;

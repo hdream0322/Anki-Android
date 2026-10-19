@@ -6,10 +6,11 @@ import android.content.DialogInterface
 import android.graphics.Color
 import android.os.Bundle
 import android.view.View
-import android.view.ViewGroup
+import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import androidx.annotation.AttrRes
+import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AlertDialog
 import androidx.core.os.BundleCompat
 import androidx.core.view.isVisible
@@ -59,6 +60,8 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
+import java.lang.ref.WeakReference
+import kotlin.math.ceil
 
 class AiChatBottomSheetFragment :
     BottomSheetDialogFragment(R.layout.fragment_ai_chat),
@@ -108,8 +111,6 @@ class AiChatBottomSheetFragment :
             state = BottomSheetBehavior.STATE_EXPANDED
             skipCollapsed = true
         }
-        // The message WebView has no intrinsic height: in a wrap_content sheet it would collapse to 0px
-        (view.parent as View).updateLayoutParams { height = ViewGroup.LayoutParams.MATCH_PARENT }
 
         setupMessageWebView()
 
@@ -170,7 +171,7 @@ class AiChatBottomSheetFragment :
             if (text.isEmpty()) return@setOnClickListener
             val keyStore = AiKeyStore(requireContext())
             if (!keyStore.hasApiKey(Prefs.aiProviderKind)) {
-                showSnackbar(R.string.ai_chat_missing_api_key)
+                showSnackbar(getString(R.string.ai_chat_missing_api_key))
                 return@setOnClickListener
             }
             viewModel.sendMessage(text)
@@ -179,7 +180,7 @@ class AiChatBottomSheetFragment :
 
         binding.retryButton.setOnClickListener {
             if (!AiKeyStore(requireContext()).hasApiKey(Prefs.aiProviderKind)) {
-                showSnackbar(R.string.ai_chat_missing_api_key)
+                showSnackbar(getString(R.string.ai_chat_missing_api_key))
                 return@setOnClickListener
             }
             viewModel.retry()
@@ -191,7 +192,7 @@ class AiChatBottomSheetFragment :
                 message(R.string.ai_chat_clear_history_confirm)
                 positiveButton(R.string.ai_chat_clear_history) {
                     viewModel.clearHistory()
-                    showSnackbar(R.string.ai_chat_history_cleared)
+                    showSnackbar(getString(R.string.ai_chat_history_cleared))
                 }
                 negativeButton(CommonString.dialog_cancel)
             }
@@ -233,9 +234,36 @@ class AiChatBottomSheetFragment :
             )
             setBackgroundColor(Color.TRANSPARENT)
             settings.javaScriptEnabled = true
+            addJavascriptInterface(MessagePageBridge(this@AiChatBottomSheetFragment), MESSAGE_PAGE_BRIDGE)
             // Replies are untrusted: stop them from loading remote images, e.g. to leak card content
             settings.blockNetworkLoads = true
             loadUrl(MESSAGE_PAGE_URL)
+        }
+    }
+
+    /**
+     * Sizes the message WebView to the conversation, which it cannot measure itself: the sheet then
+     * wraps a short conversation, and the layout weight shrinks a long one to the space available.
+     */
+    @VisibleForTesting
+    fun onMessageListHeight(cssPixels: Float) {
+        val height = ceil(cssPixels * resources.displayMetrics.density).toInt()
+        binding.messageWebView.updateLayoutParams { this.height = height }
+    }
+
+    /** Called from the message page's JavaScript, on a background thread. */
+    private class MessagePageBridge(
+        fragment: AiChatBottomSheetFragment,
+    ) {
+        // Weak: the WebView may outlive the fragment's view by a frame
+        private val fragment = WeakReference(fragment)
+
+        @JavascriptInterface
+        fun onContentHeight(cssPixels: Float) {
+            val fragment = fragment.get() ?: return
+            fragment.lifecycleScope.launch {
+                if (fragment.view != null) fragment.onMessageListHeight(cssPixels)
+            }
         }
     }
 
@@ -328,6 +356,7 @@ class AiChatBottomSheetFragment :
         private const val ARG_LAUNCH_ARGS = "launchArgs"
         private const val GENERATING_DOTS_INTERVAL_MILLIS = 400L
         private const val MESSAGE_PAGE_URL = "file:///android_asset/ai_chat.html"
+        private const val MESSAGE_PAGE_BRIDGE = "AiChatBridge"
 
         fun newInstance(args: AiChatLaunchArgs): AiChatBottomSheetFragment =
             AiChatBottomSheetFragment().apply {

@@ -51,8 +51,9 @@ import com.ichi2.anki.heatmap.fetchReviewHeatmapData
 import com.ichi2.anki.libanki.DeckId
 import com.ichi2.anki.libanki.Decks
 import com.ichi2.anki.observability.ChangeManager
-import com.ichi2.anki.pages.CongratsPage
 import com.ichi2.anki.settings.Prefs
+import com.ichi2.anki.study.StudyCompletionUi
+import com.ichi2.anki.study.currentDeckStudyState
 import com.ichi2.anki.ui.internationalization.sentenceCase
 import com.ichi2.anki.utils.doOnApplyWindowInsets
 import com.ichi2.anki.utils.ext.launchCollectionInViewLifecycleScope
@@ -557,7 +558,8 @@ class StudyOptionsFragment :
         congratsMessage.text = CONGRATS_EMOJI_PREFIX + getString(CommonString.studyoptions_congrats_finished)
         launchCatchingTask {
             val activity = activity ?: return@launchCatchingTask
-            val message = CongratsPage.getDeckFinishedMessage(activity)
+            val state = withCol { currentDeckStudyState() }
+            val message = StudyCompletionUi.finishedMessage(activity, state)
             if (viewModel.state is StudyOptionsState.Congrats && isAdded) {
                 congratsMessage.text = CONGRATS_EMOJI_PREFIX + message
             }

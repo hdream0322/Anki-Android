@@ -49,7 +49,7 @@ object StudyCompletionUi {
 
     private fun displayNewCongratsScreen(context: Context) = context.sharedPrefs().getBoolean("new_congrats_screen", false)
 
-    private fun finishedMessage(
+    internal fun finishedMessage(
         context: Context,
         state: DeckStudyState,
     ): String {

@@ -10,6 +10,7 @@ import com.ichi2.anki.libanki.Tags
 import com.ichi2.anki.observability.undoableOp
 import com.ichi2.anki.tags.ManageTagsState.Error
 import com.ichi2.anki.tags.UserMessage.ClearedUnusedTags
+import com.ichi2.anki.tags.UserMessage.TagMoved
 import com.ichi2.anki.tags.UserMessage.TagRemoved
 import com.ichi2.anki.tags.UserMessage.TagRenamed
 import com.ichi2.anki.utils.MessageQueue
@@ -83,6 +84,9 @@ class ManageTagsViewModel : ViewModel() {
     /** Acknowledges that the UI has finished displaying a message. */
     fun messageShown(id: MessageId) = messageQueue.acknowledge(id)
 
+    /** Checks the complete tag tree, including tags hidden by search or collapsed ancestors. */
+    fun tagExists(tag: TagName): Boolean = tagList.any { it.fullTag == tag }
+
     /** Returns the visible node for [tag], or null with a warning if not found or not loaded */
     private fun findVisibleNode(tag: TagName): TagListItemState? {
         val loaded = state.value as? ManageTagsState.Content
@@ -113,7 +117,7 @@ class ManageTagsViewModel : ViewModel() {
                     return@launchTagOperation
                 }
             val newCollapsed = !node.collapsed
-            withCol { tags.setCollapsed(tag, newCollapsed) }
+            withCol { tags.setCollapsed(node.fullTag, newCollapsed) }
             // Update the in-memory list with the new collapsed state
             tagList =
                 tagList.map {
@@ -133,14 +137,14 @@ class ManageTagsViewModel : ViewModel() {
         }
 
     /**
-     * Renames [oldName] to [newName], updating all notes and child tags.
+     * Renames [oldName] to [newName] on notes, including matching child tags.
      * @see Tags.rename
      */
     fun renameTag(
         oldName: TagName,
         newName: TagName,
     ) = launchTagOpAndRefresh {
-        val result = undoableOp { tags.rename(oldName, newName) }
+        val result = undoableOp { renameTagTree(oldName, newName) }
         messageQueue.enqueue(TagRenamed(result.count))
     }
 
@@ -155,12 +159,27 @@ class ManageTagsViewModel : ViewModel() {
             messageQueue.enqueue(ClearedUnusedTags(result.count))
         }
 
+    /**
+     * Reparents [tag] and its descendants on notes under [newParent]. An empty [newParent] moves
+     * [tag] to the top level.
+     * @see moveTagTree
+     */
+    fun moveTag(
+        tag: TagName,
+        newParent: TagName?,
+    ) = launchTagOpAndRefresh {
+        Timber.i("Moving tag")
+        val result = undoableOp { moveTagTree(tag, newParent) }
+        messageQueue.enqueue(TagMoved(result.count))
+    }
+
     private suspend fun loadTags() {
         Timber.i("Loading tags from collection")
         tagList = flattenTree(withCol { tags.tree() })
         state.value =
             ManageTagsState.Content(
                 visibleNodes = computeVisibleNodes(searchQuery.value),
+                totalTagCount = tagList.size,
             )
     }
 
@@ -349,12 +368,16 @@ data class TagListItemState(
 sealed class ManageTagsState {
     data object Loading : ManageTagsState()
 
+    /**
+     * @param totalTagCount every tag in the collection, unaffected by search/collapse
+     */
     data class Content(
         val visibleNodes: List<TagListItemState>,
         /** `true` while a tag operation runs, allowing the UI to show progress without hiding the list. */
         val isWorking: Boolean = false,
         /** Most recent operation failure, cleared when the next operation starts. */
         val error: Throwable? = null,
+        val totalTagCount: Int = 0,
     ) : ManageTagsState()
 
     data class Error(
@@ -370,6 +393,11 @@ sealed interface UserMessage {
 
     /** @param notesAffected number of notes whose tags were updated */
     data class TagRenamed(
+        val notesAffected: Int,
+    ) : UserMessage
+
+    /** @param notesAffected number of notes whose tags were reparented */
+    data class TagMoved(
         val notesAffected: Int,
     ) : UserMessage
 

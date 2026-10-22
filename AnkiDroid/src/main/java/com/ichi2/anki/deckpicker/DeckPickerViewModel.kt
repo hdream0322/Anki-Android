@@ -127,7 +127,10 @@ class DeckPickerViewModel :
             if (tree == null) return@combine FlattenedDeckList.empty
 
             // TODO: use flowOfFocusedDeck once it's set on all instances
-            val currentDeckId = withCol { decks.current().getLong("id") }
+            // This flow can outlive the visible screen. Do not reopen the collection just to redraw it.
+            val currentDeckId =
+                withOpenColOrNull { decks.current().getLong("id") }
+                    ?: return@combine FlattenedDeckList.empty
             Timber.i("currentDeckId: %d", currentDeckId)
 
             val (lastStudiedByDeck, dayStartMillis) =
@@ -235,21 +238,17 @@ class DeckPickerViewModel :
         val isFilteredDeck: Boolean,
     )
 
-    /** Prepares a confirmation dialog for deleting the focused deck. */
+    /** Prepares a confirmation dialog for deleting the selected deck. */
     fun requestDeleteDeckConfirmation() =
         launchCatchingIO {
-            val deckId =
-                focusedDeck ?: run {
-                    Timber.w("no focused deck")
-                    return@launchCatchingIO
-                }
             val request =
                 withCol {
+                    val deck = decks.current()
                     DeleteDeckConfirmationRequest(
-                        deckId = deckId,
-                        deckName = decks.name(deckId),
-                        totalCards = decks.cardCount(deckId, includeSubdecks = true),
-                        isFilteredDeck = decks.isFiltered(deckId),
+                        deckId = deck.id,
+                        deckName = deck.name,
+                        totalCards = decks.cardCount(deck.id, includeSubdecks = true),
+                        isFilteredDeck = deck.isFiltered,
                     )
                 }
             flowOfDeleteDeckConfirmation.emit(request)
@@ -527,6 +526,8 @@ class DeckPickerViewModel :
                 focusedDeck = withCol { decks.current().id }
                 refreshUndoMenuState()
 
+                // Reopening can leave the counts and selection unchanged after a skipped display refresh.
+                flowOfRefreshDeckList.emit(Unit)
                 flowOfDecksReloaded.emit(Unit)
             }
         this.loadDeckCounts = loadDeckCounts

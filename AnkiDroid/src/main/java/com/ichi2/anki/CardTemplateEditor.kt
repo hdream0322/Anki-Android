@@ -224,11 +224,11 @@ open class CardTemplateEditor : AnkiActivity(R.layout.activity_card_template_edi
             tabToCursorPositions[0] = hashMapOf()
             tabToViewId[0] = R.id.front_edit
         } else {
-            noteTypeId = savedInstanceState.getLong(EXTRA_NOTE_TYPE_ID)
-            noteId = savedInstanceState.getLong(EXTRA_NOTE_ID)
-            startingOrdId = savedInstanceState.getInt(EXTRA_START_ORD_ID)
-            tabToCursorPositions = savedInstanceState.getSerializableCompat<HashMap<Int, HashMap<Int, Int>>>(TAB_TO_CURSOR_POSITION_KEY)!!
-            tabToViewId = savedInstanceState.getSerializableCompat<HashMap<Int, Int?>>(TAB_TO_VIEW_ID)!!
+            noteTypeId = savedInstanceState.getLong(STATE_NOTE_TYPE_ID)
+            noteId = savedInstanceState.getLong(STATE_NOTE_ID)
+            startingOrdId = savedInstanceState.getInt(STATE_STARTING_TEMPLATE_ORDINAL)
+            tabToCursorPositions = savedInstanceState.getSerializableCompat<HashMap<Int, HashMap<Int, Int>>>(STATE_TAB_TO_CURSOR_POSITION)!!
+            tabToViewId = savedInstanceState.getSerializableCompat<HashMap<Int, Int?>>(STATE_TAB_TO_VIEW_ID)!!
             tempNoteType = CardTemplateNotetype.fromBundle(savedInstanceState)
         }
 
@@ -342,11 +342,11 @@ open class CardTemplateEditor : AnkiActivity(R.layout.activity_card_template_edi
     public override fun onSaveInstanceState(outState: Bundle) {
         with(outState) {
             tempNoteType?.let { putAll(it.toBundle()) }
-            putLong(EXTRA_NOTE_TYPE_ID, noteTypeId)
-            putLong(EXTRA_NOTE_ID, noteId)
-            putInt(EXTRA_START_ORD_ID, startingOrdId)
-            putSerializable(TAB_TO_VIEW_ID, tabToViewId)
-            putSerializable(TAB_TO_CURSOR_POSITION_KEY, tabToCursorPositions)
+            putLong(STATE_NOTE_TYPE_ID, noteTypeId)
+            putLong(STATE_NOTE_ID, noteId)
+            putInt(STATE_STARTING_TEMPLATE_ORDINAL, startingOrdId)
+            putSerializable(STATE_TAB_TO_VIEW_ID, tabToViewId)
+            putSerializable(STATE_TAB_TO_CURSOR_POSITION, tabToCursorPositions)
             super.onSaveInstanceState(this)
         }
     }
@@ -618,7 +618,7 @@ open class CardTemplateEditor : AnkiActivity(R.layout.activity_card_template_edi
 
         // Index of this card template fragment in ViewPager
         private val cardIndex
-            get() = requireArguments().getInt(CARD_INDEX)
+            get() = requireArguments().getInt(ARG_CARD_INDEX)
 
         /** Whether this is the page shown by the pager. */
         private val isCurrentPage: Boolean
@@ -739,7 +739,7 @@ open class CardTemplateEditor : AnkiActivity(R.layout.activity_card_template_edi
             }
             // set saved or default view
             binding.bottomNavigation.selectedItemId =
-                templateEditor.tabToViewId[cardIndex] ?: requireArguments().getInt(EDITOR_VIEW_ID_KEY)
+                templateEditor.tabToViewId[cardIndex] ?: requireArguments().getInt(ARG_EDITOR_VIEW_ID)
 
             // Set text change listeners
             val templateEditorWatcher: TextWatcher =
@@ -1386,7 +1386,7 @@ open class CardTemplateEditor : AnkiActivity(R.layout.activity_card_template_edi
          */
         private fun getCurrentCardTemplateIndex(): Int {
             // COULD_BE_BETTER: Lots of duplicate code could call this. Hold off on the refactor until #5151 goes in.
-            return requireArguments().getInt(CARD_INDEX)
+            return requireArguments().getInt(ARG_CARD_INDEX)
         }
 
         private suspend fun deletionWouldOrphanNote(
@@ -1598,7 +1598,7 @@ open class CardTemplateEditor : AnkiActivity(R.layout.activity_card_template_edi
         }
 
         private fun buildNewTemplate(noteType: NotetypeJson): BackendCardTemplate {
-            val oldCardIndex = requireArguments().getInt(CARD_INDEX)
+            val oldCardIndex = requireArguments().getInt(ARG_CARD_INDEX)
             val templates = noteType.templates
             val oldTemplate = templates[oldCardIndex]
             val newTemplate = Notetypes.newTemplate(newCardName(templates))
@@ -1680,9 +1680,9 @@ open class CardTemplateEditor : AnkiActivity(R.layout.activity_card_template_edi
             ): CardTemplateFragment {
                 val f = CardTemplateFragment()
                 val args = Bundle()
-                args.putInt(CARD_INDEX, cardIndex)
+                args.putInt(ARG_CARD_INDEX, cardIndex)
                 args.putLong(EXTRA_NOTE_ID, noteId)
-                args.putInt(EDITOR_VIEW_ID_KEY, viewId)
+                args.putInt(ARG_EDITOR_VIEW_ID, viewId)
                 f.arguments = args
                 return f
             }
@@ -1696,13 +1696,16 @@ open class CardTemplateEditor : AnkiActivity(R.layout.activity_card_template_edi
     }
 
     companion object {
-        private const val TAB_TO_CURSOR_POSITION_KEY = "tabToCursorPosition"
-        private const val EDITOR_VIEW_ID_KEY = "editorViewId"
-        private const val TAB_TO_VIEW_ID = "tabToViewId"
+        private const val STATE_TAB_TO_CURSOR_POSITION = "tabToCursorPosition"
+        private const val ARG_EDITOR_VIEW_ID = "editorViewId"
+        private const val STATE_TAB_TO_VIEW_ID = "tabToViewId"
         const val EXTRA_NOTE_TYPE_ID = "noteTypeId"
         private const val EXTRA_NOTE_ID = "noteId"
         private const val EXTRA_START_ORD_ID = "ordId"
-        private const val CARD_INDEX = "card_ord"
+        private const val STATE_NOTE_TYPE_ID = "noteTypeId"
+        private const val STATE_NOTE_ID = "noteId"
+        private const val STATE_STARTING_TEMPLATE_ORDINAL = "ordId"
+        private const val ARG_CARD_INDEX = "card_ord"
 
         // Keys for saving pane weights in SharedPreferences
         private const val PREF_TEMPLATE_EDITOR_PANE_WEIGHT = "cardTemplateEditorPaneWeight"

@@ -79,6 +79,7 @@ import com.google.android.material.snackbar.Snackbar
 import com.ichi2.anki.BottomNavController.NavigationItem
 import com.ichi2.anki.CollectionManager.TR
 import com.ichi2.anki.CollectionManager.withCol
+import com.ichi2.anki.DeckPickerFloatingActionMenu.CloseAnimation
 import com.ichi2.anki.DeckPickerFloatingActionMenu.FloatingActionBarToggleListener
 import com.ichi2.anki.InitialActivity.StartupFailure
 import com.ichi2.anki.InitialActivity.StartupFailure.DBError
@@ -169,8 +170,6 @@ import com.ichi2.anki.libanki.sched.DeckNode
 import com.ichi2.anki.mediacheck.MediaCheckFragment
 import com.ichi2.anki.observability.ChangeManager
 import com.ichi2.anki.pages.AnkiPackageImporterFragment
-import com.ichi2.anki.pages.CongratsPage
-import com.ichi2.anki.pages.CongratsPage.Companion.onDeckCompleted
 import com.ichi2.anki.progress.observeProgress
 import com.ichi2.anki.receiver.SdCardReceiver
 import com.ichi2.anki.reviewreminders.ReviewReminderScope
@@ -183,6 +182,8 @@ import com.ichi2.anki.shareddeck.SharedDecksActivity
 import com.ichi2.anki.snackbar.BaseSnackbarBuilderProvider
 import com.ichi2.anki.snackbar.SnackbarBuilder
 import com.ichi2.anki.snackbar.showSnackbar
+import com.ichi2.anki.study.StudyCompletionUi
+import com.ichi2.anki.study.currentDeckStudyState
 import com.ichi2.anki.sync.MeteredSyncPolicy
 import com.ichi2.anki.sync.launchCatchingRequiringOneWaySyncDiscardUndo
 import com.ichi2.anki.sync.syncStatus
@@ -440,7 +441,7 @@ open class DeckPicker :
     private val closeFloatingActionBarBackPressCallback =
         object : OnBackPressedCallback(enabled = false) {
             override fun handleOnBackPressed() {
-                floatingActionMenu.closeFloatingActionMenu(applyRiseAndShrinkAnimation = true)
+                floatingActionMenu.closeFloatingActionMenu(style = CloseAnimation.SHORT)
             }
         }
 
@@ -661,6 +662,16 @@ open class DeckPicker :
         setFragmentResultListener(Check.DATABASE.requestKey) { _, _ ->
             performIntegrityCheck()
         }
+        setFragmentResultListener(SchedulerUpgradeDialog.REQUEST_SCHEDULER_UPGRADE) { _, result ->
+            if (result.getBoolean(SchedulerUpgradeDialog.RESULT_UPGRADE)) {
+                launchCatchingRequiringOneWaySyncDiscardUndo {
+                    this@DeckPicker.withProgress { withCol { sched.upgradeToV2() } }
+                    showThemedToast(this@DeckPicker, TR.schedulingUpdateDone(), false)
+                }
+            } else {
+                onBackPressedDispatcher.onBackPressed()
+            }
+        }
 
         registerStudyOptionsStudyHandler {
             Timber.d("Opening study screen from DeckPicker's study options panel")
@@ -834,18 +845,9 @@ open class DeckPicker :
         }
 
         fun onPromptUserToUpdateScheduler(op: Unit) {
-            SchedulerUpgradeDialog(
-                activity = this,
-                onUpgrade = {
-                    launchCatchingRequiringOneWaySyncDiscardUndo {
-                        this@DeckPicker.withProgress { withCol { sched.upgradeToV2() } }
-                        showThemedToast(this@DeckPicker, TR.schedulingUpdateDone(), false)
-                    }
-                },
-                onCancel = {
-                    onBackPressedDispatcher.onBackPressed()
-                },
-            ).showDialog()
+            if (supportFragmentManager.findFragmentByTag(SchedulerUpgradeDialog.TAG) == null) {
+                SchedulerUpgradeDialog().showNow(supportFragmentManager, SchedulerUpgradeDialog.TAG)
+            }
         }
 
         fun onOptionsMenuUpdated(unused: OptionsMenuState) = invalidateOptionsMenu()
@@ -1289,7 +1291,7 @@ open class DeckPicker :
 
         Timber.d("onCreateOptionsMenu()")
         if (isDrawerOpen) {
-            floatingActionMenu.closeFloatingActionMenu(applyRiseAndShrinkAnimation = false)
+            floatingActionMenu.closeFloatingActionMenu(style = CloseAnimation.LONG)
         }
         // Fragments own their menus: each fragment registers a MenuProvider against this
         // activity (see StudyOptionsFragment), and the menu host dispatches creation,
@@ -1567,9 +1569,7 @@ open class DeckPicker :
                 return true
             }
             R.id.action_deck_delete -> {
-                launchCatchingTask {
-                    viewModel.deleteSelectedDeck().join()
-                }
+                deleteSelectedDeck()
                 return true
             }
             R.id.action_export_collection -> {
@@ -1609,7 +1609,10 @@ open class DeckPicker :
 
     private fun processReviewResults(resultCode: Int) {
         if (resultCode == AbstractFlashcardViewer.RESULT_NO_MORE_CARDS) {
-            CongratsPage.onReviewsCompleted(this, getColUnsafe.sched.totalCount() == 0)
+            launchCatchingTask {
+                val state = withCol { currentDeckStudyState() }
+                StudyCompletionUi.onReviewsCompleted(this@DeckPicker, state)
+            }
             fragment?.refreshInterface()
         }
     }
@@ -1848,7 +1851,7 @@ open class DeckPicker :
                     if (event.isShiftPressed) {
                         // Shortcut: Shift + DEL - Delete deck without confirmation dialog
                         Timber.i("Shift+DEL: Deck deck without confirmation")
-                        viewModel.focusedDeck?.let { did -> deleteDeck(did) }
+                        deleteSelectedDeck()
                     } else {
                         // Shortcut: DEL
                         Timber.i("Delete Deck from keypress")
@@ -1863,7 +1866,7 @@ open class DeckPicker :
                 // that is, when it appears in the trailing study option fragment
                 if (fragmented) {
                     Timber.i("Rename Deck from keypress")
-                    viewModel.focusedDeck?.let { did -> renameDeckDialog(did) }
+                    viewModel.requestRenameSelectedDeck()
                     return true
                 }
             }
@@ -2316,7 +2319,7 @@ open class DeckPicker :
             // 태블릿 분할화면에서는 새 Activity 로 전환하지 않고
             // 우측 StudyOptionsFragment 패널에서 축하 뷰를 표시한다.
             if (fragmented && tryShowStudyOptionsPanel()) return
-            onDeckCompleted()
+            StudyCompletionUi.openCongratsPage(this)
         }
     }
 
@@ -2431,6 +2434,11 @@ open class DeckPicker :
     fun deleteDeck(did: DeckId) =
         launchCatchingTask {
             viewModel.deleteDeck(did).join()
+        }
+
+    private fun deleteSelectedDeck() =
+        launchCatchingTask {
+            viewModel.deleteSelectedDeck().join()
         }
 
     @NeedsTest("14285: regression test to ensure UI is updated after this call")

@@ -16,6 +16,7 @@ import com.ichi2.anki.lint.rules.DirectSystemCurrentTimeMillisUsage
 import com.ichi2.anki.lint.rules.DirectSystemTimeInstantiation
 import com.ichi2.anki.lint.rules.DirectToastMakeTextUsage
 import com.ichi2.anki.lint.rules.DuplicateCrowdInStrings
+import com.ichi2.anki.lint.rules.FragmentArgumentKeyNamingDetector
 import com.ichi2.anki.lint.rules.FragmentRequestKeyNamingDetector
 import com.ichi2.anki.lint.rules.FragmentResultKeyNamingDetector
 import com.ichi2.anki.lint.rules.HardcodedPreferenceKey
@@ -28,6 +29,7 @@ import com.ichi2.anki.lint.rules.LocaleRootDetector
 import com.ichi2.anki.lint.rules.NonPositionalFormatSubstitutions
 import com.ichi2.anki.lint.rules.OpenInputStreamSafeDetector
 import com.ichi2.anki.lint.rules.PrintStackTraceUsage
+import com.ichi2.anki.lint.rules.SavedStateKeyNamingDetector
 import com.ichi2.anki.lint.rules.SentenceCaseConventions
 import com.ichi2.anki.lint.rules.TranslationTypo
 import com.ichi2.anki.lint.rules.VariableNamingDetector
@@ -48,6 +50,7 @@ class IssueRegistry : IssueRegistry() {
                 DirectSystemTimeInstantiation.ISSUE,
                 DirectToastMakeTextUsage.ISSUE,
                 DuplicateCrowdInStrings.ISSUE,
+                FragmentArgumentKeyNamingDetector.ISSUE,
                 FragmentRequestKeyNamingDetector.ISSUE,
                 FragmentResultKeyNamingDetector.ISSUE,
                 HardcodedPreferenceKey.ISSUE,
@@ -58,6 +61,7 @@ class IssueRegistry : IssueRegistry() {
                 PrintStackTraceUsage.ISSUE,
                 NonPositionalFormatSubstitutions.ISSUE,
                 OpenInputStreamSafeDetector.ISSUE,
+                SavedStateKeyNamingDetector.ISSUE,
                 SentenceCaseConventions.ISSUE,
                 TranslationTypo.ISSUE,
                 VariableNamingDetector.ISSUE,

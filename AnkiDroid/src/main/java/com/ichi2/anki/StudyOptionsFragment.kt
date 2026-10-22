@@ -55,7 +55,7 @@ import com.ichi2.anki.pages.CongratsPage
 import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.ui.internationalization.sentenceCase
 import com.ichi2.anki.utils.doOnApplyWindowInsets
-import com.ichi2.anki.utils.ext.launchCollectionInLifecycleScope
+import com.ichi2.anki.utils.ext.launchCollectionInViewLifecycleScope
 import com.ichi2.anki.utils.ext.setFragmentResultListener
 import com.ichi2.anki.utils.ext.showDialogFragment
 import com.ichi2.ui.CollectionMediaImageGetter
@@ -136,7 +136,6 @@ class StudyOptionsFragment :
         displayedDeckId = savedInstanceState?.getLong(STATE_DISPLAYED_DECK_ID)?.takeIf { it != 0L }
         // Subscribe once per fragment: returning from another panel can recreate its view.
         ChangeManager.subscribe(this)
-        viewModel.flowOfState.launchCollectionInLifecycleScope(::rebuildUi)
     }
 
     override fun onCreateView(
@@ -162,6 +161,7 @@ class StudyOptionsFragment :
             requireAnkiActivity().setToolbarText(title = "")
         }
         setupContentInsets(view)
+        viewModel.flowOfState.launchCollectionInViewLifecycleScope(::rebuildUi)
         refreshInterface()
     }
 
@@ -396,7 +396,7 @@ class StudyOptionsFragment :
 
     fun refreshInterface() {
         Timber.d("Refreshing StudyOptionsFragment")
-        launchCatchingTask { viewModel.refreshData() }
+        launchCatchingViewTask { viewModel.refreshData() }
     }
 
     /**

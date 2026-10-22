@@ -44,7 +44,7 @@ class FragmentLifecycleFixture(
 
 fun fragmentLifecycleFixtures(): List<FragmentLifecycleFixture> =
     listOf(
-        FragmentLifecycleFixture("StudyOptions", knownFailures = setOf(REMOVE)) { StudyOptionsFragment() },
+        FragmentLifecycleFixture("StudyOptions") { StudyOptionsFragment() },
         FragmentLifecycleFixture("AppearanceSettings", knownFailures = setOf(REMOVE)) { AppearanceSettingsFragment() },
         FragmentLifecycleFixture("GeneralSettings", knownFailures = setOf(REMOVE)) { GeneralSettingsFragment() },
         FragmentLifecycleFixture("ReviewerOptions", knownFailures = setOf(REMOVE)) { ReviewerOptionsFragment() },
@@ -66,7 +66,7 @@ fun fragmentLifecycleFixtures(): List<FragmentLifecycleFixture> =
         FragmentLifecycleFixture("AddReminder", hasFragmentView = false, knownFailures = setOf(REMOVE)) {
             AddEditReminderDialog.getInstance(AddEditReminderDialog.DialogMode.Add(ReviewReminderScope.Global))
         },
-        FragmentLifecycleFixture("InsertField", knownFailures = setOf(REMOVE)) {
+        FragmentLifecycleFixture("InsertField") {
             InsertFieldDialog.newInstance(
                 fieldItems = listOf("Front", "Back"),
                 metadata = InsertFieldMetadata(SingleCardSide.FRONT, "Card 1", "Basic", null, null, null, "Default"),

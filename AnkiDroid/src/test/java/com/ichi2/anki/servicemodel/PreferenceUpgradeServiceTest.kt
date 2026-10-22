@@ -5,14 +5,15 @@ package com.ichi2.anki.servicemodel
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.ichi2.anki.EmptyApplicationCategory
 import com.ichi2.anki.R
-import com.ichi2.anki.RobolectricTest
 import com.ichi2.anki.cardviewer.Gesture
 import com.ichi2.anki.common.android.getCurrentLocaleTag
 import com.ichi2.anki.common.preferences.sharedPrefs
 import com.ichi2.anki.common.utils.HashUtil
 import com.ichi2.anki.libanki.Consts
 import com.ichi2.anki.noteeditor.CustomToolbarButton
+import com.ichi2.anki.preferences.reviewer.ViewerAction
 import com.ichi2.anki.reviewer.Binding
 import com.ichi2.anki.reviewer.CardSide
 import com.ichi2.anki.reviewer.MappableBinding.Companion.toPreferenceString
@@ -21,6 +22,9 @@ import com.ichi2.anki.servicelayer.PreferenceUpgradeService
 import com.ichi2.anki.servicelayer.PreferenceUpgradeService.PreferenceUpgrade
 import com.ichi2.anki.servicelayer.PreferenceUpgradeService.PreferenceUpgrade.UpgradeThemes
 import com.ichi2.anki.servicelayer.RemovedPreferences
+import com.ichi2.testutils.AndroidTest
+import com.ichi2.testutils.EmptyApplication
+import com.ichi2.testutils.targetContext
 import com.ichi2.utils.LanguageUtil
 import org.hamcrest.CoreMatchers.equalTo
 import org.hamcrest.MatcherAssert.assertThat
@@ -28,17 +32,21 @@ import org.hamcrest.Matchers.lessThan
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
+import org.junit.experimental.categories.Category
 import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 import java.util.Locale
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 @RunWith(AndroidJUnit4::class)
-class PreferenceUpgradeServiceTest : RobolectricTest() {
+@Config(application = EmptyApplication::class)
+@Category(EmptyApplicationCategory::class)
+class PreferenceUpgradeServiceTest : AndroidTest {
     private lateinit var prefs: SharedPreferences
 
     @Before
-    override fun setUp() {
-        super.setUp()
+    fun setUp() {
         prefs = targetContext.sharedPrefs()
     }
 
@@ -280,6 +288,47 @@ class PreferenceUpgradeServiceTest : RobolectricTest() {
         upgrade.performUpgrade(prefs)
         assertThat(prefs.getString(UpgradeThemes.KEY_APP_THEME, null), equalTo(UpgradeThemes.THEME_NIGHT))
         assertThat(prefs.getString(UpgradeThemes.KEY_NIGHT_THEME, null), equalTo(UpgradeThemes.THEME_DARK))
+    }
+
+    @Test
+    fun `long touch migration removes invalid bindings and preserves valid bindings`() {
+        prefs.edit {
+            putString("binding_SHOW_ANSWER", "1/r⌨Ctrl+660|r⍝LONG_TAP2|r✅Ä1|r⌨not-a-number2|r⍝SWIPE_UP2")
+        }
+        val upgrade = PreferenceUpgrade.RemoveLongTouchGesture()
+
+        upgrade.performUpgrade(prefs)
+
+        val expected = "1/r⌨Ctrl+660|r✅Ä1|r⍝SWIPE_UP2"
+        assertEquals(expected, prefs.getString("binding_SHOW_ANSWER", null))
+
+        upgrade.performUpgrade(prefs)
+
+        assertEquals(expected, prefs.getString("binding_SHOW_ANSWER", null))
+    }
+
+    @Test
+    fun `long touch migration leaves all invalid bindings explicitly unbound`() {
+        prefs.edit {
+            putString("binding_SHOW_ANSWER", "1/r⍝LONG_TAP2|r⌨not-a-number2|r✅2")
+        }
+
+        PreferenceUpgrade.RemoveLongTouchGesture().performUpgrade(prefs)
+
+        assertEquals("1/", prefs.getString("binding_SHOW_ANSWER", null))
+        assertTrue(ViewerAction.SHOW_ANSWER.getBindings(prefs).isEmpty())
+    }
+
+    @Test
+    fun `long touch migration does not rewrite preferences with only valid bindings`() {
+        val original = "1/r⌨Shift+Ctrl+660|r✅Ä1|r⍝SWIPE_UP2"
+        prefs.edit {
+            putString("binding_SHOW_ANSWER", original)
+        }
+
+        PreferenceUpgrade.RemoveLongTouchGesture().performUpgrade(prefs)
+
+        assertEquals(original, prefs.getString("binding_SHOW_ANSWER", null))
     }
 
     @Test

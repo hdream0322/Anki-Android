@@ -345,7 +345,7 @@ open class Reviewer :
         supportFragmentManager.setFragmentResultListener(AiChatBottomSheetFragment.REQUEST_KEY_DISMISSED, this) { _, _ ->
             refreshActionBar()
         }
-        previousCardId = savedInstanceState?.getLongOrNull(KEY_PREVIOUS_CARD_ID)
+        previousCardId = savedInstanceState?.getLongOrNull(STATE_PREVIOUS_CARD_ID)
     }
 
     override fun onPause() {
@@ -366,7 +366,7 @@ open class Reviewer :
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        previousCardId?.let { outState.putLong(KEY_PREVIOUS_CARD_ID, it) }
+        previousCardId?.let { outState.putLong(STATE_PREVIOUS_CARD_ID, it) }
     }
 
     protected val flagToDisplay: Flag
@@ -2437,7 +2437,7 @@ open class Reviewer :
          */
         private const val SHARED_WHITEBOARD_DID: DeckId = -1L
 
-        private const val KEY_PREVIOUS_CARD_ID = "key_previous_card_id"
+        private const val STATE_PREVIOUS_CARD_ID = "key_previous_card_id"
 
         private const val REQUEST_AUDIO_PERMISSION = 0
         private const val ANIMATION_DURATION = 200

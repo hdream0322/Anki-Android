@@ -202,8 +202,6 @@ import kotlin.math.roundToInt
 import com.ichi2.anki.common.android.R as CommonR
 import com.ichi2.anki.noteeditor.R as NoteEditorR
 
-const val CALLER_KEY = "caller"
-
 /**
  * Allows the user to edit a note, for instance if there is a typo. A card is a presentation of a note, and has two
  * sides: a question and an answer. Any number of fields can appear on each side. When you add a note to Anki, cards
@@ -540,17 +538,17 @@ class NoteEditorFragment :
         fieldState.setInstanceState(savedInstanceState)
         val intent = requireActivity().intent
         if (savedInstanceState != null) {
-            caller = fromValue(savedInstanceState.getInt(CALLER_KEY))
+            caller = fromValue(savedInstanceState.getInt(STATE_CALLER))
             addNote = savedInstanceState.getBoolean("addNote")
             deckId = savedInstanceState.getLong("did")
             selectedNoteTypeId =
                 if (savedInstanceState.containsKey("noteTypeId")) savedInstanceState.getLong("noteTypeId") else null
             selectedTags = savedInstanceState.getStringArrayList("tags")
-            reloadRequired = savedInstanceState.getBoolean(EXTRA_RELOAD_REQUIRED)
+            reloadRequired = savedInstanceState.getBoolean(STATE_RELOAD_REQUIRED)
             multimediaController.onRestoreInstanceState(savedInstanceState)
             toggleStickyText =
                 savedInstanceState.getSerializableCompat<HashMap<Int, String?>>("toggleSticky")!!
-            changed = savedInstanceState.getBoolean(EXTRA_NOTE_CHANGED)
+            changed = savedInstanceState.getBoolean(STATE_NOTE_CHANGED)
         } else {
             caller = fromValue(requireArguments().getInt(EXTRA_CALLER, NoteEditorCaller.NO_CALLER.value))
             if (caller == NoteEditorCaller.NO_CALLER) {
@@ -616,12 +614,12 @@ class NoteEditorFragment :
 
     private fun addInstanceStateToBundle(savedInstanceState: Bundle) {
         Timber.i("Saving instance")
-        savedInstanceState.putInt(CALLER_KEY, caller.value)
+        savedInstanceState.putInt(STATE_CALLER, caller.value)
         savedInstanceState.putBoolean("addNote", addNote)
         savedInstanceState.putLong("did", deckId)
         selectedNoteTypeId?.let { savedInstanceState.putLong("noteTypeId", it) }
-        savedInstanceState.putBoolean(EXTRA_NOTE_CHANGED, changed)
-        savedInstanceState.putBoolean(EXTRA_RELOAD_REQUIRED, reloadRequired)
+        savedInstanceState.putBoolean(STATE_NOTE_CHANGED, changed)
+        savedInstanceState.putBoolean(STATE_RELOAD_REQUIRED, reloadRequired)
         savedInstanceState.putIntegerArrayList("customViewIds", customViewIds)
         multimediaController.onSaveInstanceState(savedInstanceState)
         savedInstanceState.putSerializable("toggleSticky", toggleStickyText)
@@ -1115,8 +1113,8 @@ class NoteEditorFragment :
         } else if (ACTION_CREATE_FLASHCARD == intent.action) {
             // mSourceLanguage = extras.getString(SOURCE_LANGUAGE);
             // mTargetLanguage = extras.getString(TARGET_LANGUAGE);
-            sourceText!![0] = extras.getString(SOURCE_TEXT)
-            sourceText!![1] = extras.getString(TARGET_TEXT)
+            sourceText!![0] = extras.getString(EXTRA_SOURCE_TEXT)
+            sourceText!![1] = extras.getString(EXTRA_TARGET_TEXT)
         } else {
             var first: String?
             var second: String?
@@ -2832,8 +2830,8 @@ class NoteEditorFragment :
         // the action is cancelled?
         //    public static final String SOURCE_LANGUAGE = "SOURCE_LANGUAGE";
         //    public static final String TARGET_LANGUAGE = "TARGET_LANGUAGE";
-        const val SOURCE_TEXT = "SOURCE_TEXT"
-        const val TARGET_TEXT = "TARGET_TEXT"
+        const val EXTRA_SOURCE_TEXT = "SOURCE_TEXT"
+        const val EXTRA_TARGET_TEXT = "TARGET_TEXT"
         const val EXTRA_CALLER = "CALLER"
         const val EXTRA_CARD_ID = "CARD_ID"
         const val EXTRA_CONTENTS = "CONTENTS"
@@ -2846,10 +2844,13 @@ class NoteEditorFragment :
         const val ACTION_CREATE_FLASHCARD_SEND = "android.intent.action.SEND"
         const val EXTRA_NOTE_CHANGED = "noteChanged"
         const val EXTRA_RELOAD_REQUIRED = "reloadRequired"
+        private const val STATE_NOTE_CHANGED = "noteChanged"
+        private const val STATE_RELOAD_REQUIRED = "reloadRequired"
         const val EXTRA_IMG_OCCLUSION = "image_uri"
         const val EXTRA_IN_CARD_BROWSER_ACTIVITY = "inCardBrowserActivity"
         const val EXTRA_CARD_IDS = "EXTRA_CARD_IDS"
         const val REQUEST_DECK_SELECTION_NOTE_EDITOR = "request_deck_selection_note_editor"
+        private const val STATE_CALLER = "caller"
 
         // calling activity
         enum class NoteEditorCaller(

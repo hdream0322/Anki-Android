@@ -3,12 +3,15 @@
 package com.ichi2.anki.common.utils.ext
 
 import anki.config.ConfigKey
+import com.ichi2.anki.browser.search.SavedSearch
+import com.ichi2.anki.browser.search.toMap
 import com.ichi2.anki.common.utils.ConfigProperty
 import com.ichi2.anki.common.utils.configProperty
 import com.ichi2.anki.common.utils.ext.AddingDefaultsMode.DECIDE_BY_NOTE_TYPE
 import com.ichi2.anki.common.utils.ext.AddingDefaultsMode.USE_CURRENT_DECK
 import com.ichi2.anki.common.utils.jsonConfigProperty
 import com.ichi2.anki.common.utils.orDefault
+import com.ichi2.anki.libanki.BrowserConfig
 import com.ichi2.anki.libanki.Config
 import com.ichi2.anki.libanki.Consts
 import com.ichi2.anki.libanki.DeckId
@@ -91,3 +94,26 @@ var Config.flagLabels by ConfigProperty(
     read = { getObject("flagLabels", JSONObject()) },
     write = { set("flagLabels", it) },
 )
+
+/**
+ * Saved searches in the collection. Names are case-sensitive.
+ * Anki Desktop orders them by name, regardless of the order written here.
+ *
+ * @see SavedSearch
+ */
+var Config.savedFilters by jsonConfigProperty<Map<String, String>>("savedFilters").orDefault(emptyMap()).mapped(
+    decode = { values -> values.map { (name, query) -> SavedSearch(name, query) } },
+    encode = { values -> values.toMap() },
+)
+
+/** Column key used to sort the browser in cards mode. */
+var Config.browserSortCardsColumn by jsonConfigProperty<String>(BrowserConfig.CARDS_SORT_COLUMN_KEY).orDefault("noteFld")
+
+/** Column key used to sort the browser in notes mode. */
+var Config.browserSortNotesColumn by jsonConfigProperty<String>(BrowserConfig.NOTES_SORT_COLUMN_KEY).orDefault("noteFld")
+
+/** Whether the cards-mode browser sort is reversed. */
+var Config.browserSortCardsBackwards by jsonConfigProperty<Boolean>(BrowserConfig.CARDS_SORT_BACKWARDS_KEY).orDefault(false)
+
+/** Whether the notes-mode browser sort is reversed. */
+var Config.browserSortNotesBackwards by jsonConfigProperty<Boolean>(BrowserConfig.NOTES_SORT_BACKWARDS_KEY).orDefault(false)

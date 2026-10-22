@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Ashish Yadav <mailtoashish693@gmail.com>
 // SPDX-License-Identifier: GPL-3.0-or-later
 import com.android.build.api.dsl.LibraryExtension
+import com.ichi2.anki.gradle.addAnkiBackendDependencies
 
 plugins {
     id("ankidroid.android.library")
@@ -15,7 +16,10 @@ dependencies {
     implementation(project(":anki-common"))
     implementation(project(":common"))
     implementation(project(":common:android"))
+    implementation(project(":compat"))
     implementation(project(":libanki"))
+
+    addAnkiBackendDependencies(project)
 
     implementation(libs.androidx.annotation)
     implementation(libs.androidx.constraintlayout)

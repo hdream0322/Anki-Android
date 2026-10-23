@@ -120,7 +120,7 @@ val forkReleaseDate =
         .orElse(providers.environmentVariable("FORK_RELEASE_DATE"))
         .orElse("0")
 
-val upstreamVersionName = "2.26.0alpha6"
+val upstreamVersionName = "2.26.0alpha7"
 
 android {
     namespace = "com.ichi2.anki"
@@ -176,7 +176,7 @@ android {
         // This ensures the correct ordering between the various types of releases (dev < alpha < beta < release) which is
         // needed for upgrades to be offered correctly.
         // Upstream baseline: keep this a plain literal, upstream's validateVersionCode parses it.
-        versionCode = 22600106
+        versionCode = 22600107
         // Deurim: add the per-fork build counter (see forkBuild above). Must not start with
         // `versionCode`, or validateVersionCode sees two declarations and fails.
         this.versionCode = versionCode!! + forkBuild
@@ -409,6 +409,7 @@ android {
 
                         test.systemProperty("screenshot.theme", theme)
                         test.systemProperty("screenshot.device", device)
+                        test.systemProperty("screenshot.accessibilityScan", project.hasProperty("accessibilityScan"))
                     }
                     // Ensures that no EmptyApplication test relies on AnkiDroidApp
                     //  by only running EmptyApplication tests
@@ -922,6 +923,7 @@ dependencies {
     }
     testImplementation(libs.androidx.work.testing)
     testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.accessibility.check)
     testImplementation(libs.roborazzi.rule)
     // for testing flows
     testImplementation(libs.cashapp.turbine)

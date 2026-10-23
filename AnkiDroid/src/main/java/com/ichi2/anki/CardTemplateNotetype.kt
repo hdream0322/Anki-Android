@@ -100,7 +100,6 @@ class CardTemplateNotetype(
     suspend fun saveToDatabase() {
         Timber.d("saveToDatabase() called")
         changes.dumpChanges()
-        clearTempNoteTypeFiles()
         val updated = notetype.deepClone()
         for ((i, template) in updated.templates.withIndex()) {
             template.setOrd(originalTemplateOrds[i])
@@ -108,6 +107,7 @@ class CardTemplateNotetype(
         undoableOp {
             notetypes.updateDict(updated)
         }
+        clearTempNoteTypeFiles()
     }
 
     fun addTemplateChange(
@@ -116,6 +116,9 @@ class CardTemplateNotetype(
     ) = changes.addTemplateChange(type, ordinal)
 
     fun getDeleteDbOrds(ord: Int): IntArray = changes.getDeleteDbOrds(ord)
+
+    /** Database ordinal for an editor position, or null for an unsaved addition. */
+    fun getOriginalOrdinal(ordinal: Int): CardOrdinal? = originalTemplateOrds[ordinal]
 
     companion object {
         private const val STATE_EDITED_NOTE_TYPE_FILENAME = "editedNoteTypeFilename"

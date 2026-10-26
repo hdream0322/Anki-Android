@@ -109,18 +109,21 @@ class DeckAdapter(
     /**
      * Set new data in the adapter. This should be used instead of [submitList] (which is called
      * by this method) so there's no need to call [notifyDataSetChanged] on the adapter.
+     *
+     * @param onCommitted run once [data] is applied to the list (see [submitList])
      */
     fun submit(
         data: List<DisplayDeckNode>,
         hasSubDecks: Boolean,
         dayStartMillis: Long,
+        onCommitted: (() -> Unit)? = null,
     ) {
         // force refresh when sub decks status changes as this info isn't encapsulated in the
         // adapter's items so there wouldn't be an ui refresh just from using submitList()
         val forceRefresh = this.hasSubdecks != hasSubDecks || this.dayStartMillis != dayStartMillis
         this.hasSubdecks = hasSubDecks
         this.dayStartMillis = dayStartMillis
-        submitList(data)
+        submitList(data, onCommitted?.let { Runnable(it) })
         if (forceRefresh) notifyDataSetChanged()
     }
 

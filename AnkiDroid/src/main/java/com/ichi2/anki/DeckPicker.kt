@@ -69,6 +69,7 @@ import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import androidx.work.NetworkType
 import androidx.work.WorkInfo
@@ -311,6 +312,9 @@ open class DeckPicker :
 
     private lateinit var decksLayoutManager: LinearLayoutManager
     private lateinit var deckListAdapter: DeckAdapter
+
+    /** [DeckPickerViewModel.focusedDeck] when the deck list was last submitted. */
+    private var focusedDeckOfLastDeckList: DeckId? = null
     private var backgroundImageErrorShown = false
     private lateinit var pullToSyncWrapper: SwipeRefreshLayout
 
@@ -933,11 +937,32 @@ open class DeckPicker :
         }
 
         fun onDeckListChanged(deckList: FlattenedDeckList) {
+            // Studying re-sorts decks under the study-date orders. Keep the viewport where it was
+            // instead of letting RecyclerView follow the moved deck, unless the focus changed:
+            // onFocusedDeckChanged then scrolls to the newly focused deck.
+            val focusedDeck = viewModel.focusedDeck
+            val keepScroll =
+                viewModel.flowOfDeckSortOrder.value != DeckSortOrder.NAME &&
+                    focusedDeck == focusedDeckOfLastDeckList &&
+                    deckListAdapter.itemCount > 0
+            focusedDeckOfLastDeckList = focusedDeck
+            val firstVisible = decksLayoutManager.findFirstVisibleItemPosition()
+            // scrollToPositionWithOffset measures from the decorated edge, after the list's top padding.
+            val firstVisibleOffset =
+                decksLayoutManager.findViewByPosition(firstVisible)?.let {
+                    decksLayoutManager.getDecoratedTop(it) - deckPickerBinding.decks.paddingTop
+                } ?: 0
             // Filtering must not recreate the study options fragment: its menu invalidation closes search.
             deckListAdapter.submit(
                 data = deckList.data,
                 hasSubDecks = deckList.hasSubDecks,
                 dayStartMillis = deckList.dayStartMillis,
+                onCommitted =
+                    if (keepScroll && firstVisible != RecyclerView.NO_POSITION) {
+                        { decksLayoutManager.scrollToPositionWithOffset(firstVisible, firstVisibleOffset) }
+                    } else {
+                        null
+                    },
             )
             val deckId = deckIdToScrollTo?.takeIf { deckList.data.isNotEmpty() } ?: return
             deckIdToScrollTo = null

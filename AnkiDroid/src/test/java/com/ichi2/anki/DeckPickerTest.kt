@@ -37,6 +37,7 @@ import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.commitNow
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.action.ViewActions.click
@@ -61,6 +62,7 @@ import com.ichi2.anki.common.utils.ext.getParcelableExtraCompat
 import com.ichi2.anki.databinding.ActivityHomescreenBinding
 import com.ichi2.anki.deckpicker.DeckFilters
 import com.ichi2.anki.deckpicker.DeckPickerViewModel
+import com.ichi2.anki.deckpicker.DeckSortOrder
 import com.ichi2.anki.deckpicker.SyncIconState
 import com.ichi2.anki.deckpicker.filterAndFlattenDisplay
 import com.ichi2.anki.dialogs.DatabaseErrorDialog
@@ -1283,6 +1285,55 @@ class DeckPickerTest : RobolectricTest() {
                 equalTo(false),
             )
         }
+    }
+
+    @Test
+    fun `studying a deck under LEAST_RECENT keeps the deck list scroll position`() {
+        // Deck i was last studied (40 - i) days ago, so LEAST_RECENT lists them in creation order.
+        // The backend computes the day cutoff from the real clock, so revlog timestamps must too.
+        val now = System.currentTimeMillis()
+        val deckIds =
+            (0 until 40).map { i ->
+                val did = addDeck("Deck %02d".format(i))
+                addNoteToDeck(did, count = 2)
+                insertReview(now - (40 - i) * 86_400_000L, col.findCards("did:$did").first())
+                did
+            }
+        Prefs.sharedPrefs.edit { putString(DeckPickerViewModel.PREF_DECK_SORT_ORDER, DeckSortOrder.LEAST_RECENT.name) }
+
+        deckPicker {
+            val decks = deckPickerBinding.decks
+            val layoutManager = decks.layoutManager as LinearLayoutManager
+            awaitVisibleDecks(deckIds)
+            layoutManager.scrollToPositionWithOffset(5, 0)
+            advanceRobolectricLooperUntil { layoutManager.findFirstVisibleItemPosition() == 5 }
+
+            // Tap the top visible deck, then study it: it becomes the most recent and re-sorts to the bottom.
+            val studied = deckIds[5]
+            val adapter = decks.adapter as DeckAdapter
+            col.decks.select(studied)
+            viewModel.focusedDeck = studied
+            advanceRobolectricLooperUntil { adapter.currentList.single { it.did == studied }.isSelected }
+            insertReview(now, col.findCards("did:$studied").first())
+            updateDeckList()
+            advanceRobolectricLooperUntil { adapter.currentList.indexOfFirst { it.did == studied } == deckIds.size - 1 }
+            advanceRobolectricLooper()
+
+            assertEquals(5, layoutManager.findFirstVisibleItemPosition())
+            assertEquals(deckIds[6], adapter.currentList[layoutManager.findFirstVisibleItemPosition()].did)
+        }
+    }
+
+    private fun insertReview(
+        epochMs: Long,
+        cardId: Long,
+    ) {
+        col.db.execute(
+            "INSERT INTO revlog (id, cid, usn, ease, ivl, lastIvl, factor, time, type) " +
+                "VALUES (?, ?, -1, 3, 1, 0, 2500, 1000, 1)",
+            epochMs,
+            cardId,
+        )
     }
 
     @Test

@@ -25,13 +25,13 @@ import androidx.recyclerview.widget.RecyclerView
 import com.ichi2.anki.CommonString
 import com.ichi2.anki.R
 import com.ichi2.anki.common.time.TimeManager
+import com.ichi2.anki.common.utils.dp
 import com.ichi2.anki.databinding.ItemDeckBinding
 import com.ichi2.anki.deckpicker.DisplayDeckNode
 import com.ichi2.anki.deckpicker.formatLastStudied
 import com.ichi2.anki.deckpicker.swatch
 import com.ichi2.anki.libanki.DeckId
 import com.ichi2.themes.Themes
-import com.ichi2.utils.dp
 import kotlinx.coroutines.runBlocking
 import net.ankiweb.rsdroid.RustCleanup
 import com.ichi2.anki.common.android.R as CommonR
@@ -269,23 +269,23 @@ class DeckAdapter(
         // Get the colors from the theme attributes
         val attrs =
             intArrayOf(
-                R.attr.zeroCountColor,
-                R.attr.newCountColor,
-                R.attr.learnCountColor,
-                R.attr.reviewCountColor,
-                R.attr.currentDeckBackground,
+                CommonR.attr.zeroCountColor,
+                CommonR.attr.newCountColor,
+                CommonR.attr.learnCountColor,
+                CommonR.attr.reviewCountColor,
+                CommonR.attr.currentDeckBackground,
                 android.R.attr.textColor,
-                R.attr.dynDeckColor,
-                R.attr.expandRef,
-                R.attr.collapseRef,
+                CommonR.attr.dynDeckColor,
+                CommonR.attr.expandRef,
+                CommonR.attr.collapseRef,
             )
         val ta = context.obtainStyledAttributes(attrs)
-        zeroCountColor = ta.getColor(0, context.getColor(R.color.black))
-        newCountColor = ta.getColor(1, context.getColor(R.color.black))
-        learnCountColor = ta.getColor(2, context.getColor(R.color.black))
-        reviewCountColor = ta.getColor(3, context.getColor(R.color.black))
+        zeroCountColor = ta.getColor(0, context.getColor(CommonR.color.black))
+        newCountColor = ta.getColor(1, context.getColor(CommonR.color.black))
+        learnCountColor = ta.getColor(2, context.getColor(CommonR.color.black))
+        reviewCountColor = ta.getColor(3, context.getColor(CommonR.color.black))
         rowCurrentDrawable = ta.getResourceId(4, 0)
-        deckNameDefaultColor = ta.getColor(5, context.getColor(R.color.black))
+        deckNameDefaultColor = ta.getColor(5, context.getColor(CommonR.color.black))
         deckNameDynColor = ta.getColor(6, context.getColor(CommonR.color.material_blue_A700))
         expandImage = ta.getDrawableOrThrow(7)
         expandImage.isAutoMirrored = true

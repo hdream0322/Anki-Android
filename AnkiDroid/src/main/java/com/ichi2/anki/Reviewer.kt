@@ -93,6 +93,7 @@ import com.ichi2.anki.common.time.TimeManager
 import com.ichi2.anki.common.utils.android.HandlerUtils.executeFunctionWithDelay
 import com.ichi2.anki.common.utils.android.HandlerUtils.getDefaultLooper
 import com.ichi2.anki.common.utils.android.showThemedToast
+import com.ichi2.anki.common.utils.dp
 import com.ichi2.anki.common.utils.ext.showRemainingDueCounts
 import com.ichi2.anki.libanki.Card
 import com.ichi2.anki.libanki.CardId
@@ -153,7 +154,6 @@ import com.ichi2.themes.Themes.currentTheme
 import com.ichi2.utils.Permissions.canRecordAudio
 import com.ichi2.utils.ViewGroupUtils.setRenderWorkaround
 import com.ichi2.utils.cancelable
-import com.ichi2.utils.dp
 import com.ichi2.utils.iconAlpha
 import com.ichi2.utils.increaseHorizontalPaddingOfOverflowMenuIcons
 import com.ichi2.utils.message
@@ -167,6 +167,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import timber.log.Timber
 import kotlin.coroutines.resume
+import com.ichi2.anki.common.android.R as CommonR
 
 @Suppress("LeakingThis")
 @NeedsTest("#14709: Timebox shouldn't appear instantly when the Reviewer is opened")
@@ -590,7 +591,7 @@ open class Reviewer :
             }
             clearInsets(
                 topBar,
-                basePadding = resources.getDimensionPixelSize(R.dimen.side_margin),
+                basePadding = resources.getDimensionPixelSize(CommonR.dimen.side_margin),
                 top = if (fullscreenMode == FullScreenMode.BUTTONS_ONLY) topBarTop else null,
             )
         }
@@ -637,7 +638,7 @@ open class Reviewer :
         }
 
         val answerArea = findViewById<ViewGroup>(R.id.answer_options_layout)
-        answerArea.setBackgroundColor(MaterialColors.getColor(this, R.attr.showAnswerColor, 0))
+        answerArea.setBackgroundColor(MaterialColors.getColor(this, CommonR.attr.showAnswerColor, 0))
         // The bottom inset is painted showAnswerColor by the background, extending the
         // answer area's color underneath the navigation bar - or, in immersive review,
         // down to the screen edge

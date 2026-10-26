@@ -55,7 +55,7 @@
     <string name="dangerous_js_api_denied_snackbar">Seguranza: Chamada de JavaScript non segura bloqueada.\nSe confías en todas as tarxetas e modelos da túa colección, isto pode desbloquearse na configuración avanzada.</string>
     <!-- External-app launching from card content (intent: / android-app: URLs) -->
     <string name="allow_card_external_launch_title" maxLength="41">Permitir que as tarxetas abran outras aplicacións</string>
-    <string name="allow_card_external_launch_summ">As tarxetas poden abrir outras aplicacións no teu dispositivo, o que pode desencadear accións potencialmente non desexadas.\nDeixa esta opción desactivada a menos que confíes en todas as tarxetas e modelos da túa colección.</string>
+    <string name="allow_card_external_launch_summ">As tarxetas poden abrir outras aplicacións no teu dispositivo e desencadear accións potencialmente non desexadas.\nAs ligazóns web poden seguir abrindo outras aplicacións aínda que esta opción estea desactivada.\nDéixaa desactivada a menos que confíes en todas as tarxetas e modelos da túa colección.</string>
     <string name="card_external_launch_denied_snackbar">Seguranza: Tarxeta bloqueada ao tentar iniciar outra aplicación.\nSe confías en todas as tarxetas e modelos da túa colección, isto pode desbloquearse na configuración avanzada.</string>
     <!-- preferences.xml entries-->
     <string name="whiteboard_stroke_width" maxLength="41">Grosor do trazo</string>
@@ -168,7 +168,15 @@
     <string name="show_eta_summ">Amosar o tempo restante</string>
     <string name="use_current" maxLength="41">Baralla para as tarxetas novas</string>
     <string name="learn_cutoff" maxLength="41">Aprender por diante do límite</string>
-    <string name="time_limit" maxLength="41">Límite de tempo do Timebox</string>
+    <string name="time_limit" maxLength="41">Límite de tempo dos bloques</string>
+    <string name="timeboxing" maxLength="41">Bloques de tempo</string>
+    <string name="use_timebox" maxLength="41">Usar bloques de tempo</string>
+    <string name="time_limit_label" maxLength="41">Límite de tempo</string>
+    <plurals name="timebox_minutes_suffix">
+        <item quantity="one">min</item>
+        <item quantity="other">min</item>
+    </plurals>
+    <string name="pref_timebox_help_summary">Os bloques de tempo dividen o teu estudo en sesións máis curtas para axudarche a manter a concentración. Cando se acade o límite de tempo, verás cantas tarxetas estudaches e poderás escoller entre facer unha pausa ou continuar.</string>
     <string name="day_offset_with_description" maxLength="41">Comezo do día seguinte</string>
     <plurals name="day_offset_summ" comment="%d is going to be replaced with the number of hours past midnight. It can be replaced if something else suits better the translation">
         <item quantity="one" comment="Consider keeping the unbreakable space after the digit">%d hora despois da medianoite</item>

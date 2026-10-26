@@ -166,7 +166,7 @@ open class AnkiActivity(
         super.onCreate(savedInstanceState)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             @Suppress("deprecation")
-            window.navigationBarColor = getColor(R.color.transparent)
+            window.navigationBarColor = getColor(CommonR.color.transparent)
         }
         supportFragmentManager.setFragmentResultListener(REQUEST_EXPORT_SAVE, this) { _, bundle ->
             saveExportFile(
@@ -279,12 +279,12 @@ open class AnkiActivity(
 
     /**
      * Maps from intent name action to function to run when this action is received by [broadcastReceiver].
-     * By default it handles [SdCardReceiver.MEDIA_EJECT], and shows/dismisses dialogs when an SD
+     * By default it handles [SdCardReceiver.ACTION_MEDIA_EJECT], and shows/dismisses dialogs when an SD
      * card is ejected/remounted (collection is saved beforehand by [SdCardReceiver])
      */
     protected open val broadcastsActions =
         mapOf(
-            SdCardReceiver.MEDIA_EJECT to { onSdCardNotMounted() },
+            SdCardReceiver.ACTION_MEDIA_EJECT to { onSdCardNotMounted() },
         )
 
     /**

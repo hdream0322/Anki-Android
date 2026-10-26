@@ -12,10 +12,11 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsCompat.Type.navigationBars
 import androidx.core.view.WindowInsetsCompat.Type.statusBars
+import com.ichi2.anki.common.utils.dp
 import com.ichi2.testutils.insetsOf
-import com.ichi2.utils.dp
 import org.junit.Test
 import org.robolectric.RuntimeEnvironment
+import com.ichi2.anki.common.android.R as CommonR
 
 /**
  * Screenshot tests for the navigation drawer of [NavigationDrawerActivity]
@@ -73,7 +74,7 @@ class NavigationDrawerScreenshotTest : ScreenshotTest() {
         val navBarOverlay =
             View(this).apply {
                 // the navigationBarColor of the app's themes
-                setBackgroundResource(R.color.semi_transparent_black)
+                setBackgroundResource(CommonR.color.semi_transparent_black)
             }
         decor.addView(
             navBarOverlay,

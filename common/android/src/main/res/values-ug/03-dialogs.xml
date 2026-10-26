@@ -45,8 +45,8 @@
     <string name="repair_deck_dialog">سانداننى ھەقىقەتەن ئوڭشامسىز؟\n\nباشلاشتىن ئىلگىرى، بىر نۇسخا كۆچۈرۈلمىسى «%s» تارماق قىسقۇچقا قۇرۇلىدۇ.</string>
     <string name="intent_aedict_empty">سەھىپە «كۆڭۈلدىكى» بوش</string>
     <string name="intent_aedict_category">AnkiDroid قا كارتا قوشۇشتا بارلىق خاتىرە دەپتەر سەھىپىنى چىقىرىۋېتىدۇ ياكى «كۆڭۈلدىكى» ئاتىدا بىرنى قوشىدۇ</string>
-    <string name="custom_study_new_extend">بۈگۈنكى يېڭى كارتا چېكىنى («3-»)ئاشۇرىدۇ/كېمەيتىدۇ</string>
-    <string name="custom_study_rev_extend">بۈگۈنكى تەكرارلايدىغان كارتا چېكىنى («3-»)ئاشۇرىدۇ/كېمەيتىدۇ</string>
+    <string name="custom_study_extend_limits_title">Extend daily limits</string>
+    <string name="custom_study_increase">Increase</string>
     <string name="custom_study_forgotten">ئۆتكەن x كۈندە ئۇنتۇلغان كارتىنى تەكرارلايدۇ:</string>
     <string name="custom_study_ahead_description">كېيىنكى كارتىنى تەكرارلاش مۆھلىتى:</string>
     <string name="custom_study_preview">يېقىنقى كۈندە قوشقان يېڭى كارتىنى ئالدىن كۆزىتىدۇ:</string>
@@ -117,7 +117,7 @@
     <!-- Deck Options -->
     <!-- Database Errors-->
     <string name="database_locked_title">ساندان قۇلۇپلانغان</string>
-    <string name="database_locked_summary_new" comment="%s is the name of the \'AnkiDroid directory\' setting">Another AnkiDroid app is using this collection. It may conflict even when it is not visibly running.\n\nTo keep using both apps, change the ‘%s’ in one app\'s Advanced settings.\n\nTo use this app now, force-stop the conflicting app.</string>
+    <string name="database_locked_summary_new" comment="%s is the name of the \'AnkiDroid directory\' setting">باشقا AnkiDroid ئەپ بۇ توپلامنى ئىشلىتىۋاتىدۇ. ئۇ كۆرۈنمەي ئىجرا قىلىۋاتقان بولسىمۇ توقۇنۇش كېلىپ چىقىشى مۇمكىن.\n\nبۇ ئىككى ئەپنى ئىشلىتىشنى داۋاملاشتۇرۇش ئۈچۈن، بىر ئەپنىڭ ئالىي تەڭشىكىدە «%s» نى ئۆزگەرتىڭ.\n\nبۇ ئەپنى ھازىر ئىشلىتىشتە، توقۇنۇشقان ئەپنى مەجبۇرىي توختىتىڭ.</string>
     <string name="incompatible_database_version_title">ماسلاشمايدىغان ساندان نەشرى</string>
     <string name="incompatible_database_version_summary">بۇ ساندان AnkiDroid تا ئىشلەيدىغان نەشرىدىن ئالىي نەشرى ئىكەن. ئۇنى ئېچىش ئۈچۈن AnkiDroid نى يۈكسەلتىڭ ياكى ساندان نەشرىنى تۆۋەنلىتىڭ\n\nقوللايدىغان نەشرى: %1$d\nساندان نەشرى: %2$d\n\nتۆۋەندىكى ئەسلىگە كەلتۈرۈش تاللانمىسى نۆۋەتتىكى توپلامنى قاپلىۋېتىدۇ، ماسلىشىشى مۇمكىن بولغان ساندان نەشرى:</string>
     <!-- Deck Picker Background-->
@@ -139,7 +139,7 @@
     <!-- Locale Selection Dialog -->
     <string name="locale_selection_dialog_title_new">تىل تەڭشەك</string>
     <string name="locale_selection_dialog_summary">بەزى GBoard قا ئوخشاش كۆپ تىللىق ھەرپتاختا تېكىست تەھرىرلەۋاتقاندا تىل ئالماشتۇرۇشنى قوللايدۇ\n\nئەگەر ھەرپتاختىڭىز تىل ئالماشتۇرۇشنى قوللىمىسا ھەرپتاختا تارقاتقۇچىغا «كىرگۈزگۈچ تەھرىرلىگۈچنىڭ يەرلىك ئەسكەرتىش تەڭشەك» ئىقتىدارىنى ئىلتىماس قىلىڭ.</string>
-    <string name="locale_selection_dialog_unknown_language" comment="Used for the locales whose name is not displayed when selected and placeholder is language tag">Unknown language [%1$s]</string>
+    <string name="locale_selection_dialog_unknown_language" comment="Used for the locales whose name is not displayed when selected and placeholder is language tag">يوچۇن تىل [%1$s]</string>
     <!-- Help Dialog -->
     <string name="help_title_using_ankidroid">AnkiDroid نى ئىشلىتىش</string>
     <string name="help_item_ankidroid_manual">AnkiDroid قوللانمىسى</string>
@@ -228,6 +228,8 @@
     <string name="webview_update_message">سىستېما WebView نىڭ ۋاقتى ئۆتكەن. بەزى ئىقتىدارلار نورمال ئىشلىمەيدۇ. يېڭىلاڭ.\n\nئورنىتىلغان نەشرى: %1$d\nزۆرۈر بولغان ئەڭ تۆۋەن نەشرى: %2$d</string>
     <string name="compress">پىرېس</string>
     <!-- Tts playback error dialog -->
+    <string name="tts_no_engine_title">No text-to-speech engine installed</string>
+    <string name="tts_no_engine_message">Install an app that provides a text-to-speech engine for your device.</string>
     <string name="tts_error_dialog_title">تىلنى قوللىمايدۇ</string>
     <string name="tts_error_dialog_reason_text">تېكىستتىن ئاۋازغا موتورى b&gt;%1$s&lt;/b&gt; تۆۋەندىكى تىلنى قوللىمايدۇ: &lt;b&gt;%2$s&lt;/b&gt;</string>
     <string name="tts_error_dialog_change_button_text">موتورنى ئۆزگەرت</string>
@@ -263,7 +265,8 @@
     <!-- Change Note Type Dialog -->
     <string name="change_note_type_from" comment="Label indicating the original note type before changing it">نەدىن</string>
     <string name="change_note_type_to" comment="Label indicating the new note type to change to">نەگە</string>
-    <!-- Add profile dialog -->
+    <!-- Add and rename profile dialogs -->
+    <string name="rename_profile" comment="Title of the dialog where the user renames a profile">Rename profile</string>
     <string name="profile_name" comment="Label of the text field where the user types the name of a new profile">تەرجىمىھال ئىسمى</string>
     <string name="profile_name_empty_error" comment="Error shown when the user leaves the profile name empty">تەرجىمىھال ئىسمى بوش قالمايدۇ</string>
     <string name="profile_name_too_long_error" comment="Error shown when a profile name exceeds the maximum length. %1$d is the maximum number of characters">تەرجىمىھال ئىسمى چوقۇم %1$d ھەر ياكى ئۇنىڭدىن قىسقا بولىدۇ</string>

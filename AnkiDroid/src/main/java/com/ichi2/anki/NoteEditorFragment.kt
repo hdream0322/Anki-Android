@@ -96,10 +96,9 @@ import com.ichi2.anki.common.utils.HashUtil
 import com.ichi2.anki.common.utils.android.digit
 import com.ichi2.anki.common.utils.android.showThemedToast
 import com.ichi2.anki.common.utils.annotation.KotlinCleanup
-import com.ichi2.anki.common.utils.ext.AddingDefaultsMode
-import com.ichi2.anki.common.utils.ext.addingDefaultsMode
-import com.ichi2.anki.common.utils.ext.currentDeckId
 import com.ichi2.anki.common.utils.ext.getParcelableExtraCompat
+import com.ichi2.anki.common.utils.ext.ifZero
+import com.ichi2.anki.common.utils.ext.indexOfOrNull
 import com.ichi2.anki.common.utils.ext.pasteImagesAsPng
 import com.ichi2.anki.compat.CompatHelper.Companion.getSerializableCompat
 import com.ichi2.anki.compat.setTooltipTextCompat
@@ -145,6 +144,7 @@ import com.ichi2.anki.noteeditor.NoteEditorMultimediaController
 import com.ichi2.anki.noteeditor.Toolbar
 import com.ichi2.anki.noteeditor.Toolbar.TextFormatListener
 import com.ichi2.anki.noteeditor.Toolbar.TextWrapper
+import com.ichi2.anki.noteeditor.ToolbarLayoutDialogHost
 import com.ichi2.anki.noteeditor.data.ToolbarPreferences
 import com.ichi2.anki.observability.undoableOp
 import com.ichi2.anki.pages.ImageOcclusion
@@ -163,6 +163,7 @@ import com.ichi2.anki.utils.HanUnificationDetector
 import com.ichi2.anki.utils.RunOnlyOnce
 import com.ichi2.anki.utils.bottomCornerSideClearance
 import com.ichi2.anki.utils.doOnApplyWindowInsets
+import com.ichi2.anki.utils.ext.getLongOrNull
 import com.ichi2.anki.utils.ext.requireLong
 import com.ichi2.anki.utils.ext.sharedPrefs
 import com.ichi2.anki.utils.ext.showDialogFragment
@@ -300,6 +301,7 @@ class NoteEditorFragment :
     private val fieldState = FieldState.fromEditor(this)
     private lateinit var toolbar: Toolbar
     private val toolbarPreferences by lazy { ToolbarPreferences(sharedPrefs()) }
+    private val toolbarLayoutDialog = ToolbarLayoutDialogHost()
 
     // save field index as key and text as value when toggle sticky clicked in Field Edit Text
     @VisibleForTesting
@@ -540,6 +542,7 @@ class NoteEditorFragment :
         if (savedInstanceState != null) {
             caller = fromValue(savedInstanceState.getInt(STATE_CALLER))
             addNote = savedInstanceState.getBoolean("addNote")
+            isFieldEdited = savedInstanceState.getBoolean("isFieldEdited")
             deckId = savedInstanceState.getLong("did")
             selectedNoteTypeId =
                 if (savedInstanceState.containsKey("noteTypeId")) savedInstanceState.getLong("noteTypeId") else null
@@ -577,16 +580,20 @@ class NoteEditorFragment :
             setBackgroundColor(
                 MaterialColors.getColor(
                     requireContext(),
-                    R.attr.toolbarBackgroundColor,
+                    CommonR.attr.toolbarBackgroundColor,
                     0,
                 ),
             )
-            setIconColor(MaterialColors.getColor(requireContext(), R.attr.toolbarIconColor, 0))
+            setIconColor(MaterialColors.getColor(requireContext(), CommonR.attr.toolbarIconColor, 0))
         }
+        toolbarLayoutDialog.bind(binding.toolbarLayoutDialog, toolbarPreferences, savedInstanceState, ::updateToolbar)
         setupEdgeToEdge()
         registerDeckSelectedHandler(REQUEST_DECK_SELECTION_NOTE_EDITOR, ::onDeckSelected)
         try {
-            setupEditor(getColUnsafe)
+            setupEditor(getColUnsafe, savedInstanceState)
+            if (addNote) {
+                savedInstanceState?.getStringArrayList("addNoteFieldBaseline")?.let { addNoteFieldBaseline = it }
+            }
         } catch (ex: RuntimeException) {
             Timber.w(ex, "setupEditor")
             requireAnkiActivity().onCollectionLoadError()
@@ -610,17 +617,23 @@ class NoteEditorFragment :
     override fun onSaveInstanceState(outState: Bundle) {
         addInstanceStateToBundle(outState)
         super.onSaveInstanceState(outState)
+        toolbarLayoutDialog.onSaveInstanceState(outState)
     }
 
     private fun addInstanceStateToBundle(savedInstanceState: Bundle) {
         Timber.i("Saving instance")
         savedInstanceState.putInt(STATE_CALLER, caller.value)
         savedInstanceState.putBoolean("addNote", addNote)
+        if (addNote) {
+            savedInstanceState.putBoolean("isFieldEdited", isFieldEdited)
+            savedInstanceState.putStringArrayList("addNoteFieldBaseline", ArrayList(addNoteFieldBaseline))
+        }
         savedInstanceState.putLong("did", deckId)
         selectedNoteTypeId?.let { savedInstanceState.putLong("noteTypeId", it) }
         savedInstanceState.putBoolean(STATE_NOTE_CHANGED, changed)
         savedInstanceState.putBoolean(STATE_RELOAD_REQUIRED, reloadRequired)
         savedInstanceState.putIntegerArrayList("customViewIds", customViewIds)
+        fieldState.saveInstanceState(savedInstanceState)
         multimediaController.onSaveInstanceState(savedInstanceState)
         savedInstanceState.putSerializable("toggleSticky", toggleStickyText)
         if (selectedTags == null) {
@@ -630,7 +643,10 @@ class NoteEditorFragment :
     }
 
     // Finish initializing the fragment after the collection has been correctly loaded
-    private fun setupEditor(col: Collection) {
+    private fun setupEditor(
+        col: Collection,
+        savedInstanceState: Bundle?,
+    ) {
         val intent = requireActivity().intent
         Timber.d("NoteEditor() onCollectionLoaded: caller: %s", caller)
         requireAnkiActivity().registerReceiver()
@@ -760,7 +776,6 @@ class NoteEditorFragment :
             deckTextView.setText(CommonString.CardEditorCardDeck)
         }
 
-        deckId = requireArguments().getLong(EXTRA_DID, deckId)
         if (addNote) {
             // Initialize both selections from the same defaults
             // https://github.com/ankitects/anki/blob/754ce3a25f608010c0249e074e5d7fe95bda035f/qt/aqt/addcards_legacy.py#L91-L108
@@ -768,6 +783,8 @@ class NoteEditorFragment :
             if (selectedNoteTypeId?.let { col.notetypes.get(it) } == null) {
                 selectedNoteTypeId = defaults.notetypeId
             }
+            // A restored selection takes precedence over the original launch destination.
+            deckId = deckId.ifZero { requireArguments().getLong(EXTRA_DID) }
             val deck = col.decks.getLegacy(deckId)
             if (deck == null || deck.isFiltered) {
                 deckId = defaults.deckId
@@ -790,8 +807,11 @@ class NoteEditorFragment :
             }
         }
         val getTextFromSearchView = requireArguments().getString(EXTRA_TEXT_FROM_SEARCH_VIEW)
-        setDid(editorNote)
-        setNote(editorNote, FieldChangeType.onActivityCreation(shouldReplaceNewlines()))
+        setNote(
+            editorNote,
+            FieldChangeType.onActivityCreation(shouldReplaceNewlines()),
+            noteTypeId = savedInstanceState?.getLongOrNull("noteTypeId") ?: requireArguments().getLongOrNull(EXTRA_NOTE_TYPE_ID),
+        )
         if (addNote) {
             noteTypeSpinner!!.onItemSelectedListener = SetNoteTypeListener()
             requireAnkiActivity().setToolbarText(titleRes = CommonString.menu_add)
@@ -1186,8 +1206,7 @@ class NoteEditorFragment :
             }
 
             if (!isFieldEdited) return false
-            val currentStrings = editFields!!.map { it.text?.toString() ?: "" }
-            return currentStrings != addNoteFieldBaseline
+            return fieldState.currentFieldValues != addNoteFieldBaseline
         }
 
         // changed note type?
@@ -1248,6 +1267,7 @@ class NoteEditorFragment :
         var closeIntent: Intent? = null
         changed = true
         sourceText = null
+        fieldState.clearHiddenFields()
         refreshNoteData(FieldChangeType.onNoteAdded(shouldReplaceNewlines()))
         // backend text ends with dot
         val successMessage = TR.importingCardsAdded(count).replace(".", "")
@@ -1332,7 +1352,7 @@ class NoteEditorFragment :
                 reloadRequired = true
 
                 val cardIdsToMove = getAffectedCards()
-                undoableOp { setDeck(cardIdsToMove, deckId) }
+                undoableOp(this@NoteEditorFragment) { setDeck(cardIdsToMove, deckId) }
 
                 // refresh the card object to reflect the database changes from above
                 currentEditedCard!!.load(getColUnsafe)
@@ -1370,7 +1390,7 @@ class NoteEditorFragment :
             // accept & update the note in the activity
             if (caller == NoteEditorCaller.PREVIEWER_EDIT || caller == NoteEditorCaller.EDIT) {
                 requireActivity().withProgress {
-                    undoableOp {
+                    undoableOp(this@NoteEditorFragment) {
                         updateNote(currentEditedCard!!.note(this@undoableOp))
                     }
                 }
@@ -1500,13 +1520,8 @@ class NoteEditorFragment :
                 }
             }
         }
-        menu.findItem(R.id.action_show_toolbar).isChecked = toolbarPreferences.isVisible
         menu.findItem(R.id.action_capitalize).isChecked =
             sharedPrefs().getBoolean(PREF_NOTE_EDITOR_CAPITALIZE, true)
-        menu.findItem(R.id.action_scroll_toolbar).apply {
-            isChecked = toolbarPreferences.isScrollable
-            isEnabled = toolbarPreferences.isVisible
-        }
     }
 
     /**
@@ -1581,24 +1596,15 @@ class NoteEditorFragment :
                 showDialogFragment(fontSizeDialog)
                 return true
             }
-            R.id.action_show_toolbar -> {
-                item.isChecked = !item.isChecked
-                toolbarPreferences.isVisible = item.isChecked
-                updateToolbar()
-
-                // Update the overflow action menu in order to switch the enable/disable status of the "Scroll toolbar" item on the spot
-                requireActivity().invalidateOptionsMenu()
+            R.id.action_toolbar_layout -> {
+                toolbarLayoutDialog.show()
+                return true
             }
             R.id.action_capitalize -> {
                 Timber.i("NoteEditor:: Capitalize button pressed. New State: %b", !item.isChecked)
                 item.isChecked = !item.isChecked // Needed for Android 9
                 toggleCapitalize(item.isChecked)
                 return true
-            }
-            R.id.action_scroll_toolbar -> {
-                item.isChecked = !item.isChecked
-                toolbarPreferences.isScrollable = item.isChecked
-                updateToolbar()
             }
         }
         return false
@@ -1641,7 +1647,14 @@ class NoteEditorFragment :
     }
 
     fun copyNote() {
-        requestAddLauncher.navigate(NoteEditorDestination.CopyNote(deckId, fieldsText, selectedTags.orEmpty()))
+        requestAddLauncher.navigate(
+            NoteEditorDestination.CopyNote(
+                deckId = deckId,
+                fieldsText = fieldsText,
+                noteTypeId = currentlySelectedNotetype?.id ?: editorNote!!.noteTypeId,
+                tags = selectedTags.orEmpty(),
+            ),
+        )
     }
 
     // ----------------------------------------------------------------------------
@@ -2191,34 +2204,7 @@ class NoteEditorFragment :
         return fieldText.toString()
     }
 
-    private fun setDid(note: Note?) {
-        fun calculateDeckId(): DeckId {
-            if (deckId != 0L) return deckId
-            if (note != null && !addNote && currentEditedCard != null) {
-                return currentEditedCard!!.currentDeckId()
-            }
-
-            if (getColUnsafe.config.addingDefaultsMode == AddingDefaultsMode.DECIDE_BY_NOTE_TYPE) {
-                return getColUnsafe.notetypes.current().let {
-                    Timber.d("Adding to deck of note type, noteType: %s", it.name)
-                    return@let it.did
-                }
-            }
-
-            val currentDeckId = getColUnsafe.config.currentDeckId
-            return if (getColUnsafe.decks.isFiltered(currentDeckId)) {
-                /*
-                 * If the deck in mCurrentDid is a filtered (dynamic) deck, then we can't create cards in it,
-                 * and we set mCurrentDid to the Default deck. Otherwise, we keep the number that had been
-                 * selected previously in the activity.
-                 */
-                1
-            } else {
-                currentDeckId
-            }
-        }
-
-        deckId = calculateDeckId()
+    private fun updateDeckName() {
         launchCatchingTask {
             val selectedDeckName = withCol { decks.name(deckId) }
             view?.findViewById<TextView>(R.id.note_deck_name)?.text = selectedDeckName
@@ -2234,14 +2220,17 @@ class NoteEditorFragment :
     private fun setNote(
         note: Note?,
         changeType: FieldChangeType,
+        noteTypeId: NoteTypeId? = null,
     ) {
+        // An explicit type takes precedence over the deck's remembered type.
+        noteTypeId?.let { selectedNoteTypeId = it }
         editorNote = note ?: Note.fromNotetypeId(getColUnsafe, checkNotNull(selectedNoteTypeId))
         if (selectedTags == null) {
             selectedTags = editorNote!!.tags
         }
         // nb: setOnItemSelectedListener and populateEditFields need to occur after this
         setNoteTypePosition()
-        setDid(note)
+        updateDeckName()
         updateTags()
         updateCards(editorNote!!.notetype)
         updateToolbar()
@@ -2261,19 +2250,17 @@ class NoteEditorFragment :
         } else {
             populateEditFields(changeType)
             if (changeType.type == Type.CHANGE_FIELD_COUNT) {
-                // A note type switch may carry the user's just-typed text into the new fields,
-                // so don't re-capture the baseline from current content. Instead, remap the
-                // existing baseline the same way the field content itself was remapped: keep
-                // baseline values for fields that still exist (put through the same <br>-to-newline
-                // conversion `populateEditFields` just applied to the actual field content, so a
-                // sticky field containing literal `<br>` text doesn't look edited), and treat any
-                // field the new note type added as baseline-empty, since it didn't exist for the
-                // user to edit before.
+                // Keep the baseline for hidden fields as well as visible ones. Only visible
+                // values pass through setContent(), so only normalize those baseline values.
                 if (addNote) {
                     addNoteFieldBaseline =
-                        List(editFields!!.size) { i ->
+                        List(maxOf(editFields!!.size, addNoteFieldBaseline.size)) { i ->
                             val old = addNoteFieldBaseline.getOrElse(i) { "" }
-                            FieldEditText.convertBrToNewline(old, changeType.replaceNewlines)
+                            if (i < editFields!!.size) {
+                                FieldEditText.convertBrToNewline(old, changeType.replaceNewlines)
+                            } else {
+                                old
+                            }
                         }
                 }
             } else {
@@ -2292,7 +2279,7 @@ class NoteEditorFragment :
     ) {
         val drawable =
             ResourcesCompat.getDrawable(resources, drawableRes, null)!!.apply {
-                setTint(MaterialColors.getColor(requireContext(), R.attr.toolbarIconColor, 0))
+                setTint(MaterialColors.getColor(requireContext(), CommonR.attr.toolbarIconColor, 0))
             }
         val button =
             toolbar.insertItem(0, drawable) { insertCloze(type) }.apply {
@@ -2391,7 +2378,7 @@ class NoteEditorFragment :
         // Let the user add more buttons (always at the end).
         // Sets the add custom tag icon color.
         val drawable = ResourcesCompat.getDrawable(resources, NoteEditorR.drawable.ic_add_toolbar_icon, null)
-        drawable!!.setTint(MaterialColors.getColor(requireContext(), R.attr.toolbarIconColor, 0))
+        drawable!!.setTint(MaterialColors.getColor(requireContext(), CommonR.attr.toolbarIconColor, 0))
         val addButton = toolbar.insertItem(0, drawable) { displayAddToolbarDialog() }
         addButton.contentDescription = resources.getString(CommonString.add_toolbar_item)
         addButton.setTooltipTextCompat(resources.getString(CommonString.add_toolbar_item))
@@ -2574,8 +2561,7 @@ class NoteEditorFragment :
     }
 
     private fun setNoteTypePosition() {
-        // Set current note type and deck positions in spinners
-        val position = allNoteTypeIds!!.indexOf(editorNote!!.notetype.id)
+        val position = allNoteTypeIds!!.indexOfOrNull(editorNote!!.noteTypeId)!!
         // set selection without firing selectionChanged event
         noteTypeSpinner!!.setSelection(position, false)
     }
@@ -2846,6 +2832,7 @@ class NoteEditorFragment :
         const val EXTRA_TAGS = "TAGS"
         const val EXTRA_ID = "ID"
         const val EXTRA_DID = "DECK_ID"
+        const val EXTRA_NOTE_TYPE_ID = "NOTE_TYPE_ID"
         const val EXTRA_TEXT_FROM_SEARCH_VIEW = "SEARCH"
         const val EXTRA_EDIT_FROM_CARD_ID = "editCid"
         const val ACTION_CREATE_FLASHCARD = "org.openintents.action.CREATE_FLASHCARD"

@@ -48,6 +48,7 @@ import anki.scheduler.CardAnswer.Rating
 import app.cash.turbine.test
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.ichi2.anki.CollectionManager.TR
+import com.ichi2.anki.CollectionManager.withCol
 import com.ichi2.anki.DeckPickerFloatingActionMenu.CloseAnimation
 import com.ichi2.anki.analytics.AnkiDroidUsageAnalytics
 import com.ichi2.anki.browser.CardBrowserFragment
@@ -58,8 +59,10 @@ import com.ichi2.anki.common.utils.android.getResFromAttr
 import com.ichi2.anki.common.utils.annotation.KotlinCleanup
 import com.ichi2.anki.common.utils.ext.getParcelableExtraCompat
 import com.ichi2.anki.databinding.ActivityHomescreenBinding
+import com.ichi2.anki.deckpicker.DeckFilters
 import com.ichi2.anki.deckpicker.DeckPickerViewModel
 import com.ichi2.anki.deckpicker.SyncIconState
+import com.ichi2.anki.deckpicker.filterAndFlattenDisplay
 import com.ichi2.anki.dialogs.DatabaseErrorDialog
 import com.ichi2.anki.dialogs.DatabaseErrorDialog.DatabaseErrorDialogType
 import com.ichi2.anki.dialogs.DeckPickerConfirmDeleteDeckDialog
@@ -144,6 +147,7 @@ import kotlin.test.assertNotSame
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
+import com.ichi2.anki.common.android.R as CommonR
 
 typealias ContextMenuOption = DeckPickerContextMenuOption
 
@@ -180,16 +184,16 @@ class DeckPickerTest : RobolectricTest() {
     fun getPreviousVersionUpgradeFrom201to292() {
         val newVersion = 20900302 // 2.9.2
         val preferences = mock(SharedPreferences::class.java)
-        whenever(preferences.getLong(DeckPickerViewModel.UPGRADE_VERSION_KEY, newVersion.toLong()))
+        whenever(preferences.getLong(DeckPickerViewModel.PREF_LAST_UPGRADE_VERSION, newVersion.toLong()))
             .thenThrow(ClassCastException::class.java)
-        whenever(preferences.getInt(DeckPickerViewModel.UPGRADE_VERSION_KEY, newVersion))
+        whenever(preferences.getInt(DeckPickerViewModel.PREF_LAST_UPGRADE_VERSION, newVersion))
             .thenThrow(ClassCastException::class.java)
-        whenever(preferences.getString(DeckPickerViewModel.UPGRADE_VERSION_KEY, ""))
+        whenever(preferences.getString(DeckPickerViewModel.PREF_LAST_UPGRADE_VERSION, ""))
             .thenReturn("2.0.1")
         val editor = mock(SharedPreferences.Editor::class.java)
         whenever(preferences.edit()).thenReturn(editor)
         val updated = mock(SharedPreferences.Editor::class.java)
-        whenever(editor.remove(DeckPickerViewModel.UPGRADE_VERSION_KEY)).thenReturn(updated)
+        whenever(editor.remove(DeckPickerViewModel.PREF_LAST_UPGRADE_VERSION)).thenReturn(updated)
         ActivityScenario.launch(DeckPicker::class.java).use { scenario ->
             scenario.onActivity { deckPicker: DeckPicker ->
                 val previousVersion =
@@ -197,7 +201,7 @@ class DeckPickerTest : RobolectricTest() {
                 assertEquals(0, previousVersion)
             }
         }
-        verify(editor, times(1)).remove(DeckPickerViewModel.UPGRADE_VERSION_KEY)
+        verify(editor, times(1)).remove(DeckPickerViewModel.PREF_LAST_UPGRADE_VERSION)
         verify(updated, times(1)).apply()
     }
 
@@ -206,23 +210,23 @@ class DeckPickerTest : RobolectricTest() {
     fun getPreviousVersionUpgradeFrom202to292() {
         val newVersion: Long = 20900302 // 2.9.2
         val preferences = mock(SharedPreferences::class.java)
-        whenever(preferences.getLong(DeckPickerViewModel.UPGRADE_VERSION_KEY, newVersion))
+        whenever(preferences.getLong(DeckPickerViewModel.PREF_LAST_UPGRADE_VERSION, newVersion))
             .thenThrow(ClassCastException::class.java)
-        whenever(preferences.getInt(DeckPickerViewModel.UPGRADE_VERSION_KEY, 20900203))
+        whenever(preferences.getInt(DeckPickerViewModel.PREF_LAST_UPGRADE_VERSION, 20900203))
             .thenThrow(ClassCastException::class.java)
-        whenever(preferences.getString(DeckPickerViewModel.UPGRADE_VERSION_KEY, ""))
+        whenever(preferences.getString(DeckPickerViewModel.PREF_LAST_UPGRADE_VERSION, ""))
             .thenReturn("2.0.2")
         val editor = mock(SharedPreferences.Editor::class.java)
         whenever(preferences.edit()).thenReturn(editor)
         val updated = mock(SharedPreferences.Editor::class.java)
-        whenever(editor.remove(DeckPickerViewModel.UPGRADE_VERSION_KEY)).thenReturn(updated)
+        whenever(editor.remove(DeckPickerViewModel.PREF_LAST_UPGRADE_VERSION)).thenReturn(updated)
         ActivityScenario.launch(DeckPicker::class.java).use { scenario ->
             scenario.onActivity { deckPicker: DeckPicker ->
                 val previousVersion = deckPicker.viewModel.getPreviousVersion(preferences, newVersion)
                 assertEquals(40, previousVersion)
             }
         }
-        verify(editor, times(1)).remove(DeckPickerViewModel.UPGRADE_VERSION_KEY)
+        verify(editor, times(1)).remove(DeckPickerViewModel.PREF_LAST_UPGRADE_VERSION)
         verify(updated, times(1)).apply()
     }
 
@@ -232,21 +236,21 @@ class DeckPickerTest : RobolectricTest() {
         val prevVersion = 20800301 // 2.8.1
         val newVersion: Long = 20900301 // 2.9.1
         val preferences = mock(SharedPreferences::class.java)
-        whenever(preferences.getLong(DeckPickerViewModel.UPGRADE_VERSION_KEY, newVersion))
+        whenever(preferences.getLong(DeckPickerViewModel.PREF_LAST_UPGRADE_VERSION, newVersion))
             .thenThrow(ClassCastException::class.java)
-        whenever(preferences.getInt(DeckPickerViewModel.UPGRADE_VERSION_KEY, 20900203))
+        whenever(preferences.getInt(DeckPickerViewModel.PREF_LAST_UPGRADE_VERSION, 20900203))
             .thenReturn(prevVersion)
         val editor = mock(SharedPreferences.Editor::class.java)
         whenever(preferences.edit()).thenReturn(editor)
         val updated = mock(SharedPreferences.Editor::class.java)
-        whenever(editor.remove(DeckPickerViewModel.UPGRADE_VERSION_KEY)).thenReturn(updated)
+        whenever(editor.remove(DeckPickerViewModel.PREF_LAST_UPGRADE_VERSION)).thenReturn(updated)
         ActivityScenario.launch(DeckPicker::class.java).use { scenario ->
             scenario.onActivity { deckPicker: DeckPicker ->
                 val previousVersion = deckPicker.viewModel.getPreviousVersion(preferences, newVersion)
                 assertEquals(prevVersion.toLong(), previousVersion)
             }
         }
-        verify(editor, times(1)).remove(DeckPickerViewModel.UPGRADE_VERSION_KEY)
+        verify(editor, times(1)).remove(DeckPickerViewModel.PREF_LAST_UPGRADE_VERSION)
         verify(updated, times(1)).apply()
     }
 
@@ -255,7 +259,7 @@ class DeckPickerTest : RobolectricTest() {
         val prevVersion: Long = 20900301 // 2.9.1
         val newVersion: Long = 20900302 // 2.9.2
         val preferences = mock(SharedPreferences::class.java)
-        whenever(preferences.getLong(DeckPickerViewModel.UPGRADE_VERSION_KEY, newVersion))
+        whenever(preferences.getLong(DeckPickerViewModel.PREF_LAST_UPGRADE_VERSION, newVersion))
             .thenReturn(prevVersion)
         val editor = mock(SharedPreferences.Editor::class.java)
         whenever(preferences.edit()).thenReturn(editor)
@@ -265,7 +269,7 @@ class DeckPickerTest : RobolectricTest() {
                 assertEquals(prevVersion, previousVersion)
             }
         }
-        verify(editor, never()).remove(DeckPickerViewModel.UPGRADE_VERSION_KEY)
+        verify(editor, never()).remove(DeckPickerViewModel.PREF_LAST_UPGRADE_VERSION)
     }
 
     @Test
@@ -751,6 +755,10 @@ class DeckPickerTest : RobolectricTest() {
         )
     }
 
+    // Menu invalidation can replace the action view, so resolve it on each access.
+    private val DeckPicker.searchView: AccessibleSearchView
+        get() = menu().findItem(R.id.deck_picker_action_filter).actionView as AccessibleSearchView
+
     @Test
     fun `dragging next to the tablet divider resizes the panes`() {
         assumeTrue("We are running on a tablet", qualifiers!!.contains("xlarge"))
@@ -784,20 +792,17 @@ class DeckPickerTest : RobolectricTest() {
         repeat(10) { addDeck("Test Deck $it") }
 
         deckPicker {
-            advanceRobolectricLooper()
             val searchItem = menu().findItem(R.id.deck_picker_action_filter)
             assertTrue(searchItem.isVisible)
             assertTrue(searchItem.expandActionView())
-            val searchView = searchItem.actionView as AccessibleSearchView
 
             for ((query, expectedCount) in listOf("s" to 10, "Test Deck 1" to 1, "missing" to 0, "" to 11)) {
                 searchView.setQuery(query, false)
-                advanceRobolectricLooper()
+                advanceRobolectricLooperUntil { visibleDeckCount == expectedCount }
 
                 val currentSearchItem = menu().findItem(R.id.deck_picker_action_filter)
                 assertTrue(currentSearchItem.isActionViewExpanded, "Search should stay open for '$query'")
-                assertEquals(query, (currentSearchItem.actionView as AccessibleSearchView).query.toString())
-                advanceRobolectricLooperUntil { visibleDeckCount == expectedCount }
+                assertEquals(query, searchView.query.toString())
             }
         }
     }
@@ -814,7 +819,7 @@ class DeckPickerTest : RobolectricTest() {
                 retainedViewModel = deckPicker.viewModel
                 val searchItem = deckPicker.menu().findItem(R.id.deck_picker_action_filter)
                 assertTrue(searchItem.expandActionView())
-                (searchItem.actionView as AccessibleSearchView).setQuery("Test Deck 1", false)
+                deckPicker.searchView.setQuery("Test Deck 1", false)
                 advanceRobolectricLooperUntil { deckPicker.visibleDeckCount == 1 }
             }
 
@@ -826,7 +831,7 @@ class DeckPickerTest : RobolectricTest() {
                 assertEquals("Test Deck 1", deckPicker.viewModel.deckSearchQuery)
                 val searchItem = deckPicker.menu().findItem(R.id.deck_picker_action_filter)
                 assertTrue(searchItem.isActionViewExpanded)
-                assertEquals("Test Deck 1", (searchItem.actionView as AccessibleSearchView).query.toString())
+                assertEquals("Test Deck 1", deckPicker.searchView.query.toString())
                 advanceRobolectricLooperUntil { deckPicker.visibleDeckCount == 1 }
                 deckPicker.invalidateOptionsMenu()
             }
@@ -835,7 +840,7 @@ class DeckPickerTest : RobolectricTest() {
             scenario.onActivity { deckPicker ->
                 val searchItem = deckPicker.menu().findItem(R.id.deck_picker_action_filter)
                 assertTrue(searchItem.isActionViewExpanded)
-                assertEquals("Test Deck 1", (searchItem.actionView as AccessibleSearchView).query.toString())
+                assertEquals("Test Deck 1", deckPicker.searchView.query.toString())
                 assertEquals(1, deckPicker.visibleDeckCount)
                 assertTrue(searchItem.collapseActionView())
                 assertFalse(deckPicker.viewModel.isDeckSearchExpanded)
@@ -855,7 +860,7 @@ class DeckPickerTest : RobolectricTest() {
             val menu = deckPicker.menu()
             val searchItem = menu.findItem(R.id.deck_picker_action_filter)
             assertTrue(searchItem.expandActionView())
-            (searchItem.actionView as AccessibleSearchView).setQuery("Test Deck 1", false)
+            deckPicker.searchView.setQuery("Test Deck 1", false)
             advanceRobolectricLooperUntil { deckPicker.visibleDeckCount == 1 }
 
             // A synchronous collection refresh restores the query a second time, masking
@@ -868,7 +873,7 @@ class DeckPickerTest : RobolectricTest() {
 
                 val restoredSearchItem = menu.findItem(R.id.deck_picker_action_filter)
                 assertTrue(restoredSearchItem.isActionViewExpanded)
-                assertEquals("Test Deck 1", (restoredSearchItem.actionView as AccessibleSearchView).query.toString())
+                assertEquals("Test Deck 1", deckPicker.searchView.query.toString())
                 advanceRobolectricLooper()
                 assertEquals("Test Deck 1", deckPicker.viewModel.deckSearchQuery)
 
@@ -896,7 +901,7 @@ class DeckPickerTest : RobolectricTest() {
             scenario.onActivity { deckPicker ->
                 val searchItem = deckPicker.menu().findItem(R.id.deck_picker_action_filter)
                 assertTrue(searchItem.isActionViewExpanded)
-                assertEquals("", (searchItem.actionView as AccessibleSearchView).query.toString())
+                assertEquals("", deckPicker.searchView.query.toString())
                 assertTrue(searchItem.collapseActionView())
             }
 
@@ -1292,7 +1297,7 @@ class DeckPickerTest : RobolectricTest() {
 
             assertThat(
                 shadowOf(selectedDeck.background).createdFromResId,
-                equalTo(getResFromAttr(this, R.attr.currentDeckBackground)),
+                equalTo(getResFromAttr(this, CommonR.attr.currentDeckBackground)),
             )
         }
     }
@@ -2055,13 +2060,14 @@ class DeckPickerTest : RobolectricTest() {
 
 fun RobolectricTest.setIntroductionSlidesShown(shown: Boolean) {
     getPreferences().edit {
-        putBoolean(IntroductionActivity.INTRODUCTION_SLIDES_SHOWN, shown)
+        putBoolean(IntroductionActivity.PREF_INTRODUCTION_SLIDES_SHOWN, shown)
     }
 }
 
 /**
- * Launches the deck picker, waiting for [expectedDeckIds] in adapter order before running [function]
- * when supplied. Prepare collection data before calling this helper.
+ * Launches the deck picker, waiting for the initial deck list after successful startup.
+ * When supplied, also waits for [expectedDeckIds] in adapter order before running [function].
+ * Prepare collection data before calling this helper.
  */
 fun RobolectricTest.deckPicker(
     exposeTestData: Boolean = false,
@@ -2075,6 +2081,17 @@ fun RobolectricTest.deckPicker(
             if (exposeTestData) DeckPickerTest.DeckPickerEx::class.java else DeckPicker::class.java,
             Intent(),
         )
+    val viewModel = deckPicker.viewModel
+    // Startup can stop at permissions, an error dialog, or the app introduction.
+    if (!deckPicker.isFinishing && viewModel.startupJob?.isCompleted == true && viewModel.flowOfStartupResponse.value == null) {
+        val expectedCount =
+            withCol {
+                sched.deckDueTree().filterAndFlattenDisplay(DeckFilters.create(viewModel.deckSearchQuery), decks.selected()).size
+            }
+        RobolectricTest.advanceRobolectricLooperUntil(
+            lazyMessage = { "Expected $expectedCount visible decks, got ${deckPicker.visibleDeckCount}" },
+        ) { deckPicker.visibleDeckCount == expectedCount }
+    }
     expectedDeckIds?.let { deckPicker.awaitVisibleDecks(it) }
     function(deckPicker)
 }

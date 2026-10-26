@@ -26,7 +26,9 @@ import com.ichi2.anki.CollectionManager.CollectionOpenFailure
 import com.ichi2.anki.RobolectricTest.CollectionStorageMode.IN_MEMORY_NO_FOLDERS
 import com.ichi2.anki.RobolectricTest.CollectionStorageMode.IN_MEMORY_WITH_MEDIA
 import com.ichi2.anki.RobolectricTest.CollectionStorageMode.ON_DISK
+import com.ichi2.anki.common.android.AdaptionUtil
 import com.ichi2.anki.common.annotations.UseContextParameter
+import com.ichi2.anki.common.preferences.SharedPreferencesTestHook
 import com.ichi2.anki.common.preferences.sharedPrefs
 import com.ichi2.anki.common.time.MockTime
 import com.ichi2.anki.common.time.TimeManager
@@ -185,6 +187,8 @@ open class RobolectricTest(
 
         // https://github.com/ankidroid/Anki-Android/pull/19004#discussion_r2739833965
         grantPermissions(Manifest.permission.INTERNET)
+
+        AdaptionUtil.resetWebBrowserAvailabilityCacheForTests()
     }
 
     @After
@@ -203,6 +207,10 @@ open class RobolectricTest(
         }
         controllersForCleanup.clear()
 
+        if (SharedPreferencesTestHook.override != null) {
+            Timber.w("SharedPreferencesTestHook was not reset! Setting it to null.")
+            SharedPreferencesTestHook.override = null
+        }
         if (AnkiDroidApp.sharedPreferencesTestingOverride != null) {
             Timber.w("AnkiDroidApp SharedPrefs test override was not reset to null! Setting it to null.")
             AnkiDroidApp.sharedPreferencesTestingOverride = null

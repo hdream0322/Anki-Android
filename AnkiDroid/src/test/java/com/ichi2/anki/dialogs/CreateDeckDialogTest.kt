@@ -45,7 +45,7 @@ class CreateDeckDialogTest : RobolectricTest() {
 
     override fun setUp() {
         super.setUp()
-        getPreferences().edit { putBoolean(IntroductionActivity.INTRODUCTION_SLIDES_SHOWN, true) }
+        getPreferences().edit { putBoolean(IntroductionActivity.PREF_INTRODUCTION_SLIDES_SHOWN, true) }
         ensureCollectionLoadIsSynchronous()
         activityScenario =
             ActivityScenario.launch(DeckPicker::class.java).apply {
@@ -78,7 +78,7 @@ class CreateDeckDialogTest : RobolectricTest() {
         ensureExecutionOfScenario(DeckDialogType.DECK) { createDeckDialog, assertionCalled ->
             createDeckDialog.onNewDeckCreated = { id: DeckId ->
                 // a deck was created
-                assertThat(id, equalTo(col.decks.byName(deckName)!!.getLong("id")))
+                assertThat(id, equalTo(col.decks.byName(deckName)!!.id))
                 assertionCalled()
             }
             createDeckDialog.createDeck(deckName)

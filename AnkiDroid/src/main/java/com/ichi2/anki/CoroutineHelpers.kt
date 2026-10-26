@@ -32,15 +32,15 @@ import com.ichi2.anki.common.annotations.UseContextParameter
 import com.ichi2.anki.common.coroutines.applicationScope
 import com.ichi2.anki.common.crashreporting.CrashReportService
 import com.ichi2.anki.common.destinations.DeckOptionsDestination
+import com.ichi2.anki.common.destinations.DeferredNavigation
 import com.ichi2.anki.common.destinations.PreferencesDestination
+import com.ichi2.anki.common.destinations.toIntent
 import com.ichi2.anki.common.utils.android.isRobolectric
 import com.ichi2.anki.dialogs.DatabaseErrorDialog
 import com.ichi2.anki.dialogs.DatabaseErrorDialog.DatabaseErrorDialogType
 import com.ichi2.anki.exception.CollectionLockedException
 import com.ichi2.anki.exception.StorageAccessException
 import com.ichi2.anki.exception.StorageNotConfiguredException
-import com.ichi2.anki.pages.toIntent
-import com.ichi2.anki.preferences.toIntent
 import com.ichi2.anki.progress.blockTouches
 import com.ichi2.anki.progress.unblockTouches
 import com.ichi2.anki.snackbar.showSnackbar
@@ -243,11 +243,18 @@ fun Fragment.launchCatchingTask(
     errorMessage: String? = null,
     skipCrashReport: ((Exception) -> Boolean)? = null,
     block: suspend CoroutineScope.() -> Unit,
-): Job =
-    lifecycle.coroutineScope.launch {
+): Job {
+    val fragmentLifecycle = lifecycle
+    return fragmentLifecycle.coroutineScope.launch {
+        // Removal can precede scope registration; reading the fragment creates a new lifecycle.
+        if (fragmentLifecycle.currentState == Lifecycle.State.DESTROYED) {
+            Timber.w("Skipping launchCatchingTask for %s: fragment lifecycle is destroyed", this@launchCatchingTask.javaClass.simpleName)
+            return@launch
+        }
         val validActivity = validActivityForTask() ?: return@launch
         validActivity.runCatching(errorMessage, skipCrashReport = skipCrashReport) { block() }
     }
+}
 
 private fun Fragment.validActivityForTask(): FragmentActivity? =
     // It's a bug to call this if the activity is invalid or finishing.
@@ -293,7 +300,13 @@ fun Fragment.launchCatchingViewTask(
     val owner = viewLifecycleOwnerLiveData.value ?: return null
     return owner.lifecycleScope.launch {
         // A synchronous replacement can destroy the view before lifecycleScope registers cancellation.
-        if (owner.lifecycle.currentState == Lifecycle.State.DESTROYED) return@launch
+        if (owner.lifecycle.currentState == Lifecycle.State.DESTROYED) {
+            Timber.w(
+                "Skipping launchCatchingViewTask for %s: view lifecycle is destroyed",
+                this@launchCatchingViewTask.javaClass.simpleName,
+            )
+            return@launch
+        }
         val validActivity = validActivityForTask() ?: return@launch
         validActivity.runCatching(errorMessage, skipCrashReport = skipCrashReport) { block() }
     }
@@ -307,10 +320,10 @@ fun Fragment.launchCatchingViewTask(
  * @param crashReportData Crash report data which may be reported when the dialog is dismissed.
  */
 fun Context.showError(
-    message: String,
+    message: CharSequence,
     crashReportData: CrashReportData?,
 ) {
-    crashReportData.throwIfDialogUnusable(message)
+    crashReportData.throwIfDialogUnusable(message.toString())
 
     Timber.i("Error dialog displayed")
 
@@ -745,7 +758,7 @@ data class CrashReportData(
                 // if we're in the error dialog, we have no context of the deck which caused the exception
                 // assume it's the current deck
                 val openCurrentDeckOptions = DeckOptionsDestination.fromCurrentDeck()
-                context.startActivity(openCurrentDeckOptions.toIntent(context))
+                context.startActivity(with(DeferredNavigation) { openCurrentDeckOptions.toIntent() })
                 // dismiss the dialog - the user should have resolved the issue
                 return true
             }
@@ -760,7 +773,7 @@ data class CrashReportData(
 
             override suspend fun execute(context: Context): Boolean {
                 Timber.i("Opening 'Advanced settings'")
-                context.startActivity(PreferencesDestination.Advanced.toIntent(context))
+                context.startActivity(with(DeferredNavigation) { PreferencesDestination.Advanced.toIntent() })
                 return true
             }
         }

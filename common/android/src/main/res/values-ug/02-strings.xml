@@ -219,7 +219,10 @@
     <string name="ankidroid_init_failed_storage">Android خاتالىقى سەۋەبىدىن AnkiDroid ساقلىغۇچنى زىيارەت قىلالمايدۇ.\n\n%s</string>
     <!-- A Menu item to change the Font Size (currently in the Note Editor) -->
     <string name="menu_font_size" maxLength="28">خەت چوڭلۇقى</string>
-    <string name="menu_show_toolbar" comment="Checkable item stating whether the note editor toolbar should be shown" maxLength="28">قورال بالداقنى كۆرسەت</string>
+    <string name="note_editor_toolbar_layout" maxLength="28">Toolbar layout</string>
+    <string comment="The toolbar is scrollable horizontally" name="note_editor_toolbar_scroll">Scroll</string>
+    <string comment="The toolbar is stacked vertically if it overflows" name="note_editor_toolbar_stack">Stack</string>
+    <string comment="The toolbar is not shown" name="note_editor_toolbar_hidden">Hidden</string>
     <string name="note_editor_show_previewer" comment="Checkable item stating whether the note editor preview sidebar should be shown" maxLength="28">ئالدىن كۆزىتىشنى كۆرسەت</string>
     <string name="note_editor_hide_previewer" comment="Checkable item stating whether the note editor preview sidebar should be hidden" maxLength="28">ئالدىن كۆزىتىشنى يوشۇر</string>
     <string name="format_insert_bold">توم پىچىم</string>
@@ -236,8 +239,8 @@
     <string name="edit_toolbar_item">قورال بالداق تۈرىنى تەھرىر</string>
     <string name="toolbar_item_explain_edit_or_remove">تاللانغان تېكىستتىن ئىلگىرى ۋە كېيىن قىستۇرىدىغان HTML كىرگۈزۈلىدۇ\n\nقورال بالداق ئۇزۇن بېسىلسا ئۇنى تەھرىرلىگىلى ياكى چىقىرىۋەتكىلى بولىدۇ</string>
     <string name="remove_toolbar_item">قورال بالداق تۈرىنى چىقىرىۋېتەمدۇ؟</string>
-    <string name="note_editor_toolbar_icon_requirement_error">Button text is required</string>
-    <string name="before_after_text_requirement_error">At least one HTML field is required</string>
+    <string name="note_editor_toolbar_icon_requirement_error">توپچە تېكىستى زۆرۈر</string>
+    <string name="before_after_text_requirement_error">كەم دېگەندە بىر HTML بۆلىكى زۆرۈر</string>
     <string name="note_editor_image_too_large">سۈرەت بەك چوڭ، سۈرەتنى قولدا قىستۇرۇڭ</string>
     <string name="note_editor_video_too_large">سىن ھۆججىتى بەك چوڭ، سىننى قولدا قىستۇرۇڭ</string>
     <string name="note_editor_audio_too_large">ئۈن ھۆججىتى بەك چوڭ، ئۈننى قولدا قىستۇرۇڭ</string>
@@ -247,7 +250,6 @@
     <string name="create_shortcut_failed" comment="home screen == launcher">باش ئېكرانىڭىز AnkiDroid نىڭ تېزلەتمە قوشۇشىغا يول قويمايدۇ</string>
     <string name="create_shortcut_error">تېزلەتمە قوشۇش خاتالىقى: %s</string>
     <string name="note_editor_capitalize" comment="This is for a switch with a checkbox - on: enabled" maxLength="28">چوڭ ھەرپلىك جۈملە</string>
-    <string name="menu_scroll_toolbar" comment="Checkbox stating whether note editor toolbar is scrollable or stacked. Checked: Scroll" maxLength="28">قورال بالداقنى دومىلات</string>
     <!-- Dialog hints -->
     <string name="dialog_hint_url">URL</string>
     <string name="dialog_hint_certificate">گۇۋاھنامە</string>
@@ -275,8 +277,8 @@
     <string name="download_speed_unit" comment="Download speed. %1$s is an amount of data, e.g. \'1.2 MB\', giving \'1.2 MB/s\'">%1$s/s</string>
     <string name="download_speed_unknown" comment="Placeholder shown when the current download speed is unknown">-/s</string>
     <string name="download_time_unknown" comment="Placeholder when the remaining download time is unknown">-</string>
-    <string name="download_speed_label">Speed</string>
-    <string name="download_time_left_label">Time left</string>
+    <string name="download_speed_label">سۈرئەت</string>
+    <string name="download_time_left_label">قالغان ۋاقىت</string>
     <string name="deck_download_progress_message">اچۈشۈرۈۋاتقاندا باشقا ئەپنى ئىشلىتەلەيسىز</string>
     <string name="check_network">تور باغلىنىشىنى تەكشۈرۈڭ</string>
     <string name="external_storage_unavailable">چۈشۈرۈش بىكار قىلىندى، سىرتقا ساقلىغۇچنى ئىشلەتكىلى بولمايدۇ</string>
@@ -334,7 +336,7 @@
     <string name="tts_voices_chip_filter_to_internet" comment="     Filters a list of text to speech voices, to enable/disable voices which require the internet to     function.     This is on a chip control, so keep the text short, ideally one word">ئىنتېرنېت</string>
     <string name="tts_voices_chip_filter_to_installable_audio" comment="     Displays a list of Text to Speech voices which should be downloaded/installed before use     This is on a chip control, so keep the text short, ideally one word">ئورنات</string>
     <string name="tts_voices_failed_opening_tts_system_settings" comment="error message if opening the system text to speech settings fails">تېكىستتىن ئاۋازغا تەڭشىكىنى ئاچالمىدى</string>
-    <string name="shared_decks_login_required">تېخىمۇ كۆپ دەستە چۈشۈرۈش ئۈچۈن تىزىمغا كىرىڭ</string>
+    <string name="shared_decks_ankiweb_login_limit">Shared decks are hosted on AnkiWeb, a free service separate from AnkiDroid. AnkiWeb asks you to log in to continue.</string>
     <string name="deck_description_field_hint">چۈشەندۈرۈش</string>
     <string name="deck_description_saved">چۈشەندۈرۈش يېڭىلاندى</string>
     <string name="format_deck_description_as_markdown">Markdown سۈپىتىدە پىچىملاندۇرىدۇ</string>

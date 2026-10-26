@@ -117,6 +117,7 @@ import com.ichi2.anki.common.storage.CollectionHelper
 import com.ichi2.anki.common.time.TimeManager
 import com.ichi2.anki.common.utils.android.showThemedToast
 import com.ichi2.anki.common.utils.annotation.KotlinCleanup
+import com.ichi2.anki.common.utils.dp
 import com.ichi2.anki.compat.CompatHelper.Companion.getSerializableCompat
 import com.ichi2.anki.contextmenu.DeckPickerMenuContentProvider
 import com.ichi2.anki.databinding.ActivityHomescreenBinding
@@ -221,7 +222,7 @@ import com.ichi2.utils.Permissions
 import com.ichi2.utils.VersionUtils
 import com.ichi2.utils.configureView
 import com.ichi2.utils.customView
-import com.ichi2.utils.dp
+import com.ichi2.utils.isRtl
 import com.ichi2.utils.message
 import com.ichi2.utils.positiveButton
 import com.ichi2.utils.show
@@ -761,9 +762,10 @@ open class DeckPicker :
                 val nav = insets.getInsets(navigationBars())
                 window.isNavigationBarContrastEnforced = nav.left > 0 || nav.right > 0
             }
+            val isRtl = deckPickerInclude.isRtl()
             deckPickerInclude.updatePadding(
-                left = bars.left,
-                right = if (fragmented) 0 else bars.right,
+                left = if (isRtl && fragmented) 0 else bars.left,
+                right = if (!isRtl && fragmented) 0 else bars.right,
             )
             deckPickerBinding.reviewSummaryTextView.updatePadding(bottom = withKeyboard.bottom)
 
@@ -799,10 +801,16 @@ open class DeckPicker :
             val studyoptionsView = binding.studyoptionsFragment ?: return
             ViewCompat.setOnApplyWindowInsetsListener(studyoptionsView) { _, insets ->
                 val bars = insets.getInsets(systemBars() or displayCutout())
-                // the toolbar clears the top and the deck list clears the left: the panel's
-                // fragments apply the remaining insets themselves, so their scrolled content
+                // the toolbar clears the top and the deck list clears the side touching the divider:
+                // the panel's fragments apply the remaining insets themselves, so their scrolled content
                 // renders underneath the navigation bar
-                insets.inset(bars.left, bars.top, 0, 0)
+                val isRtl = studyoptionsView.isRtl()
+                insets.inset(
+                    if (isRtl) 0 else bars.left,
+                    bars.top,
+                    if (isRtl) bars.right else 0,
+                    0,
+                )
             }
         }
     }
@@ -1498,14 +1506,14 @@ open class DeckPicker :
             }
             SyncIconState.PendingChanges -> {
                 BadgeDrawableBuilder(this)
-                    .withColorAttr(R.attr.badgeWarningColor)
+                    .withColorAttr(CommonR.attr.badgeWarningColor)
                     .withRingColorAttr(CommonR.attr.appBarColor)
                     .replaceBadge(provider)
             }
             SyncIconState.OneWay, SyncIconState.NotLoggedIn -> {
                 BadgeDrawableBuilder(this)
                     .withText('!')
-                    .withColorAttr(R.attr.badgeErrorColor)
+                    .withColorAttr(CommonR.attr.badgeErrorColor)
                     .replaceBadge(provider)
             }
         }
@@ -1996,7 +2004,7 @@ open class DeckPicker :
         } else if (skip < 2 && !InitialActivity.isLatestVersion(preferences)) {
             Timber.i("AnkiDroid is being updated and a collection already exists.")
             // The user might appreciate us now, see if they will help us get better?
-            if (AnkiDroidUsageAnalytics.IS_SENDING_AVAILABLE && !preferences.contains(AnkiDroidUsageAnalytics.ANALYTICS_OPTIN_KEY)) {
+            if (AnkiDroidUsageAnalytics.IS_SENDING_AVAILABLE && !preferences.contains(AnkiDroidUsageAnalytics.PREF_ANALYTICS_OPTIN)) {
                 displayAnalyticsOptInDialog()
             }
 
@@ -2007,14 +2015,14 @@ open class DeckPicker :
             val current = VersionUtils.pkgVersionCode
             Timber.i("Current AnkiDroid version: %s", current)
             val previous: Long =
-                if (preferences.contains(DeckPickerViewModel.UPGRADE_VERSION_KEY)) {
+                if (preferences.contains(DeckPickerViewModel.PREF_LAST_UPGRADE_VERSION)) {
                     // Upgrading currently installed app
                     viewModel.getPreviousVersion(preferences, current)
                 } else {
                     // Fresh install
                     current
                 }
-            preferences.edit { putLong(DeckPickerViewModel.UPGRADE_VERSION_KEY, current) }
+            preferences.edit { putLong(DeckPickerViewModel.PREF_LAST_UPGRADE_VERSION, current) }
 
             val upgradedPreferences = InitialActivity.upgradePreferences(this, previous)
             // Integrity check loads asynchronously and then restart deck picker when finished
@@ -2261,7 +2269,7 @@ open class DeckPicker :
     override val broadcastsActions =
         super.broadcastsActions +
             mapOf(
-                SdCardReceiver.MEDIA_MOUNT
+                SdCardReceiver.ACTION_MEDIA_MOUNT
                     to { ActivityCompat.recreate(this) },
             )
 

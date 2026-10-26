@@ -3,35 +3,15 @@
 package com.ichi2.utils
 
 import android.app.Activity
-import android.content.Context
 import android.content.res.Resources
-import android.graphics.Rect
-import android.view.MotionEvent
 import android.view.View
 import androidx.core.view.OnReceiveContentListener
 import androidx.draganddrop.DropHelper
+import com.ichi2.anki.common.utils.Dp
 
 /** @see View.performClick */
 fun View.performClickIfEnabled() {
     if (isEnabled) performClick()
-}
-
-/**
- * Performs a hit test using the raw coordinates of the provided [MotionEvent]
- */
-fun View.rawHitTest(event: MotionEvent): Boolean {
-    val location = IntArray(2)
-    getLocationOnScreen(location)
-
-    val rect = Rect()
-    getHitRect(rect)
-
-    rect.left += location[0]
-    rect.top += location[1]
-    rect.right += location[0]
-    rect.bottom += location[1]
-
-    return rect.contains(event.rawX.toInt(), event.rawY.toInt())
 }
 
 /**
@@ -112,33 +92,6 @@ fun View.updatePaddingRelative(
         bottom?.toPx(context) ?: this.paddingBottom,
     )
 }
-
-/** Returns a [Dp] instance equal to this [Int] number of display pixels. */
-val Int.dp
-    get() = Dp(dp = this.toFloat())
-
-val Float.dp
-    get() = Dp(dp = this)
-
-val Double.dp
-    get() = Dp(dp = this.toFloat())
-
-/**
- * Helper for 'display pixels' to 'pixels' conversions
- */
-@JvmInline
-value class Dp(
-    val dp: Float,
-) : Comparable<Dp> {
-    // TODO: improve once we have context parameters
-    fun toPx(context: Context) = dp.dpToPx(context)
-
-    operator fun plus(other: Dp) = Dp(dp = dp + other.dp)
-
-    override fun compareTo(other: Dp) = dp.compareTo(other.dp)
-}
-
-private fun Float.dpToPx(context: Context): Int = (this * context.resources.displayMetrics.density + 0.5f).toInt()
 
 fun View.isRtl() = isRtl(resources)
 

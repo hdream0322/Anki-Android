@@ -211,7 +211,7 @@ class CardBrowserFragment :
             if (result.resultCode == Activity.RESULT_OK) {
                 // The old forceRefreshSearch called setQuery(searchView.text) before searching,
                 // but the ViewModel already holds the submitted query, so we just re-run the search directly.
-                activityViewModel.launchSearchForCards()
+                activityViewModel.launchSearchForCards(feedbackMode = BrowserSearchFeedbackMode.COUNT_ONLY)
             }
         }
 
@@ -1018,7 +1018,8 @@ class CardBrowserFragment :
             }
         }
 
-        fun onSearchCompleted(state: SearchState.Completed) {
+        fun onSearchFeedback(state: SearchState.Completed) {
+            if (!activityViewModel.consumeSearchFeedback(state)) return
             val subtitle = legacySubtitle ?: requireActivity().findViewById<TextView>(R.id.subtitle)
             val feedback =
                 browserSearchFeedback(
@@ -1037,7 +1038,7 @@ class CardBrowserFragment :
             showSnackbar(message, Snackbar.LENGTH_SHORT) {
                 if (feedback.offersSearchAllDecks) {
                     setAction(CommonString.card_browser_search_all_decks) {
-                        activityViewModel.setSelectedDeck(SelectableDeck.AllDecks)
+                        activityViewModel.setSelectedDeck(SelectableDeck.AllDecks, feedbackMode = BrowserSearchFeedbackMode.SEARCH_RESULTS)
                     }
                 }
             }
@@ -1047,7 +1048,6 @@ class CardBrowserFragment :
             cardsAdapter.refreshRows()
             progressIndicator.isVisible = searchState == Initializing || searchState == Searching
             if (searchState is SearchState.Completed) {
-                onSearchCompleted(searchState)
                 invalidateMenu()
             }
         }
@@ -1273,6 +1273,7 @@ class CardBrowserFragment :
         activityViewModel.flowOfCardsUpdated.launchCollectionInLifecycleScope(::cardsUpdatedChanged)
         activityViewModel.flowOfMultiSelectModeChanged.launchCollectionInLifecycleScope(::onMultiSelectModeChanged)
         activityViewModel.flowOfSearchState.launchCollectionInLifecycleScope(::searchStateChanged)
+        activityViewModel.flowOfSearchFeedback.filterNotNull().launchCollectionInLifecycleScope(::onSearchFeedback)
         activityViewModel.flowOfLastCompletedSearch.filterNotNull().launchCollectionInLifecycleScope(::onLastCompletedSearchChanged)
         activityViewModel.flowOfColumnHeadings.launchCollectionInLifecycleScope(::onColumnNamesChanged)
         activityViewModel.flowOfCardStateChanged.launchCollectionInLifecycleScope(::onCardsMarkedEvent)
@@ -1913,7 +1914,11 @@ class CardBrowserFragment :
                             tags = selectedTags,
                         ),
                 )
-            activityViewModel.launchSearchForCards(updatedSearch, forceRefresh = false)
+            activityViewModel.launchSearchForCards(
+                updatedSearch,
+                forceRefresh = false,
+                feedbackMode = BrowserSearchFeedbackMode.SEARCH_RESULTS,
+            )
         } else {
             activityViewModel.filterByTags(selectedTags, cardState)
         }

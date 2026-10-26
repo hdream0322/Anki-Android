@@ -22,7 +22,9 @@ dependencies {
     implementation("org.jetbrains.kotlin:compose-compiler-gradle-plugin:${libs.versions.kotlin.get()}")
     implementation("io.github.takahirom.roborazzi:roborazzi-gradle-plugin:${libs.versions.roborazzi.get()}")
     testImplementation(gradleTestKit())
+    testImplementation(libs.hamcrest)
     testImplementation(libs.junit.jupiter)
+    testImplementation("org.jacoco:org.jacoco.core:${libs.versions.jacoco.get()}")
     testRuntimeOnly(libs.junit.platform.launcher)
 }
 

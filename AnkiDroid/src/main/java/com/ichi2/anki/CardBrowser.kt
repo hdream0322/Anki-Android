@@ -35,6 +35,7 @@ import com.google.android.material.snackbar.Snackbar
 import com.ichi2.anki.CollectionManager.TR
 import com.ichi2.anki.CollectionManager.withCol
 import com.ichi2.anki.browser.BrowserRowCollection
+import com.ichi2.anki.browser.BrowserSearchFeedbackMode
 import com.ichi2.anki.browser.CardBrowserFragment
 import com.ichi2.anki.browser.CardBrowserLaunchOptions
 import com.ichi2.anki.browser.CardBrowserViewModel
@@ -84,6 +85,7 @@ import com.ichi2.anki.ui.internationalization.sentenceCase
 import com.ichi2.anki.utils.ext.addPrepareMenuProvider
 import com.ichi2.anki.utils.ext.launchCollectionInLifecycleScope
 import com.ichi2.anki.utils.ext.onAllFragmentsLoaded
+import com.ichi2.anki.utils.showSearchError
 import com.ichi2.ui.CardBrowserSearchView
 import com.ichi2.utils.AndroidUiUtils.hideKeyboard
 import com.ichi2.utils.LanguageUtil
@@ -489,7 +491,7 @@ open class CardBrowser :
                     searchView?.post { searchView?.clearFocus() }
                 }
                 is SearchState.Error -> {
-                    showError(searchState.error, crashReportData = null)
+                    showSearchError(searchState.error)
                 }
             }
         }
@@ -617,18 +619,21 @@ open class CardBrowser :
         )
     }
 
-    private fun forceRefreshSearch(useSearchTextValue: Boolean = false) {
+    private fun forceRefreshSearch(
+        useSearchTextValue: Boolean = false,
+        feedbackMode: BrowserSearchFeedbackMode = BrowserSearchFeedbackMode.NONE,
+    ) {
         if (useSearchTextValue && searchView != null) {
-            viewModel.setQuery(searchView!!.query.toString())
+            viewModel.setQuery(searchView!!.query.toString(), feedbackMode = feedbackMode)
         } else {
-            viewModel.launchSearchForCards()
+            viewModel.launchSearchForCards(feedbackMode = feedbackMode)
         }
     }
 
-    private fun refreshBrowserUI() {
+    private fun refreshBrowserUI(feedbackMode: BrowserSearchFeedbackMode) {
         hideProgressBar()
         // reload whole view
-        forceRefreshSearch()
+        forceRefreshSearch(feedbackMode = feedbackMode)
         viewModel.endMultiSelectMode(SingleSelectCause.Other)
         invalidateOptionsMenu() // maybe the availability of undo changed
     }
@@ -670,7 +675,9 @@ open class CardBrowser :
             changes.card
         ) {
             // We refresh the Browser's own UI
-            refreshBrowserUI()
+            val feedbackMode =
+                if (handler is NoteEditorFragment) BrowserSearchFeedbackMode.COUNT_ONLY else BrowserSearchFeedbackMode.NONE
+            refreshBrowserUI(feedbackMode)
         }
     }
 
@@ -727,7 +734,7 @@ open class CardBrowser :
     companion object {
         // Keys for saving pane weights in SharedPreferences
         private const val PREF_CARD_BROWSER_PANE_WEIGHT = "cardBrowserPaneWeight"
-        private const val PREF_NOTE_EDITOR_PANE_WEIGHT = "noteEditorPaneWeight"
+        private const val PREF_NOTE_EDITOR_PANE_WEIGHT = "cardBrowserNoteEditorPaneWeight"
 
         // Values related to persistent state data
         fun clearLastDeckId() = SharedPreferencesLastDeckIdRepository.clearLastDeckId()

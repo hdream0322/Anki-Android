@@ -43,8 +43,8 @@
     <string name="repair_deck_dialog">データベースの修復を試みて本当によろしいですか？\n\n試行の開始前に、サブフォルダ \"%s\" にコピーを作成します。</string>
     <string name="intent_aedict_empty">カテゴリー \"default\" が空です</string>
     <string name="intent_aedict_category">AnkiDroidにカードを登録するため、すべてのNotepadカテゴリを削除するか、\"default\" という名前のカテゴリを追加してください</string>
-    <string name="custom_study_new_extend">上限枚数をいくつ増やしますか？（減らす場合は負の数）</string>
-    <string name="custom_study_rev_extend">上限枚数をいくつ増やしますか？（減らす場合は負の数）</string>
+    <string name="custom_study_extend_limits_title">Extend daily limits</string>
+    <string name="custom_study_increase">Increase</string>
     <string name="custom_study_forgotten">（今日を含め）何日の間に [もう一度] と回答したカードを復習しますか？</string>
     <string name="custom_study_ahead_description">何日先まで復習しますか？</string>
     <string name="custom_study_preview">（今日を含め）何日の間に追加した新規カードをプレビューしますか？</string>
@@ -103,7 +103,7 @@
     <!-- Multimedia - Audio View -->
     <string name="multimedia_editor_audio_permission_denied">音声録音の権限が付与されませんでした</string>
     <string name="permission_denied">権限が許可されていません</string>
-    <string name="microphone_permission_denied_message">Microphone permission denied. Please grant it in the app settings.</string>
+    <string name="microphone_permission_denied_message">マイクへのアクセスが拒否されました。システムのアプリ設定でマイクを許可してください。</string>
     <!-- Database Integrity Check -->
     <string name="integrity_check_continue_anyway">続ける</string>
     <string name="integrity_check_insufficient_space">データベースのチェックには一時ファイル用のデータ領域が必要です。\n\n続行する前に、お使いのデバイスに少なくとも %s の空き領域を確保してください。</string>
@@ -220,24 +220,26 @@
     <string name="webview_update_message">「AndroidシステムのWebView 」（または「Android System WebView」）が古くなっています。いくつかの機能が正しく動作しません。更新してください。\n\nインストールされているバージョン: %1$d\n最低限必要なバージョン: %2$d</string>
     <string name="compress">圧縮</string>
     <!-- Tts playback error dialog -->
+    <string name="tts_no_engine_title">No text-to-speech engine installed</string>
+    <string name="tts_no_engine_message">Install an app that provides a text-to-speech engine for your device.</string>
     <string name="tts_error_dialog_title">サポートされていない言語</string>
     <string name="tts_error_dialog_reason_text">テキスト読み上げエンジン <b>%1$s</b> は次の言語をサポートしていません: <b>%2$s</b></string>
     <string name="tts_error_dialog_change_button_text">エンジンを変更</string>
     <string name="tts_error_dialog_supported_voices_button_text">読み上げオプション</string>
     <!-- import_cache_error_resolutions -->
-    <string name="import_error_resolution_try_again">もう一度ファイルをインポートしてください</string>
-    <string name="import_error_resolution_free_up_space">デバイスに十分な空き容量があることを確認してください</string>
-    <string name="import_error_resolution_check_internet">インターネットに接続されていることを確認してください</string>
-    <string name="import_error_resolution_copy_to_device">Copy the file to your device and try again with the local file</string>
-    <string name="import_error_resolution_select_file">Open the file using your device’s file browser app</string>
+    <string name="import_error_resolution_try_again">ファイルをもう一度インポートする</string>
+    <string name="import_error_resolution_free_up_space">デバイスに十分な空き容量があることを確認する</string>
+    <string name="import_error_resolution_check_internet">インターネットに接続していることを確認する</string>
+    <string name="import_error_resolution_copy_to_device">ファイルをデバイスに保存して、そのファイルでもう一度試す</string>
+    <string name="import_error_resolution_select_file">デバイスのファイル管理用アプリでファイルを開く</string>
     <!-- Post-login dialog -->
     <string name="login_successful">ログインに成功しました</string>
     <string name="sync_now">今すぐ同期しますか？</string>
     <!--Change Note Type Dialog Fragment-->
-    <string name="card_numbers_unchanged">Card numbers will remain unchanged</string>
+    <string name="card_numbers_unchanged">カード番号は変更されません</string>
     <!-- Subset of TR.changeNotetypeToFromCloze -->
-    <string name="extra_cloze_deletions_removed">If changing to a regular note type, and there are more cloze deletions than available card templates, any extra cards will be removed.</string>
-    <string name="different_note_types_selected">Please select notes from only one notetype.</string>
+    <string name="extra_cloze_deletions_removed">通常のノートタイプへ変更する際、穴埋め番号の数がカードテンプレートの数を上回ると、対応するテンプレートがないカードは削除されます。</string>
+    <string name="different_note_types_selected">ノートタイプが共通するノートを選択してください</string>
     <string name="error_no_changes_to_save">保存する変更がありません</string>
     <string name="choose_color">色を選択</string>
     <!-- Special Fields -->
@@ -253,9 +255,10 @@
     <string name="special_field_card_help" comment="%s: either blank or \' %s\'">カードタイプの名前%s</string>
     <string name="special_field_type_help" comment="%s: either blank or \' %s\'">ノートタイプの名前%s</string>
     <!-- Change Note Type Dialog -->
-    <string name="change_note_type_from" comment="Label indicating the original note type before changing it">From</string>
-    <string name="change_note_type_to" comment="Label indicating the new note type to change to">To</string>
-    <!-- Add profile dialog -->
+    <string name="change_note_type_from" comment="Label indicating the original note type before changing it">変更前</string>
+    <string name="change_note_type_to" comment="Label indicating the new note type to change to">変更後</string>
+    <!-- Add and rename profile dialogs -->
+    <string name="rename_profile" comment="Title of the dialog where the user renames a profile">Rename profile</string>
     <string name="profile_name" comment="Label of the text field where the user types the name of a new profile">プロファイル名</string>
     <string name="profile_name_empty_error" comment="Error shown when the user leaves the profile name empty">プロファイル名を空にすることはできません</string>
     <string name="profile_name_too_long_error" comment="Error shown when a profile name exceeds the maximum length. %1$d is the maximum number of characters">プロファイル名は最大 %1$d 文字までです。</string>

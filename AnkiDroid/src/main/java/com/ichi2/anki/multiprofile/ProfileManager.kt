@@ -80,16 +80,18 @@ class ProfileManager private constructor(
      * @param displayName The name to be associated with the new profile.
      * @return The unique [ProfileId] assigned to the newly created profile.
      *
+     * @throws IllegalArgumentException if another profile already uses [displayName], ignoring case.
      * @throws Exception if profile creation or persistence fails.
      */
     fun createNewProfile(displayName: ProfileName): ProfileId {
+        require(!isNameTaken(displayName)) { "Profile name is already in use" }
         val newProfileId = generateUniqueProfileId()
 
         val metadata = ProfileMetadata(displayName = displayName)
 
         profileRegistry.saveProfile(newProfileId, metadata)
 
-        Timber.i("Created new profile: ${displayName.value} (${newProfileId.value})")
+        Timber.i("Created new profile: ${newProfileId.value}")
         return newProfileId
     }
 
@@ -101,6 +103,11 @@ class ProfileManager private constructor(
      * @see ProfileRegistry.getAllProfiles
      */
     fun getAllProfiles(): Map<ProfileId, ProfileMetadata> = profileRegistry.getAllProfiles()
+
+    private fun isNameTaken(
+        name: ProfileName,
+        ignoring: ProfileId? = null,
+    ): Boolean = name.existsIn(getAllProfiles().filterKeys { it != ignoring }.values.map { it.displayName.value })
 
     /**
      * Generates a unique [ProfileId] that does not collide with existing profiles.
@@ -298,7 +305,8 @@ class ProfileManager private constructor(
      * @param newDisplayName  The new user-facing name.
      *
      * @throws IllegalArgumentException if [profileId] does not
-     *   exist in the registry.
+     *   exist in the registry, or another profile already uses
+     *   [newDisplayName], ignoring case.
      */
     fun renameProfile(
         profileId: ProfileId,
@@ -314,6 +322,8 @@ class ProfileManager private constructor(
             Timber.d("Rename skipped: New name matches existing name for $profileId")
             return
         }
+
+        require(!isNameTaken(newDisplayName, ignoring = profileId)) { "Profile name is already in use" }
 
         val updated = existing.copy(displayName = newDisplayName)
         profileRegistry.saveProfile(profileId, updated)
@@ -582,7 +592,7 @@ class ProfileManager private constructor(
         private val globalPrefs: SharedPreferences,
     ) {
         fun getLastActiveProfileId(): ProfileId? {
-            val id = globalPrefs.getString(KEY_LAST_ACTIVE_PROFILE_ID, null)
+            val id = globalPrefs.getString(PREF_LAST_ACTIVE_PROFILE_ID, null)
             return id?.let { ProfileId(it) }
         }
 
@@ -590,16 +600,16 @@ class ProfileManager private constructor(
             id: ProfileId,
             commit: Boolean = false,
         ) {
-            globalPrefs.edit(commit = commit) { putString(KEY_LAST_ACTIVE_PROFILE_ID, id.value) }
+            globalPrefs.edit(commit = commit) { putString(PREF_LAST_ACTIVE_PROFILE_ID, id.value) }
         }
 
         fun getWebViewProfileId(): ProfileId? {
-            val id = globalPrefs.getString(KEY_WEBVIEW_PROFILE_ID, null)
+            val id = globalPrefs.getString(PREF_WEBVIEW_PROFILE_ID, null)
             return id?.let { ProfileId(it) }
         }
 
         fun setWebViewProfileId(id: ProfileId) {
-            globalPrefs.edit { putString(KEY_WEBVIEW_PROFILE_ID, id.value) }
+            globalPrefs.edit { putString(PREF_WEBVIEW_PROFILE_ID, id.value) }
         }
 
         /**
@@ -621,7 +631,7 @@ class ProfileManager private constructor(
             globalPrefs.edit {
                 putString(id.value, metadata.toJson())
                 if (isActive) {
-                    putString(KEY_LAST_ACTIVE_PROFILE_ID, id.value)
+                    putString(PREF_LAST_ACTIVE_PROFILE_ID, id.value)
                 }
             }
         }
@@ -640,7 +650,7 @@ class ProfileManager private constructor(
          * Retrieves all registered profiles from the global SharedPreferences.
          *
          * Iterates over all stored entries, skipping the
-         * [KEY_LAST_ACTIVE_PROFILE_ID] metadata key, and deserializes each
+         * [PREF_LAST_ACTIVE_PROFILE_ID] metadata key, and deserializes each
          * value into a [ProfileMetadata] instance. Entries that fail to parse
          * are logged and silently skipped.
          *
@@ -695,13 +705,13 @@ class ProfileManager private constructor(
     companion object {
         private const val MAX_ATTEMPTS = 10
         const val PROFILE_REGISTRY_FILENAME = "profiles_prefs"
-        const val KEY_LAST_ACTIVE_PROFILE_ID = "last_active_profile_id"
+        const val PREF_LAST_ACTIVE_PROFILE_ID = "last_active_profile_id"
 
         /** Profile whose data the shared WebView storage currently holds. Pre-API 28 only. */
-        const val KEY_WEBVIEW_PROFILE_ID = "webview_profile_id"
+        const val PREF_WEBVIEW_PROFILE_ID = "webview_profile_id"
 
         /** Registry keys that are not profile entries. */
-        private val BOOKKEEPING_KEYS = setOf(KEY_LAST_ACTIVE_PROFILE_ID, KEY_WEBVIEW_PROFILE_ID)
+        private val BOOKKEEPING_KEYS = setOf(PREF_LAST_ACTIVE_PROFILE_ID, PREF_WEBVIEW_PROFILE_ID)
 
         const val DEFAULT_PROFILE_DISPLAY_NAME = "Default"
 

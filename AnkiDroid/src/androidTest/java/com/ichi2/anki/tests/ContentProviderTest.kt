@@ -80,7 +80,7 @@ import kotlin.test.junit.JUnitAsserter.assertNotNull
  */
 class ContentProviderTest : InstrumentedTest() {
     @get:Rule
-    var runtimePermissionRule = grantPermissions(storagePermission, FlashCardsContract.READ_WRITE_PERMISSION)
+    var runtimePermissionRule = grantPermissions(storagePermission, FlashCardsContract.getPermission())
 
     // Whether tear down should be executed. I.e. if set up was not cancelled.
     private var tearDown = false
@@ -1062,7 +1062,7 @@ class ContentProviderTest : InstrumentedTest() {
         val filteredDeckId = col.decks.newFiltered("Raw due filtered deck")
         testDeckIds.add(filteredDeckId)
         val filteredDeck = checkNotNull(col.decks.getLegacy(filteredDeckId))
-        filteredDeck.getJSONArray("terms").getJSONArray(0).put(0, "cid:${card.id}")
+        filteredDeck.firstFilter.search = "cid:${card.id}"
         col.decks.save(filteredDeck)
         col.sched.rebuildFilteredDeck(filteredDeckId)
         card.load(col)
@@ -1860,7 +1860,7 @@ class ContentProviderTest : InstrumentedTest() {
                 assertNotNull("Check that the deck we received actually exists", deck)
                 assertEquals(
                     "Check that the received deck has the correct name",
-                    deck.getString("name"),
+                    deck.name,
                     deckName,
                 )
             }
@@ -1894,7 +1894,7 @@ class ContentProviderTest : InstrumentedTest() {
                 )
                 assertEquals(
                     "Check that received deck name equals real deck name",
-                    realDeck.getString("name"),
+                    realDeck.name,
                     returnedDeckName,
                 )
             }

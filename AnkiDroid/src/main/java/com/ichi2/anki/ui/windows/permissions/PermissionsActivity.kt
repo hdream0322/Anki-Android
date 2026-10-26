@@ -37,7 +37,7 @@ import timber.log.Timber
  * To request optional permissions from the user, prefer [PermissionsBottomSheet].
  */
 class PermissionsActivity : AnkiActivity(R.layout.activity_permissions) {
-    private val binding by viewBinding(ActivityPermissionsBinding::bind)
+    internal val binding by viewBinding(ActivityPermissionsBinding::bind)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         if (showedActivityFailedScreen(savedInstanceState)) {
@@ -58,21 +58,29 @@ class PermissionsActivity : AnkiActivity(R.layout.activity_permissions) {
             finish()
             return
         }
-        val permissionsFragment = permissionSet.permissionsFragment.getDeclaredConstructor().newInstance()
+        configurePermissions(permissionSet)
+        // only close the activity by tapping the continue button
+        onBackPressedDispatcher.addCallback {}
+    }
+
+    private fun configurePermissions(permissionSet: StoragePermissionSet) {
         setFragmentResultListener(REQUEST_PERMISSIONS) { _, bundle ->
             val hasAllPermissions = bundle.getBoolean(RESULT_HAS_ALL_PERMISSIONS)
             setContinueButtonEnabled(hasAllPermissions)
         }
         setFragmentResultListener(REQUEST_PERMISSIONS_GRANTED) { _, _ -> decideStorageAndFinish() }
 
+        showPermissionsFragment(permissionSet)
+    }
+
+    private fun showPermissionsFragment(permissionSet: StoragePermissionSet) {
+        val permissionsFragment = permissionSet.permissionsFragment.getDeclaredConstructor().newInstance()
         supportFragmentManager.commit {
             replace(R.id.fragment_container, permissionsFragment)
         }
-        // only close the activity by tapping the continue button
-        onBackPressedDispatcher.addCallback {}
     }
 
-    fun setContinueButtonEnabled(isEnabled: Boolean) {
+    private fun setContinueButtonEnabled(isEnabled: Boolean) {
         binding.continueButton.isEnabled = isEnabled
     }
 

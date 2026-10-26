@@ -3,8 +3,6 @@
 package com.ichi2.anki
 
 import androidx.fragment.app.Fragment
-import com.ichi2.anki.FragmentLifecycleFixture.Transition.DESTROY_VIEW
-import com.ichi2.anki.FragmentLifecycleFixture.Transition.RECREATE_VIEW
 import com.ichi2.anki.FragmentLifecycleFixture.Transition.REMOVE
 import com.ichi2.anki.browser.BrowserColumnSelectionFragment
 import com.ichi2.anki.cardviewer.SingleCardSide
@@ -45,25 +43,29 @@ class FragmentLifecycleFixture(
 fun fragmentLifecycleFixtures(): List<FragmentLifecycleFixture> =
     listOf(
         FragmentLifecycleFixture("StudyOptions") { StudyOptionsFragment() },
-        FragmentLifecycleFixture("AppearanceSettings", knownFailures = setOf(REMOVE)) { AppearanceSettingsFragment() },
-        FragmentLifecycleFixture("GeneralSettings", knownFailures = setOf(REMOVE)) { GeneralSettingsFragment() },
-        FragmentLifecycleFixture("ReviewerOptions", knownFailures = setOf(REMOVE)) { ReviewerOptionsFragment() },
-        FragmentLifecycleFixture("ReviewingSettings", knownFailures = setOf(REMOVE)) { ReviewingSettingsFragment() },
+        FragmentLifecycleFixture("AppearanceSettings") { AppearanceSettingsFragment() },
+        FragmentLifecycleFixture("GeneralSettings") { GeneralSettingsFragment() },
+        FragmentLifecycleFixture("ReviewerOptions") { ReviewerOptionsFragment() },
+        FragmentLifecycleFixture("ReviewingSettings") { ReviewingSettingsFragment() },
         FragmentLifecycleFixture("AdvancedSettings") { AdvancedSettingsFragment() },
         FragmentLifecycleFixture("DeveloperOptions") { DeveloperOptionsFragment() },
         FragmentLifecycleFixture("SyncSettings") { SyncSettingsFragment() },
         FragmentLifecycleFixture("About") { AboutFragment() },
-        FragmentLifecycleFixture("ScheduleReminders", knownFailures = setOf(REMOVE, DESTROY_VIEW)) { ScheduleRemindersFragment() },
-        FragmentLifecycleFixture("FilteredDeckOptions", knownFailures = setOf(REMOVE, DESTROY_VIEW, RECREATE_VIEW)) {
+        FragmentLifecycleFixture("ScheduleReminders") { ScheduleRemindersFragment() },
+        FragmentLifecycleFixture("FilteredDeckOptions") {
             FilteredDeckOptionsFragment()
         },
-        FragmentLifecycleFixture("MediaCheck", knownFailures = setOf(REMOVE, DESTROY_VIEW)) { MediaCheckFragment() },
+        FragmentLifecycleFixture("MediaCheck") { MediaCheckFragment() },
         FragmentLifecycleFixture("ManageSpace", knownFailures = setOf(REMOVE)) { ManageSpaceFragment() },
-        FragmentLifecycleFixture("ChangeNoteType", knownFailures = setOf(REMOVE)) {
+        FragmentLifecycleFixture("ChangeNoteType") {
             ChangeNoteTypeDialog.newInstance(listOf(addBasicNote().id))
         },
-        FragmentLifecycleFixture("CustomStudy", hasFragmentView = false) { CustomStudyDialog.createInstance(col.decks.selected()) },
-        FragmentLifecycleFixture("AddReminder", hasFragmentView = false, knownFailures = setOf(REMOVE)) {
+        FragmentLifecycleFixture("CustomStudy", hasFragmentView = false) {
+            // Empty decks dismiss the dialog instead of remaining resumed.
+            addBasicNote()
+            CustomStudyDialog.createInstance(col.decks.selected())
+        },
+        FragmentLifecycleFixture("AddReminder", hasFragmentView = false) {
             AddEditReminderDialog.getInstance(AddEditReminderDialog.DialogMode.Add(ReviewReminderScope.Global))
         },
         FragmentLifecycleFixture("InsertField") {
@@ -73,7 +75,7 @@ fun fragmentLifecycleFixtures(): List<FragmentLifecycleFixture> =
                 requestKey = "insert-field-test",
             )
         },
-        FragmentLifecycleFixture("BrowserColumns", host = CardBrowser::class.java, knownFailures = setOf(REMOVE, DESTROY_VIEW)) {
+        FragmentLifecycleFixture("BrowserColumns", host = CardBrowser::class.java) {
             BrowserColumnSelectionFragment.createInstance(CardsOrNotes.CARDS)
         },
     )

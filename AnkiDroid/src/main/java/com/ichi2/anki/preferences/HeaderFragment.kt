@@ -241,7 +241,7 @@ class HeaderFragment : SettingsFragment() {
         fun getHeaderKeyForFragment(fragment: Fragment): Int? =
             when (fragment) {
                 is GeneralSettingsFragment -> R.string.pref_general_screen_key
-                is ReviewingSettingsFragment -> R.string.pref_reviewing_screen_key
+                is ReviewingSettingsFragment, is TimeboxSettingsFragment -> R.string.pref_reviewing_screen_key
                 is DeurimSettingsFragment -> R.string.pref_deurim_screen_key
                 is SyncSettingsFragment, is CustomSyncServerSettingsFragment -> R.string.pref_sync_screen_key
                 is NotificationsSettingsFragment -> R.string.pref_notifications_screen_key

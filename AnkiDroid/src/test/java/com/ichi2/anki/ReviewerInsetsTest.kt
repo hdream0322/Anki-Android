@@ -16,13 +16,14 @@ import androidx.core.view.marginBottom
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SdkSuppress
 import com.ichi2.anki.common.preferences.sharedPrefs
+import com.ichi2.anki.common.utils.dp
 import com.ichi2.anki.reviewer.FullScreenMode
 import com.ichi2.testutils.dispatchInsets
-import com.ichi2.utils.dp
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.equalTo
 import org.junit.Test
 import org.junit.runner.RunWith
+import com.ichi2.anki.common.android.R as CommonR
 
 /**
  * Edge-to-edge inset handling for the legacy [Reviewer].
@@ -72,7 +73,7 @@ class ReviewerInsetsTest : RobolectricTest() {
                 equalTo(48.dp.toPx(targetContext)),
             )
 
-            val sideMargin = targetContext.resources.getDimensionPixelSize(R.dimen.side_margin)
+            val sideMargin = targetContext.resources.getDimensionPixelSize(CommonR.dimen.side_margin)
             assertThat(
                 "the counts bar keeps its side margin past the cutout",
                 reviewer.countsBar.paddingLeft,

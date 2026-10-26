@@ -23,6 +23,13 @@ class FieldState private constructor(
 ) {
     private var customViewIds: List<Int>? = null
 
+    // Values beyond the current type's field count, retained until the draft is saved or discarded.
+    private var hiddenFieldValues: List<String> = emptyList()
+
+    /** All draft values, including fields temporarily hidden by a smaller note type. */
+    val currentFieldValues: List<String>
+        get() = editor.currentFieldStrings.map { it.orEmpty() } + hiddenFieldValues
+
     fun loadFieldEditLines(type: FieldChangeType): List<FieldEditLine> {
         val fieldEditLines: List<FieldEditLine> =
             if (type.type == Type.INIT && customViewIds != null) {
@@ -45,10 +52,13 @@ class FieldState private constructor(
             }
         }
         if (type.type == Type.CHANGE_FIELD_COUNT) {
-            val currentFieldStrings = editor.currentFieldStrings
-            for (i in 0 until min(currentFieldStrings.size, fieldEditLines.size)) {
-                fieldEditLines[i].setContent(currentFieldStrings[i], type.replaceNewlines)
+            val fieldValues = currentFieldValues
+            for (i in 0 until min(fieldValues.size, fieldEditLines.size)) {
+                fieldEditLines[i].setContent(fieldValues[i], type.replaceNewlines)
             }
+            hiddenFieldValues = fieldValues.drop(fieldEditLines.size)
+        } else if (type.type != Type.INIT) {
+            clearHiddenFields()
         }
         return fieldEditLines
     }
@@ -84,6 +94,18 @@ class FieldState private constructor(
 
     fun setInstanceState(savedInstanceState: Bundle?) {
         customViewIds = savedInstanceState?.getIntegerArrayList("customViewIds")
+        hiddenFieldValues = savedInstanceState?.getStringArrayList("hiddenFieldValues").orEmpty()
+    }
+
+    fun saveInstanceState(outState: Bundle) {
+        // Visible values are already saved by the field views; only save the hidden tail here.
+        if (hiddenFieldValues.isNotEmpty()) {
+            outState.putStringArrayList("hiddenFieldValues", ArrayList(hiddenFieldValues))
+        }
+    }
+
+    fun clearHiddenFields() {
+        hiddenFieldValues = emptyList()
     }
 
     /** How fields should be changed when the UI is rebuilt  */

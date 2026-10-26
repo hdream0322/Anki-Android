@@ -25,11 +25,11 @@ class AiKeyStore(
 ) {
     init {
         // Only one key used to exist; it was for whichever provider was selected.
-        prefs.getString(KEY_LEGACY_API_KEY, null)?.let { legacyKey ->
+        prefs.getString(PREF_LEGACY_API_KEY, null)?.let { legacyKey ->
             val owner = legacyKeyOwner()
             prefs.edit {
                 if (!prefs.contains(keyFor(owner))) putString(keyFor(owner), legacyKey)
-                remove(KEY_LEGACY_API_KEY)
+                remove(PREF_LEGACY_API_KEY)
             }
         }
     }
@@ -45,7 +45,7 @@ class AiKeyStore(
 
     companion object {
         private const val FILE_NAME = "ai_key_store"
-        private const val KEY_LEGACY_API_KEY = "api_key"
+        private const val PREF_LEGACY_API_KEY = "api_key"
 
         private fun keyFor(provider: AiProviderKind) = "api_key_${provider.name.lowercase()}"
 

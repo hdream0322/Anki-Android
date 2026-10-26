@@ -71,7 +71,7 @@ class HeatmapWidgetConfig : AnkiActivity(R.layout.activity_heatmap_widget_config
             deck =
                 BundleCompat.getParcelable(
                     savedInstanceState,
-                    KEY_DECK,
+                    STATE_DECK,
                     SelectableDeck.Deck::class.java,
                 )
             binding.deckName.text = deck?.name
@@ -89,7 +89,7 @@ class HeatmapWidgetConfig : AnkiActivity(R.layout.activity_heatmap_widget_config
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        outState.putParcelable(KEY_DECK, deck)
+        outState.putParcelable(STATE_DECK, deck)
     }
 
     override fun onDestroy() {
@@ -170,6 +170,6 @@ class HeatmapWidgetConfig : AnkiActivity(R.layout.activity_heatmap_widget_config
         }
 
     companion object {
-        private const val KEY_DECK = "key_deck"
+        private const val STATE_DECK = "key_deck"
     }
 }

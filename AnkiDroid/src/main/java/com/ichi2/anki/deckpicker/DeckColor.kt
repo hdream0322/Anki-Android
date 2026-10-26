@@ -29,9 +29,9 @@ import androidx.appcompat.app.AlertDialog
 import androidx.core.content.edit
 import com.ichi2.anki.CommonString
 import com.ichi2.anki.R
+import com.ichi2.anki.common.utils.dp
 import com.ichi2.anki.libanki.DeckId
 import com.ichi2.themes.Themes
-import com.ichi2.utils.dp
 import com.ichi2.utils.negativeButton
 import com.ichi2.utils.show
 import com.ichi2.utils.title

@@ -144,6 +144,7 @@ import org.robolectric.shadows.ShadowLooper
 import timber.log.Timber
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNotSame
 import kotlin.test.assertSame
@@ -1321,6 +1322,42 @@ class DeckPickerTest : RobolectricTest() {
 
             assertEquals(5, layoutManager.findFirstVisibleItemPosition())
             assertEquals(deckIds[6], adapter.currentList[layoutManager.findFirstVisibleItemPosition()].did)
+        }
+    }
+
+    @Test
+    fun `studying a deck follows the moved deck when keeping the scroll position is disabled`() {
+        val now = System.currentTimeMillis()
+        val deckIds =
+            (0 until 40).map { i ->
+                val did = addDeck("Deck %02d".format(i))
+                addNoteToDeck(did, count = 2)
+                insertReview(now - (40 - i) * 86_400_000L, col.findCards("did:$did").first())
+                did
+            }
+        Prefs.sharedPrefs.edit {
+            putString(DeckPickerViewModel.PREF_DECK_SORT_ORDER, DeckSortOrder.LEAST_RECENT.name)
+            putBoolean(targetContext.getString(R.string.pref_deck_list_keep_scroll_key), false)
+        }
+
+        deckPicker {
+            val decks = deckPickerBinding.decks
+            val layoutManager = decks.layoutManager as LinearLayoutManager
+            awaitVisibleDecks(deckIds)
+            layoutManager.scrollToPositionWithOffset(5, 0)
+            advanceRobolectricLooperUntil { layoutManager.findFirstVisibleItemPosition() == 5 }
+
+            val studied = deckIds[5]
+            val adapter = decks.adapter as DeckAdapter
+            col.decks.select(studied)
+            viewModel.focusedDeck = studied
+            advanceRobolectricLooperUntil { adapter.currentList.single { it.did == studied }.isSelected }
+            insertReview(now, col.findCards("did:$studied").first())
+            updateDeckList()
+            advanceRobolectricLooperUntil { adapter.currentList.indexOfFirst { it.did == studied } == deckIds.size - 1 }
+            advanceRobolectricLooper()
+
+            assertNotEquals(5, layoutManager.findFirstVisibleItemPosition())
         }
     }
 

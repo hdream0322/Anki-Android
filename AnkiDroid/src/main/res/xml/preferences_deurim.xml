@@ -38,6 +38,13 @@
             android:title="@string/pref_wifi_only_update_title"
             android:summary="@string/pref_wifi_only_update_summ"/>
     </PreferenceCategory>
+    <PreferenceCategory android:title="@string/pref_cat_deurim_deck_list">
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="@string/pref_deck_list_keep_scroll_key"
+            android:title="@string/pref_deck_list_keep_scroll"
+            android:summary="@string/pref_deck_list_keep_scroll_summ"/>
+    </PreferenceCategory>
     <PreferenceCategory android:title="@string/pref_cat_deurim_reviewer">
         <SwitchPreferenceCompat
             android:defaultValue="true"

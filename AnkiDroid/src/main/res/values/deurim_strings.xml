@@ -16,6 +16,12 @@
     <string name="deck_sort_order_least_recent">Least recent</string>
     <string name="deck_sort_order_most_recent">Most recent</string>
 
+    <!-- Deck list: keep the viewport when studying re-sorts decks -->
+    <string name="pref_cat_deurim_deck_list" maxLength="41">Deck list</string>
+    <string name="pref_deck_list_keep_scroll_key">deurim_deck_list_keep_scroll</string>
+    <string name="pref_deck_list_keep_scroll" maxLength="41">Keep scroll position after studying</string>
+    <string name="pref_deck_list_keep_scroll_summ">When sorted by study date, the deck list stays where it was instead of following the studied deck</string>
+
     <!-- Deck row color (deck picker context menu) -->
     <string name="deck_color" maxLength="41">Deck color</string>
     <string name="deck_color_none">No color</string>
@@ -53,6 +59,7 @@
     <string name="pref_cat_deurim_update" maxLength="41">Update</string>
     <string-array name="deurim_summary_entries">
         <item>@string/pref_cat_deurim_update</item>
+        <item>@string/pref_cat_deurim_deck_list</item>
         <item>@string/pref_cat_deurim_reviewer</item>
         <item>@string/pref_cat_sound_effects</item>
         <item>@string/pref_cat_ai</item>

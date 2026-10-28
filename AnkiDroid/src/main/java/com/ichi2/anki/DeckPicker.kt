@@ -942,7 +942,8 @@ open class DeckPicker :
             // onFocusedDeckChanged then scrolls to the newly focused deck.
             val focusedDeck = viewModel.focusedDeck
             val keepScroll =
-                viewModel.flowOfDeckSortOrder.value != DeckSortOrder.NAME &&
+                Prefs.deckListKeepScroll &&
+                    viewModel.flowOfDeckSortOrder.value != DeckSortOrder.NAME &&
                     focusedDeck == focusedDeckOfLastDeckList &&
                     deckListAdapter.itemCount > 0
             focusedDeckOfLastDeckList = focusedDeck

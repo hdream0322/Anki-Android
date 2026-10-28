@@ -244,6 +244,9 @@ open class PrefsRepository protected constructor(
 
     val exitViaDoubleTapBack by booleanPref(R.string.exit_via_double_tap_back_key, false)
 
+    /** Whether the deck list keeps its viewport when studying re-sorts decks by study date. */
+    val deckListKeepScroll by booleanPref(R.string.pref_deck_list_keep_scroll_key, defaultValue = true)
+
     // ****************************************** Sync ****************************************** //
 
     val isAutoSyncEnabled by booleanPref(R.string.automatic_sync_choice_key, false)

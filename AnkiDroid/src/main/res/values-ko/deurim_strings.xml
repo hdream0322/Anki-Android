@@ -12,6 +12,11 @@
     <string name="deck_sort_order_least_recent">오래된 순</string>
     <string name="deck_sort_order_most_recent">최근 순</string>
 
+    <!-- Deck list: keep the viewport when studying re-sorts decks -->
+    <string name="pref_cat_deurim_deck_list">덱 목록</string>
+    <string name="pref_deck_list_keep_scroll">학습 후 스크롤 위치 유지</string>
+    <string name="pref_deck_list_keep_scroll_summ">학습 날짜 순으로 정렬할 때, 학습한 덱을 따라가지 않고 목록 위치를 그대로 유지합니다</string>
+
     <!-- Deck row color (deck picker context menu) -->
     <string name="deck_color">덱 색상</string>
     <string name="deck_color_none">색 없음</string>

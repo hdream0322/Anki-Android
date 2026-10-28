@@ -17,6 +17,7 @@ import com.ichi2.anki.common.preferences.AnimationPreferences
 import com.ichi2.anki.common.preferences.NotificationPreferences
 import com.ichi2.anki.common.preferences.sharedPrefs
 import com.ichi2.anki.common.utils.isRunningAsUnitTest
+import com.ichi2.anki.libanki.DeckId
 import com.ichi2.anki.preferences.SharedPreferencesProvider
 import com.ichi2.anki.settings.enums.AiProviderKind
 import com.ichi2.anki.settings.enums.AppTheme
@@ -246,6 +247,14 @@ open class PrefsRepository protected constructor(
 
     /** Whether the deck list keeps its viewport when studying re-sorts decks by study date. */
     val deckListKeepScroll by booleanPref(R.string.pref_deck_list_keep_scroll_key, defaultValue = true)
+
+    // ****************************************** Editing ****************************************** //
+
+    /**
+     * Last deck successfully used when saving note data from a 'share' intent,
+     * or zero if no destination has been saved.
+     */
+    var lastSharedDeckId: DeckId by longPref(R.string.last_shared_deck_id_key, defaultValue = 0L)
 
     // ****************************************** Sync ****************************************** //
 

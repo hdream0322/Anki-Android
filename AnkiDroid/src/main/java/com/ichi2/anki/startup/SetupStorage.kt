@@ -29,12 +29,11 @@ import java.io.File
  * in [CollectionHelper.systemStorageFailure] so reads report it rather than
  * [StorageNotConfiguredException]
  */
-fun ensureCollectionPathSet(context: Context) {
+fun maybeSetDefaultCollectionPath(context: Context) {
     val preferences = context.sharedPrefs()
     if (preferences.contains(CollectionHelper.PREF_COLLECTION_PATH)) return
     val folder = selectStoragePermissions(context).folderToPersist(context)
     if (folder == null) {
-        // unreachable until 13574 is fixed.
         Timber.i("deferring the storage decision to the user")
         return
     }

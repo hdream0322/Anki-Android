@@ -21,6 +21,7 @@ import org.robolectric.annotation.Config
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
@@ -40,7 +41,7 @@ class SetupStorageTest : RobolectricTest() {
 
     /**
      * Reading the collection path must not silently choose and persist a default:
-     * that decision belongs to startup ([ensureCollectionPathSet]).
+     * that decision belongs to startup ([maybeSetDefaultCollectionPath]).
      */
     @Test
     fun `reading the collection path throws when unset`() {
@@ -84,30 +85,29 @@ class SetupStorageTest : RobolectricTest() {
     }
 
     @Test
-    fun `ensureCollectionPathSet persists a default when unset`() {
+    fun `maybeSetDefaultCollectionPath persists a default when unset and storage is accessible`() {
         prefs.edit { remove(CollectionHelper.PREF_COLLECTION_PATH) }
 
-        ensureCollectionPathSet(targetContext)
+        withAllFilesAccess { maybeSetDefaultCollectionPath(targetContext) }
 
         assertTrue(!collectionPath.isNullOrEmpty(), "a default collection path should be set")
     }
 
     @Test
-    fun `ensureCollectionPathSet does not overwrite an existing value`() {
+    fun `maybeSetDefaultCollectionPath does not overwrite an existing value`() {
         prefs.edit { putString(CollectionHelper.PREF_COLLECTION_PATH, "/a/custom/path") }
 
-        ensureCollectionPathSet(targetContext)
+        maybeSetDefaultCollectionPath(targetContext)
 
         assertEquals("/a/custom/path", collectionPath)
     }
 
-    // The permission screen is mandatory on Android 10 and below: the folder is fixed
     @Test
     @Config(sdk = [Build.VERSION_CODES.Q])
     fun `Android 10 - public storage is persisted before permissions are granted`() {
         prefs.edit { remove(CollectionHelper.PREF_COLLECTION_PATH) }
 
-        ensureCollectionPathSet(targetContext)
+        maybeSetDefaultCollectionPath(targetContext)
 
         assertEquals(publicCollectionPath, collectionPath)
     }
@@ -117,20 +117,19 @@ class SetupStorageTest : RobolectricTest() {
     fun `Android 10 - public storage is persisted once permissions are granted`() {
         prefs.edit { remove(CollectionHelper.PREF_COLLECTION_PATH) }
 
-        withWritePermissions { ensureCollectionPathSet(targetContext) }
+        withWritePermissions { maybeSetDefaultCollectionPath(targetContext) }
 
         assertEquals(publicCollectionPath, collectionPath)
     }
 
-    // TODO: 13574 - the decision is deferred to the user: the screen may be skipped
     @Test
     @Config(sdk = [Build.VERSION_CODES.R])
-    fun `full build - public storage is persisted before 'All files access' is granted`() {
+    fun `full build - storage decision is deferred before 'All files access' is granted`() {
         prefs.edit { remove(CollectionHelper.PREF_COLLECTION_PATH) }
 
-        withManageExternalStorageInManifest { ensureCollectionPathSet(targetContext) }
+        withManageExternalStorageInManifest { maybeSetDefaultCollectionPath(targetContext) }
 
-        assertEquals(publicCollectionPath, collectionPath)
+        assertNull(collectionPath, "the storage decision should be deferred to the user")
     }
 
     @Test
@@ -139,7 +138,7 @@ class SetupStorageTest : RobolectricTest() {
         prefs.edit { remove(CollectionHelper.PREF_COLLECTION_PATH) }
 
         withManageExternalStorageInManifest {
-            withAllFilesAccess { ensureCollectionPathSet(targetContext) }
+            withAllFilesAccess { maybeSetDefaultCollectionPath(targetContext) }
         }
 
         assertEquals(publicCollectionPath, collectionPath)

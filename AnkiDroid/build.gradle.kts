@@ -120,7 +120,7 @@ val forkReleaseDate =
         .orElse(providers.environmentVariable("FORK_RELEASE_DATE"))
         .orElse("0")
 
-val upstreamVersionName = "2.26.0alpha8"
+val upstreamVersionName = "2.26.0alpha9"
 
 android {
     namespace = "com.ichi2.anki"
@@ -176,7 +176,7 @@ android {
         // This ensures the correct ordering between the various types of releases (dev < alpha < beta < release) which is
         // needed for upgrades to be offered correctly.
         // Upstream baseline: keep this a plain literal, upstream's validateVersionCode parses it.
-        versionCode = 22600108
+        versionCode = 22600109
         // Deurim: add the per-fork build counter (see forkBuild above). Must not start with
         // `versionCode`, or validateVersionCode sees two declarations and fails.
         this.versionCode = versionCode!! + forkBuild
@@ -384,6 +384,8 @@ android {
         animationsDisabled = true
         unitTests {
             all { test ->
+                // Profile coverage checks must rerun when the generated profiles change.
+                test.inputs.dir("src/main/generated/baselineProfiles")
                 test.useJUnitPlatform {
                     // ./gradlew testFullDebugUnitTest -Pscreenshot
                     if (project.hasProperty("screenshot")) {
@@ -778,9 +780,10 @@ android {
     }
 }
 
-configurations.configureEach {
+configurations.matching { it.name.endsWith("CompileClasspath") || it.name.endsWith("RuntimeClasspath") }.configureEach {
     resolutionStrategy {
-        // Timber has this as a dependency but they are not up to date. We want to force our version.
+        // Keep app dependencies such as Timber on our annotations version. Changing Kotlin's
+        // compiler classpath creates an extra compiler daemon and increases peak memory use.
         force(libs.jetbrains.annotations)
     }
 }

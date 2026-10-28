@@ -187,6 +187,7 @@ import com.ichi2.anki.shareddeck.SharedDecksActivity
 import com.ichi2.anki.snackbar.BaseSnackbarBuilderProvider
 import com.ichi2.anki.snackbar.SnackbarBuilder
 import com.ichi2.anki.snackbar.showSnackbar
+import com.ichi2.anki.study.StudyAvailability
 import com.ichi2.anki.study.StudyCompletionUi
 import com.ichi2.anki.study.currentDeckStudyState
 import com.ichi2.anki.sync.MeteredSyncPolicy
@@ -1256,9 +1257,9 @@ open class DeckPicker :
             is DiskFull -> displayNoStorageError()
             is DBError -> displayDatabaseFailure(CustomExceptionData.fromException(failure.exception))
             is StorageUndecided -> {
-                // unreachable: Undecided requires PREF_COLLECTION_PATH to be unset, which only
-                // happens if ensureCollectionPathSet failed at startup; getStartupFailureType
-                // then returns InitializationError (fatalError) before checking the decision
+                // Undecided requires PREF_COLLECTION_PATH to be unset: only expected if
+                // choosing a default collection path failed (SystemStorageException) after
+                // the permission checks passed
                 // TODO: #19552 - replace with the storage setup flow
                 Timber.w("storage setup flow (#19552) not implemented; showing load-failure options")
                 CrashReportService.sendExceptionReport(
@@ -2365,21 +2366,22 @@ open class DeckPicker :
             updateDeckList()
         }
 
-        withCol { decks.select(did) }
+        val study =
+            withCol {
+                decks.select(did)
+                currentDeckStudyState()
+            }
         deckListAdapter.updateSelectedDeck(did)
         // Also forget the last deck used by the Browser
         CardBrowser.clearLastDeckId()
         viewModel.focusedDeck = did
 
-        // TODO: Reuse dueTree from ViewModel instead of recalculating for better performance.
-        val deck = withCol { sched.deckDueTree().find(did) }
-        if (deck?.hasCardsReadyToStudy() == true) {
+        if (study.availability == StudyAvailability.CardsAvailable) {
             openReviewerOrStudyOptions(selectionType)
             return
         }
 
-        val isEmpty = withCol { decks.cardCount(did, includeSubdecks = true) == 0 }
-        if (!deck?.filtered!! && isEmpty) {
+        if (study.isEmptyRegularDeck) {
             showEmptyDeckSnackbar()
             updateUi()
         } else {

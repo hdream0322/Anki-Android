@@ -51,6 +51,7 @@ import com.ichi2.utils.title
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import timber.log.Timber
+import com.ichi2.anki.common.android.R as CommonR
 
 /** Aggregates every fork-only preference (updater, whiteboard, SFX) in one screen. */
 class DeurimSettingsFragment : SettingsFragment() {
@@ -257,7 +258,7 @@ class DeurimSettingsFragment : SettingsFragment() {
                 title(R.string.ai_model_item_custom)
                 positiveButton(CommonString.dialog_ok)
                 negativeButton(CommonString.dialog_cancel)
-                setView(R.layout.dialog_generic_text_input)
+                setView(CommonR.layout.dialog_generic_text_input)
             }.input(
                 prefill = current,
                 allowEmpty = true,

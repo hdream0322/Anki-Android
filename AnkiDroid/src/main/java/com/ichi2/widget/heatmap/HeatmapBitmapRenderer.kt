@@ -22,9 +22,9 @@ import android.graphics.Canvas
 import android.view.View
 import androidx.appcompat.view.ContextThemeWrapper
 import androidx.core.graphics.createBitmap
-import com.ichi2.anki.R
 import com.ichi2.anki.heatmap.ReviewHeatmapData
 import com.ichi2.anki.heatmap.ReviewHeatmapView
+import com.ichi2.anki.common.android.R as CommonR
 
 /**
  * Renders a [ReviewHeatmapView] offscreen into a [Bitmap] sized to [widthPx],
@@ -41,7 +41,7 @@ object HeatmapBitmapRenderer {
             context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
                 Configuration.UI_MODE_NIGHT_YES
         val themedContext =
-            ContextThemeWrapper(context, if (nightMode) R.style.Theme_Dark else R.style.Theme_Light)
+            ContextThemeWrapper(context, if (nightMode) CommonR.style.Theme_Dark else CommonR.style.Theme_Light)
 
         val view =
             ReviewHeatmapView(themedContext).apply {

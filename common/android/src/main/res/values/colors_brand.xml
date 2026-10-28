@@ -25,12 +25,10 @@
     <color name="brand_dark_surface_container_high">#514745</color>
     <color name="brand_dark_surface_container">#0FE57E5D</color>
     <color name="brand_light_surface_variant">#F5E2DB</color>
-    <color name="brand_light_on_surface_variant">#66493F</color>
     <color name="brand_light_outline_variant">#CBAEA4</color>
     <color name="brand_light_tertiary">#8F3719</color>
     <color name="brand_light_on_tertiary">#FFFFFF</color>
     <color name="brand_dark_surface_variant">#4A342C</color>
-    <color name="brand_dark_on_surface_variant">#E6C9BF</color>
     <color name="brand_dark_outline_variant">#917065</color>
     <color name="brand_dark_tertiary">#EBA48C</color>
     <color name="brand_dark_on_tertiary">#41190C</color>

@@ -48,6 +48,7 @@ import com.ichi2.anki.common.crashreporting.CrashReportService
 import com.ichi2.anki.dialogs.customstudy.CustomStudyDialog
 import com.ichi2.anki.filtered.FilteredDeckOptionsFragment
 import com.ichi2.anki.heatmap.ReviewHeatmapView
+import com.ichi2.anki.heatmap.ReviewHeatmapView.DayKind
 import com.ichi2.anki.heatmap.fetchReviewHeatmapData
 import com.ichi2.anki.libanki.DeckId
 import com.ichi2.anki.libanki.Decks
@@ -276,12 +277,15 @@ class StudyOptionsFragment :
         totalCardsCount = studyOptionsView.findViewById(R.id.studyoptions_total_count)
         reviewHeatmapView = studyOptionsView.findViewById(R.id.studyoptions_heatmap)
         reviewHeatmapSummary = studyOptionsView.findViewById(R.id.studyoptions_heatmap_summary)
-        reviewHeatmapView.onDaySelected = { date, count, isFuture ->
+        reviewHeatmapView.onDaySelected = { date, count, kind ->
             val label =
                 date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
-            val pluralRes =
-                if (isFuture) R.plurals.heatmap_day_due else R.plurals.heatmap_day_reviews
-            val detail = resources.getQuantityString(pluralRes, count, count)
+            val detail =
+                when (kind) {
+                    DayKind.PAST -> resources.getQuantityString(R.plurals.heatmap_day_reviews, count, count)
+                    DayKind.REST -> getString(R.string.heatmap_day_rest)
+                    DayKind.FUTURE -> resources.getQuantityString(R.plurals.heatmap_day_due, count, count)
+                }
             // Show the tapped day on a second line under the stats, instead of a snackbar.
             reviewHeatmapSummary.text =
                 if (heatmapSummaryBase.isEmpty()) {

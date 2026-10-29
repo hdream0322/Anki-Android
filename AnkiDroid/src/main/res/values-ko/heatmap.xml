@@ -24,4 +24,6 @@
     <plurals name="heatmap_day_due">
         <item quantity="other">예정 %d개</item>
     </plurals>
+
+    <string name="heatmap_day_rest">복습할 카드 없음 · 연속 유지</string>
 </resources>

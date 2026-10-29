@@ -96,6 +96,14 @@ class ReviewHeatmapView
                 strokeWidth = dp(1.5f)
                 color = "#1565C0".toColorInt()
             }
+
+        /** Outline marking rest days (nothing was due), so the streak visibly carries through. */
+        private val restPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = dp(1.5f)
+                color = REST_COLOR
+            }
         private val rect = RectF()
 
         private var data: ReviewHeatmapData? = null
@@ -107,11 +115,11 @@ class ReviewHeatmapView
         }
 
         /**
-         * Invoked when the user taps a day cell, with the date and how much activity it has
-         * (reviews done for past/today, cards coming due for the future) and whether it is
-         * in the future.
+         * Invoked when the user taps a day cell, with the date, how much activity it has
+         * (reviews done for past/today, cards coming due for the future) and what kind of
+         * day it is.
          */
-        var onDaySelected: ((date: LocalDate, count: Int, isFuture: Boolean) -> Unit)? = null
+        var onDaySelected: ((date: LocalDate, count: Int, kind: DayKind) -> Unit)? = null
 
         /** Resolved cell edge length, recomputed in [onMeasure] from the available width. */
         private var cellSize = minCell
@@ -156,7 +164,7 @@ class ReviewHeatmapView
         private val levelColors =
             intArrayOf(
                 0xFF9BE9A8.toInt(),
-                0xFF40C463.toInt(),
+                REST_COLOR,
                 0xFF30A14E.toInt(),
                 0xFF216E39.toInt(),
             )
@@ -280,6 +288,13 @@ class ReviewHeatmapView
                     rect.set(left, top, left + cellSize, top + cellSize)
                     canvas.drawRoundRect(rect, cornerRadius, cornerRadius, cellPaint)
 
+                    if (date in data.restDays) {
+                        val inset = restPaint.strokeWidth / 2f
+                        rect.inset(inset, inset)
+                        canvas.drawRoundRect(rect, cornerRadius, cornerRadius, restPaint)
+                        rect.set(left, top, left + cellSize, top + cellSize)
+                    }
+
                     if (date == data.today) {
                         val inset = todayPaint.strokeWidth / 2f
                         rect.inset(inset, inset)
@@ -317,10 +332,15 @@ class ReviewHeatmapView
             }
             selectedDate = date
             invalidate()
-            val isFuture = date > data.today
+            val kind =
+                when {
+                    date > data.today -> DayKind.FUTURE
+                    date in data.restDays -> DayKind.REST
+                    else -> DayKind.PAST
+                }
             val count =
-                if (isFuture) data.dueByDate[date] ?: 0 else data.countsByDate[date] ?: 0
-            onDaySelected?.invoke(date, count, isFuture)
+                if (kind == DayKind.FUTURE) data.dueByDate[date] ?: 0 else data.countsByDate[date] ?: 0
+            onDaySelected?.invoke(date, count, kind)
             performClick()
             return true
         }
@@ -353,8 +373,23 @@ class ReviewHeatmapView
             return day.getDisplayName(TextStyle.SHORT, Locale.getDefault())
         }
 
+        /** What a tapped day represents. */
+        enum class DayKind {
+            /** Today or earlier: the count is reviews done. */
+            PAST,
+
+            /** A past day with nothing due (see [ReviewHeatmapData.restDays]). */
+            REST,
+
+            /** After today: the count is cards coming due. */
+            FUTURE,
+        }
+
         companion object {
             private const val ROWS = 7
+
+            /** Second step of the green palette, reused to outline rest days. */
+            private const val REST_COLOR = 0xFF40C463.toInt()
 
             /** Rows (Sun=0) to label on the left: Mon, Wed, Fri — enough to orient without clutter. */
             private val WEEKDAY_LABEL_ROWS = intArrayOf(1, 3, 5)

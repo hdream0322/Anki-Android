@@ -31,4 +31,7 @@
         <item quantity="one">%d card due</item>
         <item quantity="other">%d cards due</item>
     </plurals>
+
+    <!-- Shown when tapping a past day on which no review card was due, so the streak carried on. -->
+    <string name="heatmap_day_rest">No reviews due · streak kept</string>
 </resources>

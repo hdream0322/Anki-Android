@@ -10,12 +10,15 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.content.ContextCompat
 import androidx.test.core.app.ApplicationProvider
+import com.ichi2.anki.common.android.R
+import com.ichi2.anki.settings.enums.DayTheme
+import com.ichi2.anki.settings.enums.NightTheme
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
-import com.ichi2.anki.common.android.R as CommonR
 
 /**
  * Verifies that the four AnkiDroid XML themes (light, plain, dark, black) are
@@ -33,23 +36,40 @@ class ThemeTest {
     private fun themed(themeRes: Int) = ContextThemeWrapper(appContext, themeRes)
 
     @Test
+    @Config(sdk = [24, Config.TARGET_SDK])
+    fun `surface containers are opaque in every app theme`() {
+        for (theme in DayTheme.entries + NightTheme.entries) {
+            val scheme = themed(theme.styleResId).toMaterial3ColorScheme()
+            for (color in listOf(
+                scheme.surfaceContainer,
+                scheme.surfaceContainerHigh,
+                scheme.surfaceContainerHighest,
+                scheme.surfaceContainerLow,
+                scheme.surfaceContainerLowest,
+            )) {
+                assertEquals(1f, color.alpha, "${theme.name}: popup surfaces must hide underlying content")
+            }
+        }
+    }
+
+    @Test
     fun `light theme bridges colorPrimary to scheme primary`() {
-        val scheme = themed(CommonR.style.Theme_Light).toMaterial3ColorScheme()
-        val expected = ContextCompat.getColor(appContext, CommonR.color.material_light_blue_500)
+        val scheme = themed(R.style.Theme_Light).toMaterial3ColorScheme()
+        val expected = ContextCompat.getColor(appContext, R.color.material_light_blue_500)
         assertEquals(expected, scheme.primary.toArgb())
     }
 
     @Test
     fun `dark theme bridges colorPrimary to scheme primary`() {
-        val scheme = themed(CommonR.style.Theme_Dark).toMaterial3ColorScheme()
-        val expected = ContextCompat.getColor(appContext, CommonR.color.material_blue_400)
+        val scheme = themed(R.style.Theme_Dark).toMaterial3ColorScheme()
+        val expected = ContextCompat.getColor(appContext, R.color.material_blue_400)
         assertEquals(expected, scheme.primary.toArgb())
     }
 
     @Test
     fun `plain theme produces a different primary than light theme`() {
-        val light = themed(CommonR.style.Theme_Light).toMaterial3ColorScheme()
-        val plain = themed(CommonR.style.Theme_Light_Plain).toMaterial3ColorScheme()
+        val light = themed(R.style.Theme_Light).toMaterial3ColorScheme()
+        val plain = themed(R.style.Theme_Light_Plain).toMaterial3ColorScheme()
         assertNotEquals(
             light.primary.toArgb(),
             plain.primary.toArgb(),
@@ -59,8 +79,8 @@ class ThemeTest {
 
     @Test
     fun `black theme produces a different surface than dark theme`() {
-        val dark = themed(CommonR.style.Theme_Dark).toMaterial3ColorScheme()
-        val black = themed(CommonR.style.Theme_Dark_Black).toMaterial3ColorScheme()
+        val dark = themed(R.style.Theme_Dark).toMaterial3ColorScheme()
+        val black = themed(R.style.Theme_Dark_Black).toMaterial3ColorScheme()
         assertNotEquals(
             dark.surface.toArgb(),
             black.surface.toArgb(),
@@ -70,7 +90,7 @@ class ThemeTest {
 
     @Test
     fun `light theme uses lightColorScheme as base for unspecified slots`() {
-        val scheme = themed(CommonR.style.Theme_Light).toMaterial3ColorScheme()
+        val scheme = themed(R.style.Theme_Light).toMaterial3ColorScheme()
         val lightDefaults = lightColorScheme()
         // inverseSurface is not overridden by Theme_Light, so it should come from the base
         assertEquals(lightDefaults.inverseSurface.toArgb(), scheme.inverseSurface.toArgb())
@@ -78,7 +98,7 @@ class ThemeTest {
 
     @Test
     fun `dark theme uses darkColorScheme as base for unspecified slots`() {
-        val scheme = themed(CommonR.style.Theme_Dark).toMaterial3ColorScheme()
+        val scheme = themed(R.style.Theme_Dark).toMaterial3ColorScheme()
         val darkDefaults = darkColorScheme()
         // inverseSurface is not overridden by Theme_Dark, so it should come from the base
         assertEquals(darkDefaults.inverseSurface.toArgb(), scheme.inverseSurface.toArgb())
@@ -86,22 +106,22 @@ class ThemeTest {
 
     @Test
     fun `light theme bridges fab_normal to the fab container color`() {
-        val context = themed(CommonR.style.Theme_Light)
+        val context = themed(R.style.Theme_Light)
         val colors = context.toAnkiDroidColors(context.toMaterial3ColorScheme())
-        val expected = ContextCompat.getColor(appContext, CommonR.color.material_light_blue_700)
+        val expected = ContextCompat.getColor(appContext, R.color.material_light_blue_700)
         assertEquals(expected, colors.fabContainer.toArgb())
     }
 
     @Test
     fun `black theme bridges its own fab_normal to the fab container color`() {
-        val context = themed(CommonR.style.Theme_Dark_Black)
+        val context = themed(R.style.Theme_Dark_Black)
         val colors = context.toAnkiDroidColors(context.toMaterial3ColorScheme())
         assertEquals(0xFF303030.toInt(), colors.fabContainer.toArgb())
     }
 
     @Test
     fun `fab content color follows the theme onPrimary`() {
-        val context = themed(CommonR.style.Theme_Light)
+        val context = themed(R.style.Theme_Light)
         val scheme = context.toMaterial3ColorScheme()
         assertEquals(scheme.onPrimary.toArgb(), context.toAnkiDroidColors(scheme).onFab.toArgb())
     }

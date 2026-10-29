@@ -34,13 +34,13 @@ import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.shareddeck.SharedDecksDownloadFragment
 import com.ichi2.anki.sync.MeteredSyncPolicy
 import com.ichi2.anki.ui.windows.reviewer.ReviewerFragment
-import com.ichi2.anki.utils.MimeTypeUtils
 import com.ichi2.anki.worker.SyncWorker
 import com.ichi2.anki.worker.UniqueWorkNames
 import com.ichi2.utils.FileUtil
+import com.ichi2.utils.ImportResolution
 import com.ichi2.utils.ImportResult
-import com.ichi2.utils.ImportUtils.handleFileImport
 import com.ichi2.utils.ImportUtils.isInvalidViewIntent
+import com.ichi2.utils.ImportUtils.prepareImport
 import com.ichi2.utils.ImportUtils.showImportUnsuccessfulDialog
 import com.ichi2.utils.IntentUtil.resolveMimeType
 import com.ichi2.utils.NetworkUtils
@@ -51,6 +51,7 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.io.File
 import kotlin.math.max
@@ -66,6 +67,7 @@ import kotlin.math.min
 class IntentHandler : AbstractIntentHandler() {
     // A delayed work query must not reopen DeckPicker after this activity is dismissed.
     private val syncIntentScope = MainScope()
+    private val importScope = MainScope()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Note: This is our entry point from the launcher with intent: android.intent.action.MAIN
@@ -97,11 +99,6 @@ class IntentHandler : AbstractIntentHandler() {
                 runIfStoragePermissions {
                     handleFileImport(intent, reloadIntent, action)
                 }
-            LaunchType.TEXT_IMPORT ->
-                runIfStoragePermissions {
-                    onSelectedCsvForImport(intent)
-                    finish()
-                }
             LaunchType.IMAGE_IMPORT ->
                 runIfStoragePermissions {
                     handleImageImport(intent)
@@ -127,6 +124,7 @@ class IntentHandler : AbstractIntentHandler() {
     }
 
     override fun onDestroy() {
+        importScope.cancel()
         syncIntentScope.cancel()
         super.onDestroy()
     }
@@ -254,25 +252,28 @@ class IntentHandler : AbstractIntentHandler() {
             finish()
             return
         }
-        val importResult = handleFileImport(this, intent)
-        // attempt to delete the downloaded deck if it is a shared deck download import
-        if (intent.hasExtra(SharedDecksDownloadFragment.EXTRA_IS_SHARED_DOWNLOAD)) {
-            deleteDownloadedDeck(intent.data)
-        }
-
-        // Start DeckPicker if we correctly processed ACTION_VIEW
-        when (importResult) {
-            is ImportResult.Success -> {
-                deleteImportedDeck(intent.data?.path)
-                reloadIntent.action = action
-                reloadIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                startActivity(reloadIntent)
-                finish()
+        importScope.launch {
+            val importResult = withContext(ioDispatcher) { prepareImport(this@IntentHandler, intent) }
+            // finish() may precede onDestroy(), which cancels the import scope.
+            if (isFinishing) return@launch
+            if (intent.hasExtra(SharedDecksDownloadFragment.EXTRA_IS_SHARED_DOWNLOAD)) {
+                deleteDownloadedDeck(intent.data)
             }
-            is ImportResult.Failure -> {
-                Timber.i("File import failed")
-                // Don't import the file if it didn't load properly or doesn't have apkg extension
-                showImportUnsuccessfulDialog(this, importResult, true)
+            when (importResult) {
+                is ImportResult.Success -> {
+                    openImport(importResult)
+                    if (importResult.file !is ImportResolution.Text) {
+                        deleteImportedDeck(intent.data?.path)
+                        reloadIntent.action = action
+                        reloadIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                        startActivity(reloadIntent)
+                    }
+                    finish()
+                }
+                is ImportResult.Failure -> {
+                    Timber.i("File import failed")
+                    showImportUnsuccessfulDialog(this@IntentHandler, importResult, true)
+                }
             }
         }
     }
@@ -362,11 +363,8 @@ class IntentHandler : AbstractIntentHandler() {
     enum class LaunchType {
         DEFAULT_START_APP_IF_NEW,
 
-        /** colpkg/apkg/unknown */
+        /** File attachment; resolved as a deck package, collection package, text, or error. */
         FILE_IMPORT,
-
-        /** csv/tsv */
-        TEXT_IMPORT,
 
         /** image */
         IMAGE_IMPORT,
@@ -387,8 +385,6 @@ class IntentHandler : AbstractIntentHandler() {
         const val EXTRA_DECK_ID = "EXTRA_DECK_ID"
         private const val ACTION_COPY_DEBUG_INFO = "com.ichi2.anki.COPY_DEBUG_INFO"
         private const val EXTRA_CLIPBOARD_DATA = "clip_data"
-
-        private val textMimeTypes = MimeTypeUtils.CSV_TSV_MIME_TYPES
 
         private fun isValidViewIntent(intent: Intent): Boolean {
             // Negating a negative because we want to call specific attention to the fact that it's invalid
@@ -418,7 +414,6 @@ class IntentHandler : AbstractIntentHandler() {
                     action == Intent.ACTION_SEND &&
                         intent.hasExtra(Intent.EXTRA_TEXT) &&
                         !intent.hasExtra(Intent.EXTRA_STREAM) -> LaunchType.SHARED_TEXT
-                    textMimeTypes.contains(mimeType) -> LaunchType.TEXT_IMPORT
                     else -> LaunchType.FILE_IMPORT
                 }
             } else if (ACTION_DO_SYNC == action) {
@@ -446,7 +441,6 @@ class IntentHandler : AbstractIntentHandler() {
                 LaunchType.REVIEW,
                 LaunchType.DEFAULT_START_APP_IF_NEW,
                 LaunchType.FILE_IMPORT,
-                LaunchType.TEXT_IMPORT,
                 LaunchType.IMAGE_IMPORT,
                 LaunchType.SHARED_TEXT,
                 LaunchType.OPEN_BROWSER,

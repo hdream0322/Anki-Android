@@ -25,6 +25,7 @@ import anki.collection.OpChanges
 import com.ichi2.anki.AnkiDroidApp.Companion.sharedPreferencesTestingOverride
 import com.ichi2.anki.analytics.initializeAnalytics
 import com.ichi2.anki.analytics.launchPreviousAnrReporting
+import com.ichi2.anki.browser.IdsFile
 import com.ichi2.anki.browser.SharedPreferencesLastDeckIdRepository
 import com.ichi2.anki.common.android.AdaptionUtil
 import com.ichi2.anki.common.android.Animations
@@ -33,6 +34,7 @@ import com.ichi2.anki.common.android.getCurrentLocaleTag
 import com.ichi2.anki.common.android.withAppLocale
 import com.ichi2.anki.common.annotations.LegacyNotifications
 import com.ichi2.anki.common.annotations.NeedsTest
+import com.ichi2.anki.common.appName
 import com.ichi2.anki.common.coroutines.applicationScope
 import com.ichi2.anki.common.crashreporting.CrashReportService.sendExceptionReport
 import com.ichi2.anki.common.permissions.hasLegacyStorageAccessPermission
@@ -40,6 +42,7 @@ import com.ichi2.anki.common.preferences.sharedPrefs
 import com.ichi2.anki.common.storage.CollectionHelper
 import com.ichi2.anki.common.storage.StorageDecision
 import com.ichi2.anki.common.utils.android.SdCard
+import com.ichi2.anki.common.utils.android.isRobolectric
 import com.ichi2.anki.common.utils.android.showThemedToast
 import com.ichi2.anki.common.utils.annotation.KotlinCleanup
 import com.ichi2.anki.compat.CompatHelper
@@ -55,6 +58,7 @@ import com.ichi2.anki.logging.RobolectricDebugTree
 import com.ichi2.anki.logging.logActivityCreation
 import com.ichi2.anki.model.FieldFilters.NoSuggestFilter
 import com.ichi2.anki.multimedia.MultimediaArgsStorage
+import com.ichi2.anki.multiprofile.ProfileContextWrapper
 import com.ichi2.anki.multiprofile.ProfileManager
 import com.ichi2.anki.multiprofile.isPhoenixProcess
 import com.ichi2.anki.navigation.initializeNavigator
@@ -136,7 +140,7 @@ open class AnkiDroidApp :
     @set:VisibleForTesting
     var profileManager: ProfileManager? = null
 
-    private val profileContext: Context?
+    private val profileContext: ProfileContextWrapper?
         get() = profileManager?.activeProfileContext
 
     /**
@@ -187,6 +191,7 @@ open class AnkiDroidApp :
         }
 
         ApplicationContextInitializer.setInstance(this)
+        appName = getString(R.string.app_name)
 
         initializeAcraCrashReporter()
         initializeNavigator()
@@ -205,7 +210,7 @@ open class AnkiDroidApp :
             LogType.PRODUCTION -> Timber.plant(ProductionCrashReportingTree())
         }
         Timber.plant(ReminderLogTree(this))
-        if (BuildConfig.ENABLE_LEAK_CANARY) {
+        if (BuildConfig.ENABLE_LEAK_CANARY && !isRobolectric) {
             LeakCanaryConfiguration.setInitialConfigFor(this)
         } else {
             LeakCanaryConfiguration.disable()
@@ -278,16 +283,30 @@ open class AnkiDroidApp :
         super.onTerminate()
     }
 
-    /** Schedules cache maintenance and logs its duration without delaying startup. */
-    private fun launchCacheCleanup() =
+    /** Schedules temporary-file maintenance and logs its duration without delaying startup. */
+    @VisibleForTesting
+    internal fun launchCacheCleanup() =
         applicationScope.launch(Dispatchers.IO) {
-            runCatching {
-                measureTime("cacheCleanup") {
+            measureTime("cacheCleanup") {
+                runCacheCleanup("multimediaArgsCleanup") {
                     MultimediaArgsStorage.create(this@AnkiDroidApp).removeExpiredFiles()
+                }
+                runCacheCleanup("voiceRecordingsCleanup") {
                     VoiceRecorder.removeExpiredRecordings(VoiceRecorder.recordingsDirectory(this@AnkiDroidApp))
                 }
-            }.onFailure { Timber.w(it, "Unable to clean up expired cache files") }
+                runCacheCleanup("idsFileCleanup") {
+                    IdsFile.deleteStaleFiles(this@AnkiDroidApp)
+                }
+            }
         }
+
+    private inline fun runCacheCleanup(
+        name: String,
+        block: () -> Unit,
+    ) {
+        runCatching { measureTime(name, block) }
+            .onFailure { Timber.w(it, "Unable to run %s", name) }
+    }
 
     /**
      * @param debugTraceSqlCalls Log all SQL statements executed by the backend.

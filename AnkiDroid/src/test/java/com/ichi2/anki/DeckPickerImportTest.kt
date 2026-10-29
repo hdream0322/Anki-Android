@@ -23,6 +23,8 @@ import com.ichi2.testutils.BackupManagerTestUtilities
 import com.ichi2.utils.ImportResolution
 import com.ichi2.utils.ImportResult
 import com.ichi2.utils.ImportUtils
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestCoroutineScheduler
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers
 import org.junit.After
@@ -42,10 +44,10 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.shadows.ShadowContentResolver
 import java.io.File
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @RunWith(ParameterizedRobolectricTestRunner::class)
@@ -75,28 +77,66 @@ class DeckPickerImportTest : RobolectricTest() {
     }
 
     @Test
-    fun `selected package displays one confirmation with its cached path`() {
-        val activity = startActivityNormallyOpenCollectionWithIntent(DeckPickerImport::class.java, Intent())
-        val fileName = "deck name.apkg"
-        val uri = "content://import/document/123".toUri()
-        // FileProvider's Android path handling depends on the host filesystem.
-        val provider = mock<ContentProvider>()
-        whenever(provider.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)).thenAnswer {
-            MatrixCursor(arrayOf(OpenableColumns.DISPLAY_NAME)).apply { addRow(arrayOf(fileName)) }
+    fun `selected package displays one confirmation with its cached path`() =
+        runTest {
+            val activity = startActivityNormallyOpenCollectionWithIntent(DeckPickerImport::class.java, Intent())
+            val fileName = "deck name.apkg"
+            val uri = "content://import/document/123".toUri()
+            // FileProvider's Android path handling depends on the host filesystem.
+            val provider = mock<ContentProvider>()
+            whenever(provider.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)).thenAnswer {
+                MatrixCursor(arrayOf(OpenableColumns.DISPLAY_NAME)).apply { addRow(arrayOf(fileName)) }
+            }
+            ShadowContentResolver.registerProviderInternal("import", provider)
+            shadowOf(activity.contentResolver).registerInputStreamSupplier(uri) { "package contents".byteInputStream() }
+            val cachedPath = Uri.fromFile(File(activity.cacheDir, fileName)).encodedPath!!
+            try {
+                activity.onSelectedFileToImport(Intent(Intent.ACTION_VIEW, uri))
+                advanceRobolectricLooper()
+                activity.assertSingleImportConfirmation(ImportDialog.Type.DIALOG_IMPORT_ADD_CONFIRM, cachedPath)
+            } finally {
+                File(cachedPath).delete()
+            }
         }
-        ShadowContentResolver.registerProviderInternal("import", provider)
-        shadowOf(activity.contentResolver).registerInputStreamSupplier(uri) { "package contents".byteInputStream() }
-        val cachedPath = Uri.fromFile(File(activity.cacheDir, fileName)).encodedPath!!
-        val executor = Executors.newSingleThreadExecutor()
-        try {
-            executor.submit { activity.onSelectedPackageToImport(Intent(Intent.ACTION_VIEW, uri)) }.get(10, TimeUnit.SECONDS)
-            advanceRobolectricLooper()
-            activity.assertSingleImportConfirmation(ImportDialog.Type.DIALOG_IMPORT_ADD_CONFIRM, cachedPath)
-        } finally {
-            executor.shutdownNow()
-            File(cachedPath).delete()
+
+    @Test
+    fun `finishing picker before text preparation completes suppresses navigation`() =
+        runTest {
+            val activity = startActivityNormallyOpenCollectionWithIntent(DeckPicker::class.java, Intent())
+            val fileName = "queued-notes.csv"
+            val uri = "content://import/document/123".toUri()
+            val provider = mock<ContentProvider>()
+            whenever(provider.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)).thenAnswer {
+                MatrixCursor(arrayOf(OpenableColumns.DISPLAY_NAME)).apply { addRow(arrayOf(fileName)) }
+            }
+            ShadowContentResolver.registerProviderInternal("import", provider)
+            val contents = "front,back\nhello,world\n"
+            var sourceOpened = false
+            shadowOf(activity.contentResolver).registerInputStreamSupplier(uri) {
+                sourceOpened = true
+                contents.byteInputStream()
+            }
+            val ioScheduler = TestCoroutineScheduler()
+            ioDispatcher = StandardTestDispatcher(ioScheduler)
+            val cachedFile = File(activity.cacheDir, fileName)
+            try {
+                val job = activity.onSelectedFileToImport(Intent(Intent.ACTION_VIEW, uri))
+                assertFalse(sourceOpened, "Preparation must still be queued")
+
+                activity.finish()
+                ioScheduler.runCurrent()
+                shadowOf(Looper.getMainLooper()).idle()
+
+                assertTrue(activity.isFinishing)
+                assertFalse(activity.isDestroyed, "Exercise the window before destruction cancels the lifecycle scope")
+                assertTrue(job.isCompleted)
+                assertTrue(sourceOpened)
+                assertEquals(contents, cachedFile.readText())
+                assertNull(shadowOf(activity).nextStartedActivity, "A dismissed picker must not reopen the import UI")
+            } finally {
+                cachedFile.delete()
+            }
         }
-    }
 
     @Test
     fun `prepared deck waits for resume and selects Add from its resolved type`() {
@@ -127,13 +167,12 @@ class DeckPickerImportTest : RobolectricTest() {
         val controller = startActivityControllerNormallyOpenCollectionWithIntent(DeckPickerImport::class.java, Intent())
         val activity = controller.get()
 
+        controller.pause().stop()
         activity.openImport(result)
         advanceRobolectricLooper()
-        assertTrue(activity.importConfirmations.isEmpty(), "The caller or onResume must dispatch the stored confirmation")
+        assertTrue(activity.importConfirmations.isEmpty(), "A stopped activity must wait for onResume to dispatch the stored confirmation")
 
         controller
-            .pause()
-            .stop()
             .start()
             .resume()
             .visible()

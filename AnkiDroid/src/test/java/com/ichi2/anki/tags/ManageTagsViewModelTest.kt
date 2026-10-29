@@ -31,6 +31,7 @@ import kotlin.system.measureTimeMillis
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -43,6 +44,17 @@ import kotlin.time.Duration.Companion.seconds
     "Preserve RobolectricTest's scoped CollectionManager dispatcher when switching to JvmTest; tag operations must finish before assertions and teardown.",
 )
 class ManageTagsViewModelTest : RobolectricTest() {
+    @Test
+    fun `row equality preserves parent spelling while tag identity ignores case`() {
+        val original = tagListItem("parent::child", "child", 1, hasChildren = false, collapsed = false)
+        val renamed = original.copy(fullTagName = "PARENT::child")
+
+        assertEquals(original.fullTag, renamed.fullTag)
+        assertEquals(original.displayName, renamed.displayName)
+        assertNotEquals(original, renamed)
+        assertEquals("PARENT::child", renamed.fullTag.value)
+    }
+
     @Test
     fun `tagExists follows backend identity for hidden Unicode tags`() =
         runTest {
@@ -441,6 +453,82 @@ class ManageTagsViewModelTest : RobolectricTest() {
         }
 
     @Test
+    fun `search preserves collapsed matches and allows manual expansion`() =
+        runTest {
+            addTags("a::b::c::d", "other")
+            withViewModel {
+                filter("a")
+                assertEquals(listOf("a"), loadedState.visibleTagNames)
+                assertTrue(loadedState.visibleNodes.first().collapsed)
+
+                toggleCollapsed("a").join()
+                assertEquals(listOf("a", "a::b"), loadedState.visibleTagNames)
+                assertTrue(loadedState.visibleNodes[1].collapsed)
+
+                filter("c")
+                assertEquals(listOf("a", "a::b", "a::b::c"), loadedState.visibleTagNames)
+
+                filter("")
+                assertEquals(listOf("a", "a::b", "other"), loadedState.visibleTagNames)
+                assertTrue(loadedState.visibleNodes[1].collapsed)
+
+                filter("a")
+                toggleCollapsed("a").join()
+                assertEquals(listOf("a"), loadedState.visibleTagNames)
+                refreshTags().join()
+                assertEquals(listOf("a"), loadedState.visibleTagNames)
+            }
+        }
+
+    @Test
+    fun `search-expanded ancestors can collapse and expand regardless of saved state`() =
+        runTest {
+            addTags("parent::child")
+            for (initiallyCollapsed in listOf(true, false)) {
+                col.tags.setCollapsed(TagName.asValid("parent"), initiallyCollapsed)
+                withViewModel {
+                    filter("child")
+                    assertFalse(loadedState.visibleNodes.first().collapsed)
+
+                    toggleCollapsed("PARENT").join()
+                    assertEquals(listOf("parent"), loadedState.visibleTagNames)
+                    assertTrue(loadedState.visibleNodes.single().collapsed)
+                    filter("child")
+                    refreshTags().join()
+                    assertEquals(listOf("parent"), loadedState.visibleTagNames)
+                    assertTrue(ManageTagsViewModel.flattenTree(col.tags.tree()).first().collapsed)
+
+                    toggleCollapsed("parent").join()
+                    assertEquals(listOf("parent", "parent::child"), loadedState.visibleTagNames)
+                    assertFalse(loadedState.visibleNodes.first().collapsed)
+                    assertFalse(ManageTagsViewModel.flattenTree(col.tags.tree()).first().collapsed)
+                }
+            }
+        }
+
+    @Test
+    fun `changing search reveals matches beneath manually collapsed ancestors`() =
+        runTest {
+            addTags("parent::child::leaf")
+            withViewModel {
+                filter("leaf")
+                toggleCollapsed("parent::child").join()
+                assertEquals(listOf("parent", "parent::child"), loadedState.visibleTagNames)
+                assertTrue(loadedState.visibleNodes.last().collapsed)
+
+                filter("lea")
+                assertEquals(listOf("parent", "parent::child", "parent::child::leaf"), loadedState.visibleTagNames)
+                assertFalse(loadedState.visibleNodes[1].collapsed)
+
+                filter("")
+                assertEquals(listOf("parent"), loadedState.visibleTagNames)
+                toggleCollapsed("parent").join()
+                assertEquals(listOf("parent", "parent::child"), loadedState.visibleTagNames)
+                assertTrue(loadedState.visibleNodes.last().collapsed)
+            }
+        }
+
+    @Test
     fun `filter shows ancestors of matching nested tags`() =
         runTest {
             addTags("science::biology", "history")
@@ -460,6 +548,63 @@ class ManageTagsViewModelTest : RobolectricTest() {
             withViewModel {
                 filter("zzz")
                 assertThat(loadedState.visibleNodes, hasSize(0))
+            }
+        }
+
+    @Test
+    fun `expansion is immediate and rapid taps persist in order without blocking actions`() =
+        runTest {
+            addTags("science::biology", "history::ancient")
+            withViewModel {
+                withQueuedCollectionAccess {
+                    val expand = toggleCollapsed("science")
+                    assertFalse(expand.isCompleted)
+                    assertFalse(loadedState.isWorking)
+                    assertTrue("science::biology" in loadedState.visibleTagNames)
+
+                    val collapse = toggleCollapsed("science")
+                    assertFalse(collapse.isCompleted)
+                    assertFalse(loadedState.isWorking)
+                    assertFalse("science::biology" in loadedState.visibleTagNames)
+
+                    toggleCollapsed("history")
+                    assertTrue("history::ancient" in loadedState.visibleTagNames)
+                    // Reloading must wait for every queued preference save.
+                    refreshTags().join()
+                }
+                assertEquals(listOf("history", "history::ancient", "science"), loadedState.visibleTagNames)
+                assertFalse(loadedState.isWorking)
+            }
+        }
+
+    @Test
+    fun `deleting a tag waits for expansion saves so they cannot recreate it`() =
+        runTest {
+            addTags("science::biology", "history")
+            withViewModel {
+                withQueuedCollectionAccess {
+                    toggleCollapsed("science")
+                    toggleCollapsed("science")
+                    removeTag("science").join()
+                }
+                assertEquals(listOf("history"), loadedState.visibleTagNames)
+                assertEquals(listOf("history"), col.tags.all())
+            }
+        }
+
+    @Test
+    fun `failed expansion save retains the visible hierarchy and reports the error`() =
+        runTest {
+            addTags("science::biology")
+            withViewModel {
+                withLockedCollection { toggleCollapsed("science").join() }
+                assertEquals(listOf("science", "science::biology"), loadedState.visibleTagNames)
+                assertFalse(loadedState.isWorking)
+                assertIs<CollectionLockedException>(loadedState.error)
+                toggleCollapsed("science").join()
+                assertNull(loadedState.error)
+                refreshTags().join()
+                assertEquals(listOf("science"), loadedState.visibleTagNames)
             }
         }
 
@@ -851,6 +996,28 @@ class ManageTagsViewModelTest : RobolectricTest() {
             }
         }
 
+    /**
+     * Detects a fix for [Anki issue 5870](https://github.com/ankitects/anki/issues/5870) so
+     * [UserMessage.UnusedTagNotMoved] and its handling can be removed. Call native reparent directly
+     * because [moveTagTree] currently implements moves using rename.
+     */
+    @Test
+    fun `backend reparent still requires UnusedTagNotMoved`() =
+        runTest {
+            val sourceTags = setOf("parent::child", "parent::child::leaf")
+            addUnusedTags(*sourceTags.toTypedArray())
+            assertEquals(sourceTags, col.tags.all().toSet())
+
+            col.tags.reparent(listOf("parent::child"), "target")
+
+            assertEquals(
+                sourceTags,
+                col.tags.all().toSet(),
+                "Anki issue 5870 changed: update moveTagTree to use the fixed backend operation " +
+                    "and remove ${UserMessage.UnusedTagNotMoved}.",
+            )
+        }
+
     @Test
     fun `moving an unused subtree preserves tags and the previous undo action`() =
         runTest {
@@ -858,11 +1025,15 @@ class ManageTagsViewModelTest : RobolectricTest() {
             withViewModel {
                 val before = col.tags.all().toSet()
                 val undoBefore = col.undoStatus()
-                moveTag("parent::child", "target").join()
-                assertThat(col.tags.all().toSet(), equalTo(before))
-                assertEquals(undoBefore.undo, col.undoStatus().undo)
-                assertEquals(undoBefore.redo, col.undoStatus().redo)
-                assertThat(pendingMessages.value.single().message, equalTo(UserMessage.TagMoved(0)))
+                for (destination in listOf("target", null)) {
+                    moveTag("parent::child", destination).join()
+                    assertThat(col.tags.all().toSet(), equalTo(before))
+                    assertEquals(undoBefore.undo, col.undoStatus().undo)
+                    assertEquals(undoBefore.redo, col.undoStatus().redo)
+                    val pending = pendingMessages.value.single()
+                    assertThat(pending.message, equalTo(UserMessage.UnusedTagNotMoved))
+                    messageShown(pending.id)
+                }
                 col.undo()
                 assertEquals(before, col.getNote(note.id).tags.toSet())
                 col.redo()

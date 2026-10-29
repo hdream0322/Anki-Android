@@ -106,7 +106,7 @@ class TagsDialog : AnalyticsDialogFragment {
         viewModelFactory {
             initializer {
                 val idsFile = requireArguments().requireParcelable<IdsFile>(ARG_TAGS_FILE)
-                val noteIds = idsFile.getIds()
+                val noteIds = idsFile.getIdsOrNull() ?: throw IOException("Tag selection is no longer available")
                 val checkedTags =
                     requireNotNull(requireArguments().getStringArrayList(ARG_CHECKED_TAGS)) {
                         "$ARG_CHECKED_TAGS is required"
@@ -151,7 +151,7 @@ class TagsDialog : AnalyticsDialogFragment {
         checkedTags: ArrayList<String> = arrayListOf(),
     ): TagsDialog {
         // TODO: checkedTags is unbounded and could exceed the bundle size
-        val file = IdsFile(IdsFile.getDirectory(context), noteIds, IdsFile.Purpose.TAGS)
+        val file = IdsFile(IdsFile.getDirectory(), noteIds, IdsFile.Purpose.TAGS)
         arguments = this.arguments ?: Bundle().apply {
             putParcelable(ARG_TAGS_FILE, file)
             putParcelable(ARG_DIALOG_TYPE, type)
@@ -389,8 +389,6 @@ class TagsDialog : AnalyticsDialogFragment {
      * @param prefixTag: The tag to be prefilled into the EditText section. A trailing '::' will be appended.
      */
     @NeedsTest("The prefixTag should be prefilled properly")
-    @NeedsTest("Entering an existing tag should show an error and disable the OK button")
-    @NeedsTest("Entering a new valid tag should clear the error and enable the OK button")
     private fun createAddTagDialog(prefixTag: String?) {
         val addTagDialog =
             AlertDialog

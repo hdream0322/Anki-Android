@@ -112,9 +112,6 @@ open class AnkiDroidApp :
     lateinit var activityAgnosticDialogs: ActivityAgnosticDialogs
     val sharedPrefsLastDeckIdRepository = SharedPreferencesLastDeckIdRepository()
 
-    /** Used to avoid showing extra progress dialogs when one already shown. */
-    var progressDialogShown = false
-
     /**
      * Executes a setup method: [block], logging execution time.
      * Exceptions are logged and rethrown.
@@ -668,6 +665,8 @@ open class AnkiDroidApp :
          */
         fun sharedPrefsOrNull(): SharedPreferences? =
             sharedPreferencesTestingOverride ?: if (isInitialized) instance.sharedPrefs() else null
+
+        fun wrapForActiveProfile(base: Context): Context = (base.applicationContext as? AnkiDroidApp)?.profileManager?.wrap(base) ?: base
 
         /** HACK: Whether an exception report has been thrown - TODO: Rewrite an ACRA Listener to do this  */
         @VisibleForTesting

@@ -99,7 +99,7 @@ class Info :
         setupWebView()
     }
 
-    override fun onWebViewRecreated(webView: WebView) {
+    override fun onWebViewRecreated() {
         setupWebView()
     }
 
@@ -196,7 +196,7 @@ class Info :
     }
 
     override fun onDestroy() {
-        binding.webView.safeDestroy()
+        binding.webView.destroy()
         super.onDestroy()
     }
 

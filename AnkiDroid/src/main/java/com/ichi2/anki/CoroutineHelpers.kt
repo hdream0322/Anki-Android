@@ -81,6 +81,7 @@ import timber.log.Timber
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
+import com.ichi2.anki.common.android.R as CommonR
 
 /** Overridable reference to [Dispatchers.IO]. Useful if tests can't use it */
 // COULD_BE_BETTER: this shouldn't be necessary, but TestClass::runWith needs it
@@ -465,6 +466,9 @@ suspend fun <T> Fragment.withProgress(
     block: suspend () -> T,
 ): T = requireActivity().withProgress(messageId, block)
 
+/** Used to avoid showing extra progress dialogs when one already shown. */
+private var progressDialogShown = false
+
 // TODO: #17551 add a lease-owned progress UI, with `CollectionLease.cancel` as its Cancel handler.
 //  Rethink `progressDialogShown` and `FLAG_NOT_TOUCHABLE`.
 @Suppress("Deprecation") // ProgressDialog deprecation
@@ -477,7 +481,7 @@ suspend fun <T> withProgressDialog(
 ): T =
     coroutineScope {
         val dialog =
-            android.app.ProgressDialog(context, R.style.AppCompatProgressDialogStyle).apply {
+            android.app.ProgressDialog(context, CommonR.style.AppCompatProgressDialogStyle).apply {
                 setCancelable(onCancel != null)
                 if (manualCancelButton != null) {
                     setCancelable(false)
@@ -502,7 +506,7 @@ suspend fun <T> withProgressDialog(
         val dialogJob =
             launch {
                 delay(delayDuration)
-                if (!AnkiDroidApp.instance.progressDialogShown) {
+                if (!progressDialogShown) {
                     Timber.i(
                         """Displaying progress dialog: $delayDuration elapsed;
                 |cancellable: ${onCancel != null}; 
@@ -511,7 +515,7 @@ suspend fun <T> withProgressDialog(
                         """.trimMargin(),
                     )
                     dialog.show()
-                    AnkiDroidApp.instance.progressDialogShown = true
+                    progressDialogShown = true
                     dialogIsOurs = true
                 } else {
                     Timber.w(
@@ -530,7 +534,7 @@ suspend fun <T> withProgressDialog(
             dismissDialogIfShowing(dialog)
             context.runOnUiThread { context.window.unblockTouches() }
             if (dialogIsOurs) {
-                AnkiDroidApp.instance.progressDialogShown = false
+                progressDialogShown = false
             }
         }
     }

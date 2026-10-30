@@ -120,7 +120,7 @@ val forkReleaseDate =
         .orElse(providers.environmentVariable("FORK_RELEASE_DATE"))
         .orElse("0")
 
-val upstreamVersionName = "2.26.0alpha9"
+val upstreamVersionName = "2.26.0alpha10"
 
 android {
     namespace = "com.ichi2.anki"
@@ -176,7 +176,7 @@ android {
         // This ensures the correct ordering between the various types of releases (dev < alpha < beta < release) which is
         // needed for upgrades to be offered correctly.
         // Upstream baseline: keep this a plain literal, upstream's validateVersionCode parses it.
-        versionCode = 22600109
+        versionCode = 22600110
         // Deurim: add the per-fork build counter (see forkBuild above). Must not start with
         // `versionCode`, or validateVersionCode sees two declarations and fails.
         this.versionCode = versionCode!! + forkBuild
@@ -852,7 +852,13 @@ dependencies {
         localProperties.load(project.rootProject.file("local.properties").inputStream())
     }
     if (localProperties["local_backend"] == "true") {
-        implementation(files(rootProject.file("../Anki-Android-Backend/rsdroid/build/outputs/aar/rsdroid-release.aar")))
+        // Local AARs have no Maven metadata, so both the API and Android artifacts are needed.
+        implementation(
+            files(
+                rootProject.file("../Anki-Android-Backend/rsdroid/build/outputs/aar/rsdroid-release.aar"),
+                rootProject.file("../Anki-Android-Backend/rsdroid-android/build/outputs/aar/rsdroid-android-release.aar"),
+            ),
+        )
         testImplementation(files(rootProject.file("../Anki-Android-Backend/rsdroid-testing/build/libs/rsdroid-testing.jar")))
     } else {
         implementation(libs.ankiBackend.backend)

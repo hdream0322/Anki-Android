@@ -200,11 +200,11 @@ class AiChatBottomSheetFragment :
     }
 
     override fun onDestroyView() {
-        binding.messageWebView.safeDestroy()
+        binding.messageWebView.destroy()
         super.onDestroyView()
     }
 
-    override fun onWebViewRecreated(webView: WebView) {
+    override fun onWebViewRecreated() {
         setupMessageWebView()
     }
 

@@ -51,7 +51,9 @@
             android:key="@string/pref_review_progress_bar_enabled_key"
             android:title="@string/pref_review_progress_bar_enabled"
             android:summary="@string/pref_review_progress_bar_enabled_summ"/>
+        <!-- defaultValue mirrors DEFAULT_REVIEW_PROGRESS_BAR_COLOR (0xFFEC6337) in Prefs.kt -->
         <Preference
+            android:defaultValue="-1285321"
             android:dependency="@string/pref_review_progress_bar_enabled_key"
             android:key="@string/pref_review_progress_bar_color_key"
             android:title="@string/pref_review_progress_bar_color"

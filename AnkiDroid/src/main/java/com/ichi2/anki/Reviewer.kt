@@ -1323,7 +1323,8 @@ open class Reviewer :
         }
         Timber.i("opening AI chat")
         launchCatchingTask {
-            val content = withCol { CardContentExtractor.extract(card.question(this), card.answer(this)) }
+            val instruction = CardContentExtractor.instructionOrDefault(Prefs.aiSystemPrompt)
+            val content = withCol { CardContentExtractor.extract(card.question(this), card.answer(this), instruction) }
             AiChatBottomSheetFragment.show(supportFragmentManager, AiChatLaunchArgs(card.nid, content))
         }
     }

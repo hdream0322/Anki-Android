@@ -490,6 +490,9 @@ open class PrefsRepository protected constructor(
 
     var aiProviderKind: AiProviderKind by enumPref(R.string.pref_ai_provider_key, AiProviderKind.OPENAI)
 
+    /** User-written instruction sent ahead of the card in every AI chat. Blank/unset means the built-in one. */
+    var aiSystemPrompt by stringPref(R.string.pref_ai_system_prompt_key)
+
     /**
      * User-chosen model id for [provider], kept per provider so switching provider and back
      * restores it. Blank/unset means "use [AiProvider.defaultModel]".

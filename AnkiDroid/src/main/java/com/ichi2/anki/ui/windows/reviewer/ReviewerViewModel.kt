@@ -49,6 +49,7 @@ import com.ichi2.anki.servicelayer.MARKED_TAG
 import com.ichi2.anki.servicelayer.NoteService
 import com.ichi2.anki.servicelayer.isBuryNoteAvailable
 import com.ichi2.anki.servicelayer.isSuspendNoteAvailable
+import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.tryRedo
 import com.ichi2.anki.tryUndo
 import com.ichi2.anki.ui.windows.reviewer.autoadvance.AnswerAction
@@ -715,9 +716,10 @@ class ReviewerViewModel(
 
     private suspend fun openAiChat() {
         val card = currentCard.await()
+        val instruction = CardContentExtractor.instructionOrDefault(Prefs.aiSystemPrompt)
         val content =
             withCol {
-                CardContentExtractor.extract(card.question(this), card.answer(this))
+                CardContentExtractor.extract(card.question(this), card.answer(this), instruction)
             }
         openAiChatFlow.emit(AiChatLaunchArgs(noteId = card.nid, cardContent = content))
     }

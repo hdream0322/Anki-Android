@@ -133,5 +133,9 @@
         <Preference
             android:key="@string/pref_ai_model_key"
             android:title="@string/pref_ai_model_title"/>
+        <EditTextPreference
+            android:key="@string/pref_ai_system_prompt_key"
+            android:title="@string/pref_ai_system_prompt_title"
+            android:dialogMessage="@string/pref_ai_system_prompt_dialog_message"/>
     </PreferenceCategory>
 </PreferenceScreen>

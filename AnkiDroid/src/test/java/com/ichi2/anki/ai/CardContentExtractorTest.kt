@@ -71,4 +71,26 @@ class CardContentExtractorTest {
 
         assertEquals(true, result.startsWith(CardContentExtractor.INSTRUCTION))
     }
+
+    @Test
+    fun `uses a custom instruction in place of the default`() {
+        val result = CardContentExtractor.extract("Q", "A", instruction = "Explain like I'm five.")
+
+        assertEquals("Explain like I'm five.\n\nFront: Q\nBack: A", result)
+    }
+
+    @Test
+    fun `falls back to the default instruction when none is set`() {
+        assertEquals(CardContentExtractor.INSTRUCTION, CardContentExtractor.instructionOrDefault(null))
+    }
+
+    @Test
+    fun `falls back to the default instruction when the custom one is blank`() {
+        assertEquals(CardContentExtractor.INSTRUCTION, CardContentExtractor.instructionOrDefault("  \n "))
+    }
+
+    @Test
+    fun `trims a custom instruction`() {
+        assertEquals("Be brief.", CardContentExtractor.instructionOrDefault("  Be brief.\n"))
+    }
 }

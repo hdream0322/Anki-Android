@@ -17,13 +17,17 @@ object CardContentExtractor {
     /** Anki's `{{FrontSide}}<hr id=answer>` convention, which marks where the back's own content starts. */
     private val ANSWER_DIVIDER = Regex("""<hr[^>]*\bid\s*=\s*["']?answer\b[^>]*>""", RegexOption.IGNORE_CASE)
 
+    /** The user's own instruction from settings, or [INSTRUCTION] when they have not written one. */
+    fun instructionOrDefault(custom: String?): String = custom?.trim()?.takeIf { it.isNotEmpty() } ?: INSTRUCTION
+
     fun extract(
         questionHtml: String,
         answerHtml: String,
+        instruction: String = INSTRUCTION,
     ): String {
         val question = clean(questionHtml)
         val answer = backWithoutFront(question, answerHtml)
-        return "$INSTRUCTION\n\nFront: $question\nBack: $answer"
+        return "$instruction\n\nFront: $question\nBack: $answer"
     }
 
     /**

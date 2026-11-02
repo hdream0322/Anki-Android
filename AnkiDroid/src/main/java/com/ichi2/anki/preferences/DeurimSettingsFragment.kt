@@ -31,6 +31,7 @@ import com.ichi2.anki.ai.AiModelInfo
 import com.ichi2.anki.ai.AiModelLister
 import com.ichi2.anki.ai.AiProvider
 import com.ichi2.anki.ai.AnthropicProvider
+import com.ichi2.anki.ai.CardContentExtractor
 import com.ichi2.anki.ai.GeminiProvider
 import com.ichi2.anki.ai.OpenAiProvider
 import com.ichi2.anki.common.utils.isRunningAsUnitTest
@@ -68,6 +69,7 @@ class DeurimSettingsFragment : SettingsFragment() {
         initReviewProgressBarColorPref()
         initAiApiKeyPref()
         initAiModelPref()
+        initAiSystemPromptPref()
     }
 
     private fun initReviewProgressBarColorPref() {
@@ -124,6 +126,38 @@ class DeurimSettingsFragment : SettingsFragment() {
             }
         }
         refreshAiApiKeySummary = { keyPref.summaryProvider = keyPref.summaryProvider }
+    }
+
+    private fun initAiSystemPromptPref() {
+        requirePreference<EditTextPreference>(R.string.pref_ai_system_prompt_key).apply {
+            setOnBindEditTextListener { editText ->
+                editText.inputType =
+                    InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+                editText.maxLines = SYSTEM_PROMPT_MAX_VISIBLE_LINES
+                // Start from the built-in instruction so it can be tweaked rather than rewritten.
+                if (editText.text.isNullOrBlank()) editText.setText(CardContentExtractor.INSTRUCTION)
+                editText.setSelection(editText.text.length)
+            }
+            summaryProvider =
+                Preference.SummaryProvider<EditTextPreference> { pref ->
+                    val custom = pref.text?.takeIf { it.isNotBlank() }
+                    if (custom == null) {
+                        getString(R.string.pref_ai_system_prompt_summary_default)
+                    } else {
+                        getString(
+                            R.string.pref_ai_system_prompt_summary_custom,
+                            custom.replace(Regex("\\s+"), " ").trim().ellipsize(SYSTEM_PROMPT_SUMMARY_LENGTH),
+                        )
+                    }
+                }
+            setOnPreferenceChangeListener { preference, newValue ->
+                val trimmed = (newValue as String).trim()
+                // Blank or unchanged-from-default is stored as unset, so a later change to the
+                // built-in instruction still reaches users who never customised it.
+                (preference as EditTextPreference).text = trimmed.takeIf { it.isNotEmpty() && it != CardContentExtractor.INSTRUCTION }
+                false
+            }
+        }
     }
 
     /** Re-evaluates the API key summary, which names the selected provider. No-op until the key preference is set up. */
@@ -280,5 +314,9 @@ class DeurimSettingsFragment : SettingsFragment() {
     companion object {
         /** "Default" and "Custom…" precede the fetched models in the picker. */
         private const val FIXED_MODEL_ITEMS = 2
+        private const val SYSTEM_PROMPT_MAX_VISIBLE_LINES = 10
+        private const val SYSTEM_PROMPT_SUMMARY_LENGTH = 80
+
+        private fun String.ellipsize(maxLength: Int) = if (length <= maxLength) this else take(maxLength).trimEnd() + "…"
     }
 }

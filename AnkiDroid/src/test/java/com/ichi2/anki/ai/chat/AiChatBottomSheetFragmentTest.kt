@@ -99,7 +99,7 @@ class AiChatBottomSheetFragmentTest : RobolectricTest() {
 
     private fun showFragment(): AiChatBottomSheetFragment {
         val activity = startRegularActivity<DeckPicker>()
-        val fragment = AiChatBottomSheetFragment.newInstance(AiChatLaunchArgs(noteId = 1, cardContent = "card"))
+        val fragment = AiChatBottomSheetFragment.newInstance(AiChatLaunchArgs(noteId = 1, cardContent = "card", isAnswerShown = true))
         fragment.show(activity.supportFragmentManager, null)
         shadowOf(Looper.getMainLooper()).idle()
         return fragment

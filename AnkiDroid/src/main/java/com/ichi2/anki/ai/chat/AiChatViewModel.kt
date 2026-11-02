@@ -26,6 +26,8 @@ import timber.log.Timber
 class AiChatViewModel(
     private val noteId: NoteId,
     private val cardContent: String,
+    /** Whether the reviewer showed the back when the chat opened; sent with each question, never stored. */
+    private val isAnswerShown: Boolean = true,
     private val provider: AiProvider,
     private val apiKey: String,
     private var model: String,
@@ -82,7 +84,7 @@ class AiChatViewModel(
                 var assistantText = ""
                 var hasReceivedToken = false
                 streamingClient
-                    .stream(provider, apiKey, model, cardContent, buildRequestHistory(_messages.value))
+                    .stream(provider, apiKey, model, cardContent, withStudyState(buildRequestHistory(_messages.value), isAnswerShown))
                     .catch { throwable ->
                         val error = throwable as? AiError ?: AiError.Network(throwable)
                         Timber.w(error, "AI chat request failed")
@@ -172,6 +174,23 @@ class AiChatViewModel(
             collapseConsecutiveSameRole(messages)
                 .takeLast(MAX_HISTORY_MESSAGES)
                 .dropWhile { it.role != AiChatRole.USER }
+
+        /**
+         * Prefixes the newest user message with a `<study_state>` tag. It goes in the newest turn
+         * rather than the system prompt because it can differ each time the chat is opened, and a
+         * changing system prompt invalidates the provider's prompt cache.
+         */
+        fun withStudyState(
+            messages: List<AiChatMessage>,
+            isAnswerShown: Boolean,
+        ): List<AiChatMessage> {
+            val index = messages.indexOfLast { it.role == AiChatRole.USER }
+            if (index < 0) return messages
+            val state = if (isAnswerShown) "answer shown" else "answer hidden"
+            return messages.toMutableList().apply {
+                this[index] = AiChatMessage(AiChatRole.USER, "<study_state>$state</study_state>\n${this[index].content}")
+            }
+        }
 
         /** Merges each run of consecutive same-role messages into a single message. */
         fun collapseConsecutiveSameRole(messages: List<AiChatMessage>): List<AiChatMessage> =

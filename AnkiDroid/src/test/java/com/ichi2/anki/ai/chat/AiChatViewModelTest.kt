@@ -160,6 +160,50 @@ class AiChatViewModelTest {
         }
 
     @Test
+    fun `withStudyState tags only the newest user message`() {
+        val history =
+            listOf(
+                AiChatMessage(AiChatRole.USER, "one"),
+                AiChatMessage(AiChatRole.ASSISTANT, "two"),
+                AiChatMessage(AiChatRole.USER, "three"),
+            )
+
+        assertEquals(
+            listOf(
+                AiChatMessage(AiChatRole.USER, "one"),
+                AiChatMessage(AiChatRole.ASSISTANT, "two"),
+                AiChatMessage(AiChatRole.USER, "<study_state>answer hidden</study_state>\nthree"),
+            ),
+            AiChatViewModel.withStudyState(history, isAnswerShown = false),
+        )
+    }
+
+    @Test
+    fun `withStudyState reports a revealed answer`() {
+        val tagged = AiChatViewModel.withStudyState(listOf(AiChatMessage(AiChatRole.USER, "q")), isAnswerShown = true)
+
+        assertEquals(listOf(AiChatMessage(AiChatRole.USER, "<study_state>answer shown</study_state>\nq")), tagged)
+    }
+
+    @Test
+    fun `the study state reaches the request but is not stored`() =
+        runTest {
+            val provider = FakeProvider(listOf(AiSseEvent.Token("A"), AiSseEvent.Done))
+            val client = FakeStreamingClient(provider.asFlow())
+            val stored = mutableListOf<AiChatMessage>()
+            val viewModel = viewModel(provider, client, stored, isAnswerShown = false)
+
+            viewModel.sendMessage("hint?")
+            dispatcher.scheduler.advanceUntilIdle()
+
+            assertEquals(
+                listOf(AiChatMessage(AiChatRole.USER, "<study_state>answer hidden</study_state>\nhint?")),
+                client.lastMessages,
+            )
+            assertEquals(AiChatMessage(AiChatRole.USER, "hint?"), stored.first())
+        }
+
+    @Test
     fun `buildRequestHistory leaves alternating history untouched`() {
         val history =
             listOf(
@@ -297,7 +341,7 @@ class AiChatViewModelTest {
             val sent = client.lastMessages!!
             assertEquals(19, sent.size)
             assertEquals(AiChatMessage(AiChatRole.USER, "message 23"), sent.first())
-            assertEquals(AiChatMessage(AiChatRole.USER, "latest"), sent.last())
+            assertEquals(AiChatMessage(AiChatRole.USER, "<study_state>answer shown</study_state>\nlatest"), sent.last())
             // the full history is still displayed: 40 loaded + "latest" + the assistant reply
             assertEquals(42, viewModel.messages.value.size)
         }
@@ -377,7 +421,7 @@ class AiChatViewModelTest {
             viewModel.retry()
             dispatcher.scheduler.advanceUntilIdle()
 
-            assertEquals(listOf(AiChatMessage(AiChatRole.USER, "Q")), client.lastMessages)
+            assertEquals(listOf(AiChatMessage(AiChatRole.USER, "<study_state>answer shown</study_state>\nQ")), client.lastMessages)
             val expected = listOf(AiChatMessage(AiChatRole.USER, "Q"), AiChatMessage(AiChatRole.ASSISTANT, "A"))
             assertEquals(expected, viewModel.messages.value)
             assertEquals(expected, stored)
@@ -484,9 +528,11 @@ class AiChatViewModelTest {
         client: FakeStreamingClient,
         stored: MutableList<AiChatMessage> = mutableListOf(),
         history: List<AiChatMessage> = emptyList(),
+        isAnswerShown: Boolean = true,
     ) = AiChatViewModel(
         noteId = 1L,
         cardContent = "",
+        isAnswerShown = isAnswerShown,
         provider = provider,
         apiKey = "key",
         model = "fake-model",

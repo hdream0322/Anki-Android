@@ -77,6 +77,7 @@ import com.ichi2.anki.common.destinations.Destination as NavigateDestination
 data class AiChatLaunchArgs(
     val noteId: NoteId,
     val cardContent: String,
+    val isAnswerShown: Boolean,
 ) : android.os.Parcelable
 
 class ReviewerViewModel(
@@ -719,9 +720,15 @@ class ReviewerViewModel(
         val instruction = CardContentExtractor.instructionOrDefault(Prefs.aiSystemPrompt)
         val content =
             withCol {
-                CardContentExtractor.extract(card.question(this), card.answer(this), instruction)
+                CardContentExtractor.extract(
+                    card.question(this),
+                    card.answer(this),
+                    instruction,
+                    deckName = decks.name(card.currentDeckId()),
+                    tags = card.note(this).tags,
+                )
             }
-        openAiChatFlow.emit(AiChatLaunchArgs(noteId = card.nid, cardContent = content))
+        openAiChatFlow.emit(AiChatLaunchArgs(noteId = card.nid, cardContent = content, isAnswerShown = showingAnswer.value))
     }
 
     private fun toggleWhiteboard() {

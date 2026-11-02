@@ -88,6 +88,7 @@ class AiChatBottomSheetFragment :
                 return AiChatViewModel(
                     noteId = args.noteId,
                     cardContent = args.cardContent,
+                    isAnswerShown = args.isAnswerShown,
                     provider = provider,
                     apiKey = keyStore.getApiKey(providerKind).orEmpty(),
                     model = Prefs.getAiModelOverride(providerKind)?.takeIf { it.isNotBlank() } ?: provider.defaultModel,

@@ -6,7 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ichi2.anki.ai.AiChatMessage
 import com.ichi2.anki.ai.AiChatSummary
-import com.ichi2.anki.libanki.NoteId
+import com.ichi2.anki.libanki.CardId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,8 +17,8 @@ import timber.log.Timber
 
 /** One row of the AI chat history list. */
 data class AiChatHistoryItem(
-    val nid: NoteId,
-    /** Plain-text front of the note's first card. */
+    val cid: CardId,
+    /** Plain-text front of the card. */
     val title: String,
     val messageCount: Int,
     val lastMessage: AiChatMessage,
@@ -27,15 +27,15 @@ data class AiChatHistoryItem(
 )
 
 /**
- * Lists the notes that have AI chat history, most recently active first.
+ * Lists the cards that have AI chat history, most recently active first.
  *
- * Chat history lives in MetaDB and outlives its note, so notes [resolveTitles] can't find
+ * Chat history lives in MetaDB and outlives its card, so cards [resolveTitles] can't find
  * are hidden rather than deleted: removing someone's chats is left to an explicit action.
  */
 class AiChatHistoryViewModel(
     private val loadSummaries: suspend () -> List<AiChatSummary>,
-    /** Maps note ids to their titles, omitting notes that no longer exist. */
-    private val resolveTitles: suspend (List<NoteId>) -> Map<NoteId, String>,
+    /** Maps card ids to their titles, omitting cards that no longer exist. */
+    private val resolveTitles: suspend (List<CardId>) -> Map<CardId, String>,
 ) : ViewModel() {
     private val _items = MutableStateFlow<List<AiChatHistoryItem>?>(null)
 
@@ -56,10 +56,10 @@ class AiChatHistoryViewModel(
                 val items =
                     try {
                         val summaries = loadSummaries()
-                        val titles = resolveTitles(summaries.map { it.nid })
+                        val titles = resolveTitles(summaries.map { it.cid })
                         summaries.mapNotNull { summary ->
-                            val title = titles[summary.nid] ?: return@mapNotNull null
-                            AiChatHistoryItem(summary.nid, title, summary.messageCount, summary.lastMessage, summary.lastAt)
+                            val title = titles[summary.cid] ?: return@mapNotNull null
+                            AiChatHistoryItem(summary.cid, title, summary.messageCount, summary.lastMessage, summary.lastAt)
                         }
                     } catch (e: CancellationException) {
                         throw e

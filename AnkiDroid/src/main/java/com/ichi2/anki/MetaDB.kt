@@ -14,6 +14,7 @@ import com.ichi2.anki.ai.AiChatRole
 import com.ichi2.anki.ai.AiChatSummary
 import com.ichi2.anki.common.time.TimeManager
 import com.ichi2.anki.common.utils.annotation.KotlinCleanup
+import com.ichi2.anki.libanki.CardId
 import com.ichi2.anki.libanki.DeckId
 import com.ichi2.anki.libanki.NoteId
 import com.ichi2.anki.model.WhiteboardPenColor
@@ -40,7 +41,7 @@ object MetaDB {
     private const val DATABASE_NAME = "ankidroid.db"
 
     /** The Database Version, increase if you want updates to happen on next upgrade.  */
-    private const val DATABASE_VERSION = 9
+    private const val DATABASE_VERSION = 10
 
     /** The database object used by the meta-db.  */
     private var metaDb: SQLiteDatabase? = null
@@ -103,19 +104,33 @@ object MetaDB {
 
         updateWidgetStatus(metaDb)
         updateWhiteboardState(metaDb)
+        updateAiChatMessages(metaDb)
+        metaDb.version = databaseVersion
+        Timber.i("MetaDB:: Upgrading Internal Database finished. New version: %d", databaseVersion)
+        return metaDb
+    }
+
+    /**
+     * AI chat history, one row per message. Until v10 it was kept per note; rows from then have
+     * a `NULL` cid until [assignLegacyAiChats] gives them a card.
+     */
+    private fun updateAiChatMessages(metaDb: SQLiteDatabase) {
         metaDb.execSQL(
             """CREATE TABLE IF NOT EXISTS aiChatMessages (
             _id INTEGER PRIMARY KEY AUTOINCREMENT,
             nid INTEGER NOT NULL,
             role TEXT NOT NULL,
             content TEXT NOT NULL,
-            createdAt INTEGER NOT NULL
+            createdAt INTEGER NOT NULL,
+            cid INTEGER
             )""",
         )
+        if (DatabaseUtil.getTableColumnCount(metaDb, "aiChatMessages") < 6) {
+            metaDb.execSQL("ALTER TABLE aiChatMessages ADD COLUMN cid INTEGER")
+            Timber.i("Added 'cid' column to aiChatMessages")
+        }
         metaDb.execSQL("CREATE INDEX IF NOT EXISTS idx_aiChatMessages_nid ON aiChatMessages(nid)")
-        metaDb.version = databaseVersion
-        Timber.i("MetaDB:: Upgrading Internal Database finished. New version: %d", databaseVersion)
-        return metaDb
+        metaDb.execSQL("CREATE INDEX IF NOT EXISTS idx_aiChatMessages_cid ON aiChatMessages(cid)")
     }
 
     private fun updateWhiteboardState(metaDb: SQLiteDatabase) {
@@ -705,47 +720,48 @@ object MetaDB {
         }
     }
 
-    /** Appends one message to a note's AI chat history. */
+    /** Appends one message to a card's AI chat history. */
     fun storeAiChatMessage(
         context: Context,
+        cid: CardId,
         nid: NoteId,
         message: AiChatMessage,
     ) {
         openDBIfClosed(context)
         try {
             metaDb!!.execSQL(
-                "INSERT INTO aiChatMessages (nid, role, content, createdAt) VALUES (?, ?, ?, ?);",
-                arrayOf<Any>(nid, message.role.storageValue, message.content, TimeManager.time.intTimeMS()),
+                "INSERT INTO aiChatMessages (cid, nid, role, content, createdAt) VALUES (?, ?, ?, ?, ?);",
+                arrayOf<Any>(cid, nid, message.role.storageValue, message.content, TimeManager.time.intTimeMS()),
             )
         } catch (e: Exception) {
             Timber.e(e, "Error storing AI chat message in MetaDB")
         }
     }
 
-    /** Deletes all AI chat history for a note. */
+    /** Deletes all AI chat history for a card. */
     fun deleteAiChatMessages(
         context: Context,
-        nid: NoteId,
+        cid: CardId,
     ) {
         openDBIfClosed(context)
         try {
-            metaDb!!.execSQL("DELETE FROM aiChatMessages WHERE nid = ?;", arrayOf<Any>(nid))
+            metaDb!!.execSQL("DELETE FROM aiChatMessages WHERE cid = ?;", arrayOf<Any>(cid))
         } catch (e: Exception) {
             Timber.e(e, "Error deleting AI chat messages from MetaDB")
         }
     }
 
-    /** Returns whether a note has any AI chat history. */
+    /** Returns whether a card has any AI chat history. */
     fun hasAiChatMessages(
         context: Context,
-        nid: NoteId,
+        cid: CardId,
     ): Boolean {
         openDBIfClosed(context)
         try {
             metaDb!!
                 .rawQuery(
-                    "SELECT 1 FROM aiChatMessages WHERE nid = ? LIMIT 1",
-                    arrayOf(nid.toString()),
+                    "SELECT 1 FROM aiChatMessages WHERE cid = ? LIMIT 1",
+                    arrayOf(cid.toString()),
                 ).use { cur -> return cur.moveToFirst() }
         } catch (e: Exception) {
             Timber.e(e, "Error checking AI chat messages in MetaDB")
@@ -753,18 +769,18 @@ object MetaDB {
         return false
     }
 
-    /** Returns a note's AI chat history in insertion order. */
+    /** Returns a card's AI chat history in insertion order. */
     fun getAiChatMessages(
         context: Context,
-        nid: NoteId,
+        cid: CardId,
     ): List<AiChatMessage> {
         openDBIfClosed(context)
         val messages = mutableListOf<AiChatMessage>()
         try {
             metaDb!!
                 .rawQuery(
-                    "SELECT role, content FROM aiChatMessages WHERE nid = ? ORDER BY _id ASC",
-                    arrayOf(nid.toString()),
+                    "SELECT role, content FROM aiChatMessages WHERE cid = ? ORDER BY _id ASC",
+                    arrayOf(cid.toString()),
                 ).use { cur ->
                     while (cur.moveToNext()) {
                         messages += AiChatMessage(AiChatRole.fromStorageValue(cur.getString(0)), cur.getString(1))
@@ -776,16 +792,19 @@ object MetaDB {
         return messages
     }
 
-    /** Returns one summary per note with AI chat history, most recently active note first. */
+    /** Returns one summary per card with AI chat history, most recently active card first. */
     fun getAiChatSummaries(context: Context): List<AiChatSummary> {
         openDBIfClosed(context)
         val summaries = mutableListOf<AiChatSummary>()
         try {
             metaDb!!
                 .rawQuery(
-                    """SELECT m.nid, g.cnt, m.role, m.content, m.createdAt
+                    """SELECT m.cid, g.cnt, m.role, m.content, m.createdAt
                     FROM aiChatMessages m
-                    JOIN (SELECT nid, COUNT(*) AS cnt, MAX(_id) AS lastId FROM aiChatMessages GROUP BY nid) g
+                    JOIN (
+                        SELECT cid, COUNT(*) AS cnt, MAX(_id) AS lastId FROM aiChatMessages
+                        WHERE cid IS NOT NULL GROUP BY cid
+                    ) g
                     ON m._id = g.lastId
                     ORDER BY m._id DESC""",
                     null,
@@ -793,7 +812,7 @@ object MetaDB {
                     while (cur.moveToNext()) {
                         summaries +=
                             AiChatSummary(
-                                nid = cur.getLong(0),
+                                cid = cur.getLong(0),
                                 messageCount = cur.getInt(1),
                                 lastMessage = AiChatMessage(AiChatRole.fromStorageValue(cur.getString(2)), cur.getString(3)),
                                 lastAt = cur.getLong(4),
@@ -804,6 +823,36 @@ object MetaDB {
             Timber.e(e, "Error fetching AI chat summaries from MetaDB")
         }
         return summaries
+    }
+
+    /** Notes with AI chat history saved before chats were kept per card. */
+    fun legacyAiChatNoteIds(context: Context): List<NoteId> {
+        openDBIfClosed(context)
+        val nids = mutableListOf<NoteId>()
+        try {
+            metaDb!!
+                .rawQuery("SELECT DISTINCT nid FROM aiChatMessages WHERE cid IS NULL", null)
+                .use { cur ->
+                    while (cur.moveToNext()) nids += cur.getLong(0)
+                }
+        } catch (e: Exception) {
+            Timber.e(e, "Error fetching legacy AI chats from MetaDB")
+        }
+        return nids
+    }
+
+    /** Moves a note's pre-card-level AI chat history to [cid]. */
+    fun assignLegacyAiChats(
+        context: Context,
+        nid: NoteId,
+        cid: CardId,
+    ) {
+        openDBIfClosed(context)
+        try {
+            metaDb!!.execSQL("UPDATE aiChatMessages SET cid = ? WHERE nid = ? AND cid IS NULL;", arrayOf<Any>(cid, nid))
+        } catch (e: Exception) {
+            Timber.e(e, "Error assigning legacy AI chats in MetaDB")
+        }
     }
 
     fun close() {

@@ -28,13 +28,15 @@ import com.ichi2.anki.MetaDB
 import com.ichi2.anki.R
 import com.ichi2.anki.ai.AiChatRole
 import com.ichi2.anki.ai.aiChatSystemPrompt
+import com.ichi2.anki.ai.assignLegacyAiChats
 import com.ichi2.anki.ai.chat.AiChatBottomSheetFragment
 import com.ichi2.anki.backend.stripHTMLAndSpecialFields
 import com.ichi2.anki.databinding.ActivityAiChatHistoryBinding
 import com.ichi2.anki.databinding.ItemAiChatHistoryBinding
 import com.ichi2.anki.launchCatchingTask
+import com.ichi2.anki.libanki.Card
+import com.ichi2.anki.libanki.CardId
 import com.ichi2.anki.libanki.Collection
-import com.ichi2.anki.libanki.NoteId
 import com.ichi2.anki.snackbar.showSnackbar
 import com.ichi2.anki.startup.ensureStorageIsReady
 import com.ichi2.anki.ui.windows.reviewer.AiChatLaunchArgs
@@ -55,14 +57,17 @@ class AiChatHistoryActivity : AnkiActivity(R.layout.activity_ai_chat_history) {
                 val context = applicationContext
                 @Suppress("UNCHECKED_CAST")
                 return AiChatHistoryViewModel(
-                    loadSummaries = { withContext(Dispatchers.IO) { MetaDB.getAiChatSummaries(context) } },
-                    resolveTitles = { nids -> withCol { noteTitles(nids) } },
+                    loadSummaries = {
+                        withCol { assignLegacyAiChats(context) }
+                        withContext(Dispatchers.IO) { MetaDB.getAiChatSummaries(context) }
+                    },
+                    resolveTitles = { cids -> withCol { cardTitles(cids) } },
                 ) as T
             }
         }
     }
 
-    private val adapter = HistoryAdapter { item -> openChat(item.nid) }
+    private val adapter = HistoryAdapter { item -> openChat(item.cid) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         if (showedActivityFailedScreen(savedInstanceState)) return
@@ -98,26 +103,21 @@ class AiChatHistoryActivity : AnkiActivity(R.layout.activity_ai_chat_history) {
         return true
     }
 
-    private fun openChat(nid: NoteId) {
+    private fun openChat(cid: CardId) {
         Timber.i("Opening AI chat from history")
         launchCatchingTask {
-            val content =
+            val args =
                 withCol {
-                    val card =
-                        try {
-                            getNote(nid).cards(this).firstOrNull()
-                        } catch (e: BackendNotFoundException) {
-                            null
-                        } ?: return@withCol null
-                    aiChatSystemPrompt(card)
+                    val card = cardOrNull(cid) ?: return@withCol null
+                    // The answer may already be known: send it so the AI explains instead of only hinting
+                    AiChatLaunchArgs(card.id, card.nid, aiChatSystemPrompt(card), isAnswerShown = true)
                 }
-            if (content == null) {
+            if (args == null) {
                 showSnackbar(R.string.ai_chat_history_note_missing)
                 viewModel.refresh()
                 return@launchCatchingTask
             }
-            // The answer may already be known: send it so the AI explains instead of only hinting
-            AiChatBottomSheetFragment.show(supportFragmentManager, AiChatLaunchArgs(nid, content, isAnswerShown = true))
+            AiChatBottomSheetFragment.show(supportFragmentManager, args)
         }
     }
 
@@ -161,7 +161,7 @@ class AiChatHistoryActivity : AnkiActivity(R.layout.activity_ai_chat_history) {
                     override fun areItemsTheSame(
                         oldItem: AiChatHistoryItem,
                         newItem: AiChatHistoryItem,
-                    ) = oldItem.nid == newItem.nid
+                    ) = oldItem.cid == newItem.cid
 
                     override fun areContentsTheSame(
                         oldItem: AiChatHistoryItem,
@@ -174,20 +174,22 @@ class AiChatHistoryActivity : AnkiActivity(R.layout.activity_ai_chat_history) {
 
 private const val TITLE_MAX_LENGTH = 80
 
-/** Plain-text front of each note's first card, keyed by note id; notes that no longer exist are omitted. */
-internal fun Collection.noteTitles(nids: List<NoteId>): Map<NoteId, String> =
-    nids
-        .mapNotNull { nid ->
-            val card =
-                try {
-                    getNote(nid).cards(this).firstOrNull()
-                } catch (e: BackendNotFoundException) {
-                    null
-                } ?: return@mapNotNull null
+private fun Collection.cardOrNull(cid: CardId): Card? =
+    try {
+        getCard(cid)
+    } catch (e: BackendNotFoundException) {
+        null
+    }
+
+/** Plain-text front of each card, keyed by card id; cards that no longer exist are omitted. */
+internal fun Collection.cardTitles(cids: List<CardId>): Map<CardId, String> =
+    cids
+        .mapNotNull { cid ->
+            val card = cardOrNull(cid) ?: return@mapNotNull null
             val title =
                 stripHTMLAndSpecialFields(card.question(this))
                     .replace(Regex("\\s+"), " ")
                     .trim()
                     .take(TITLE_MAX_LENGTH)
-            nid to title
+            cid to title
         }.toMap()

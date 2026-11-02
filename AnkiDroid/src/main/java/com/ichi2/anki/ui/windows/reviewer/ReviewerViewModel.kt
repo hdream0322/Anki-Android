@@ -9,11 +9,13 @@ import anki.frontend.SetSchedulingStatesRequest
 import anki.scheduler.CardAnswer.Rating
 import com.ichi2.anki.AbstractFlashcardViewer
 import com.ichi2.anki.AbstractFlashcardViewer.Companion.RESULT_NO_MORE_CARDS
+import com.ichi2.anki.AnkiDroidApp
 import com.ichi2.anki.CollectionManager.TR
 import com.ichi2.anki.CollectionManager.withCol
 import com.ichi2.anki.Flag
 import com.ichi2.anki.Reviewer
 import com.ichi2.anki.ai.aiChatSystemPrompt
+import com.ichi2.anki.ai.assignLegacyAiChats
 import com.ichi2.anki.asyncIO
 import com.ichi2.anki.cardviewer.SingleCardSide
 import com.ichi2.anki.cardviewer.appendNoSuggestAttributes
@@ -74,6 +76,7 @@ import com.ichi2.anki.common.destinations.Destination as NavigateDestination
 
 @kotlinx.parcelize.Parcelize
 data class AiChatLaunchArgs(
+    val cardId: CardId,
     val noteId: NoteId,
     val cardContent: String,
     val isAnswerShown: Boolean,
@@ -716,8 +719,14 @@ class ReviewerViewModel(
 
     private suspend fun openAiChat() {
         val card = currentCard.await()
-        val content = withCol { aiChatSystemPrompt(card) }
-        openAiChatFlow.emit(AiChatLaunchArgs(noteId = card.nid, cardContent = content, isAnswerShown = showingAnswer.value))
+        val content =
+            withCol {
+                assignLegacyAiChats(AnkiDroidApp.instance)
+                aiChatSystemPrompt(card)
+            }
+        openAiChatFlow.emit(
+            AiChatLaunchArgs(cardId = card.id, noteId = card.nid, cardContent = content, isAnswerShown = showingAnswer.value),
+        )
     }
 
     private fun toggleWhiteboard() {

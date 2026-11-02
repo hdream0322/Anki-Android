@@ -5,6 +5,7 @@ package com.ichi2.anki.ai.history
 import android.content.Context
 import android.view.View
 import android.widget.TextView
+import androidx.core.os.BundleCompat
 import androidx.recyclerview.widget.RecyclerView
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ichi2.anki.MetaDB
@@ -14,6 +15,9 @@ import com.ichi2.anki.ai.AiChatMessage
 import com.ichi2.anki.ai.AiChatRole
 import com.ichi2.anki.ai.AiKeyStore
 import com.ichi2.anki.ai.chat.AiChatBottomSheetFragment
+import com.ichi2.anki.libanki.Card
+import com.ichi2.anki.libanki.Note
+import com.ichi2.anki.ui.windows.reviewer.AiChatLaunchArgs
 import io.mockk.every
 import io.mockk.mockkObject
 import io.mockk.unmockkObject
@@ -52,33 +56,57 @@ class AiChatHistoryActivityTest : RobolectricTest() {
         assertThat(activity.list().adapter!!.itemCount, equalTo(0))
     }
 
-    @Test
-    fun `lists chatted notes newest first and hides deleted notes`() {
-        val older = addBasicNote("older front", "back")
-        val newer = addBasicNote("newer front", "back")
-        val deleted = addBasicNote("deleted front", "back")
-        MetaDB.storeAiChatMessage(targetContext, older.id, AiChatMessage(AiChatRole.USER, "q"))
-        MetaDB.storeAiChatMessage(targetContext, newer.id, AiChatMessage(AiChatRole.USER, "q"))
-        MetaDB.storeAiChatMessage(targetContext, newer.id, AiChatMessage(AiChatRole.ASSISTANT, "reply"))
-        MetaDB.storeAiChatMessage(targetContext, deleted.id, AiChatMessage(AiChatRole.USER, "q"))
-        col.removeNotes(noteIds = listOf(deleted.id))
+    private fun Note.chat(
+        role: AiChatRole,
+        content: String,
+        card: Card = firstCard(),
+    ) = MetaDB.storeAiChatMessage(targetContext, cid = card.id, nid = id, AiChatMessage(role, content))
 
-        val activity = startHistory()
-        val list = activity.list()
+    private fun AiChatHistoryActivity.rowTexts(position: Int): Pair<String, String> {
+        val list = list()
         list.measure(0, 0)
         list.layout(0, 0, 1000, 2000)
-
-        assertThat(list.adapter!!.itemCount, equalTo(2))
-        assertThat(activity.emptyText().visibility, equalTo(View.GONE))
-        val firstRow = list.findViewHolderForAdapterPosition(0)!!.itemView
-        assertThat(firstRow.findViewById<TextView>(R.id.title).text.toString(), equalTo("newer front"))
-        assertThat(firstRow.findViewById<TextView>(R.id.preview).text.toString(), equalTo("AI: reply"))
+        val row = list.findViewHolderForAdapterPosition(position)!!.itemView
+        return row.findViewById<TextView>(R.id.title).text.toString() to row.findViewById<TextView>(R.id.preview).text.toString()
     }
 
     @Test
-    fun `tapping a row opens that note's chat`() {
-        val note = addBasicNote("front", "back")
-        MetaDB.storeAiChatMessage(targetContext, note.id, AiChatMessage(AiChatRole.USER, "q"))
+    fun `lists chatted cards newest first and hides deleted notes`() {
+        val older = addBasicNote("older front", "back")
+        val newer = addBasicNote("newer front", "back")
+        val deleted = addBasicNote("deleted front", "back")
+        older.chat(AiChatRole.USER, "q")
+        newer.chat(AiChatRole.USER, "q")
+        newer.chat(AiChatRole.ASSISTANT, "reply")
+        deleted.chat(AiChatRole.USER, "q")
+        col.removeNotes(noteIds = listOf(deleted.id))
+
+        val activity = startHistory()
+
+        assertThat(activity.list().adapter!!.itemCount, equalTo(2))
+        assertThat(activity.emptyText().visibility, equalTo(View.GONE))
+        assertThat(activity.rowTexts(0), equalTo("newer front" to "AI: reply"))
+    }
+
+    @Test
+    fun `each card of a note has its own row`() {
+        val note = addBasicAndReversedNote("front", "back")
+        val (forward, reverse) = note.cards().sortedBy { it.ord }
+        note.chat(AiChatRole.USER, "about forward", forward)
+        note.chat(AiChatRole.USER, "about reverse", reverse)
+
+        val activity = startHistory()
+
+        assertThat(activity.list().adapter!!.itemCount, equalTo(2))
+        assertThat(activity.rowTexts(0), equalTo("back" to "Me: about reverse"))
+        assertThat(activity.rowTexts(1).first, equalTo("front"))
+    }
+
+    @Test
+    fun `tapping a row opens that card's chat`() {
+        val note = addBasicAndReversedNote("front", "back")
+        val reverse = note.cards().maxBy { it.ord }
+        note.chat(AiChatRole.USER, "q", reverse)
         val activity = startHistory()
         val list = activity.list()
         list.measure(0, 0)
@@ -89,5 +117,7 @@ class AiChatHistoryActivityTest : RobolectricTest() {
 
         val sheet = activity.supportFragmentManager.fragments.single()
         assertThat(sheet, instanceOf(AiChatBottomSheetFragment::class.java))
+        val args = BundleCompat.getParcelable(sheet.requireArguments(), "launchArgs", AiChatLaunchArgs::class.java)!!
+        assertThat(args.cardId, equalTo(reverse.id))
     }
 }

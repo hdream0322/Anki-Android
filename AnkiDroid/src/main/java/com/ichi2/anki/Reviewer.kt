@@ -78,6 +78,7 @@ import com.ichi2.anki.CollectionManager.withCol
 import com.ichi2.anki.Whiteboard.Companion.createInstance
 import com.ichi2.anki.Whiteboard.OnPaintColorChangeListener
 import com.ichi2.anki.ai.aiChatSystemPrompt
+import com.ichi2.anki.ai.assignLegacyAiChats
 import com.ichi2.anki.ai.chat.AiChatBottomSheetFragment
 import com.ichi2.anki.cardviewer.Gesture
 import com.ichi2.anki.cardviewer.SoundEffectPlayer
@@ -799,6 +800,8 @@ open class Reviewer :
     }
 
     override fun onCollectionLoaded(col: Collection) {
+        // Before the first card shows, so its AI chat icon reflects history saved per note
+        col.assignLegacyAiChats(this)
         super.onCollectionLoaded(col)
         if (Intent.ACTION_VIEW == intent.action) {
             Timber.d("onCreate() :: received Intent with action = %s", intent.action)
@@ -1324,7 +1327,7 @@ open class Reviewer :
         Timber.i("opening AI chat")
         launchCatchingTask {
             val content = withCol { aiChatSystemPrompt(card) }
-            AiChatBottomSheetFragment.show(supportFragmentManager, AiChatLaunchArgs(card.nid, content, isDisplayingAnswer))
+            AiChatBottomSheetFragment.show(supportFragmentManager, AiChatLaunchArgs(card.id, card.nid, content, isDisplayingAnswer))
         }
     }
 
@@ -1347,7 +1350,7 @@ open class Reviewer :
         markCardIcon.iconAlpha = alpha
 
         val aiChatIcon = menu.findItem(R.id.action_ai_chat)
-        if (currentCard != null && MetaDB.hasAiChatMessages(this, currentCard!!.nid)) {
+        if (currentCard != null && MetaDB.hasAiChatMessages(this, currentCard!!.id)) {
             aiChatIcon.setIcon(R.drawable.ic_ai_chat_has_history)
         } else {
             aiChatIcon.setIcon(R.drawable.ic_ai_chat)

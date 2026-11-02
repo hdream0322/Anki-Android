@@ -19,9 +19,9 @@ data class AiChatMessage(
     val content: String,
 )
 
-/** One note's AI chat history, condensed for the history list. */
+/** One card's AI chat history, condensed for the history list. */
 data class AiChatSummary(
-    val nid: Long,
+    val cid: Long,
     val messageCount: Int,
     val lastMessage: AiChatMessage,
     /** Epoch millis of [lastMessage]. */

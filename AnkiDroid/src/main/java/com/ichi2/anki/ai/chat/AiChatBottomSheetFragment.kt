@@ -93,9 +93,9 @@ class AiChatBottomSheetFragment :
                     apiKey = keyStore.getApiKey(providerKind).orEmpty(),
                     model = Prefs.getAiModelOverride(providerKind)?.takeIf { it.isNotBlank() } ?: provider.defaultModel,
                     streamingClient = AiStreamingClient(),
-                    storeMessage = { message -> MetaDB.storeAiChatMessage(requireContext(), args.noteId, message) },
-                    loadHistory = { MetaDB.getAiChatMessages(requireContext(), args.noteId) },
-                    onClearHistory = { MetaDB.deleteAiChatMessages(requireContext(), args.noteId) },
+                    storeMessage = { message -> MetaDB.storeAiChatMessage(requireContext(), args.cardId, args.noteId, message) },
+                    loadHistory = { MetaDB.getAiChatMessages(requireContext(), args.cardId) },
+                    onClearHistory = { MetaDB.deleteAiChatMessages(requireContext(), args.cardId) },
                     onModelUnavailable = { Prefs.setAiModelOverride(providerKind, null) },
                 ) as T
             }

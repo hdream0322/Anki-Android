@@ -28,10 +28,10 @@ class AiChatHistoryViewModelTest {
     fun tearDown() = Dispatchers.resetMain()
 
     private fun summary(
-        nid: Long,
+        cid: Long,
         count: Int,
         last: String,
-    ) = AiChatSummary(nid, count, AiChatMessage(AiChatRole.USER, last), lastAt = nid * 1000)
+    ) = AiChatSummary(cid, count, AiChatMessage(AiChatRole.USER, last), lastAt = cid * 1000)
 
     @Test
     fun `items keep the summary order and use the resolved titles`() =
@@ -39,12 +39,12 @@ class AiChatHistoryViewModelTest {
             val viewModel =
                 AiChatHistoryViewModel(
                     loadSummaries = { listOf(summary(2, 1, "b"), summary(1, 3, "a")) },
-                    resolveTitles = { nids -> nids.associateWith { "title $it" } },
+                    resolveTitles = { cids -> cids.associateWith { "title $it" } },
                 )
             advanceUntilIdle()
 
             val items = viewModel.items.value!!
-            assertEquals(listOf(2L, 1L), items.map { it.nid })
+            assertEquals(listOf(2L, 1L), items.map { it.cid })
             assertEquals("title 1", items[1].title)
             assertEquals(3, items[1].messageCount)
             assertEquals(AiChatMessage(AiChatRole.USER, "a"), items[1].lastMessage)
@@ -60,7 +60,7 @@ class AiChatHistoryViewModelTest {
                 )
             advanceUntilIdle()
 
-            assertEquals(listOf(1L), viewModel.items.value!!.map { it.nid })
+            assertEquals(listOf(1L), viewModel.items.value!!.map { it.cid })
         }
 
     @Test
@@ -70,7 +70,7 @@ class AiChatHistoryViewModelTest {
             val viewModel =
                 AiChatHistoryViewModel(
                     loadSummaries = { summaries },
-                    resolveTitles = { nids -> nids.associateWith { "t" } },
+                    resolveTitles = { cids -> cids.associateWith { "t" } },
                 )
             advanceUntilIdle()
             summaries = emptyList()
@@ -88,7 +88,7 @@ class AiChatHistoryViewModelTest {
             val viewModel =
                 AiChatHistoryViewModel(
                     loadSummaries = { if (fail) error("collection closed") else listOf(summary(1, 1, "a")) },
-                    resolveTitles = { nids -> nids.associateWith { "t" } },
+                    resolveTitles = { cids -> cids.associateWith { "t" } },
                 )
             advanceUntilIdle()
             fail = true
@@ -96,6 +96,6 @@ class AiChatHistoryViewModelTest {
             viewModel.refresh()
             advanceUntilIdle()
 
-            assertEquals(listOf(1L), viewModel.items.value!!.map { it.nid })
+            assertEquals(listOf(1L), viewModel.items.value!!.map { it.cid })
         }
 }

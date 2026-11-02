@@ -3,6 +3,10 @@
 package com.ichi2.anki.ai
 
 import com.ichi2.anki.backend.stripHTMLAndSpecialFields
+import com.ichi2.anki.common.time.TimeManager
+import com.ichi2.anki.libanki.Card
+import com.ichi2.anki.libanki.Collection
+import com.ichi2.anki.settings.Prefs
 
 /**
  * Converts a card's rendered HTML (question/answer) into plain text suitable for
@@ -30,6 +34,7 @@ object CardContentExtractor {
         6. When it helps memory, add one of these: a mnemonic, an example sentence or case, or a contrast with a concept that is easy to confuse with this one.
         7. If the card looks wrong, outdated, or ambiguous, say so in one sentence and give the correct version, so the student can fix the card.
         8. If you are not sure of a fact, say that you are not sure instead of guessing. The student will memorize what you say, so a confident wrong answer does more harm than no answer.
+        9. A <study_stats> block, when present, shows how this card has gone for the student. Use it to pitch your help: many lapses or a low recall probability mean the card keeps slipping, so favor a stronger mnemonic or a contrast over restating the back. Quote the numbers only when the student asks about their progress, because they opened the chat for help with the card, not for a report.
         </instructions>
 
         <examples>
@@ -67,6 +72,7 @@ object CardContentExtractor {
         instruction: String = INSTRUCTION,
         deckName: String? = null,
         tags: List<String> = emptyList(),
+        studyStats: String? = null,
     ): String {
         val question = clean(questionHtml)
         val answer = backWithoutFront(question, answerHtml)
@@ -74,6 +80,7 @@ object CardContentExtractor {
             appendLine("<card>")
             if (!deckName.isNullOrBlank()) appendLine("<deck>$deckName</deck>")
             if (tags.isNotEmpty()) appendLine("<tags>${tags.joinToString(" ")}</tags>")
+            if (studyStats != null) appendLine(studyStats)
             appendLine("<front>$question</front>")
             appendLine("<back>$answer</back>")
             appendLine("</card>")
@@ -108,3 +115,14 @@ object CardContentExtractor {
             .replace(Regex("\\s+"), " ")
             .trim()
 }
+
+/** The AI chat's system prompt for [card], honoring the user's custom instruction and stats setting. */
+fun Collection.aiChatSystemPrompt(card: Card): String =
+    CardContentExtractor.extract(
+        card.question(this),
+        card.answer(this),
+        instruction = CardContentExtractor.instructionOrDefault(Prefs.aiSystemPrompt),
+        deckName = decks.name(card.currentDeckId()),
+        tags = card.note(this).tags,
+        studyStats = if (Prefs.aiIncludeStudyStats) CardStudyStats.format(cardStatsData(card.id), TimeManager.time.intTime()) else null,
+    )

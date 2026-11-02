@@ -178,6 +178,9 @@
     <string name="pref_ai_system_prompt_reset_title" maxLength="41">Reset system prompt</string>
     <string name="pref_ai_system_prompt_reset_summ">Go back to the built-in instruction</string>
     <string name="pref_ai_system_prompt_reset_confirm">Discard your custom system prompt and use the built-in instruction?</string>
+    <string name="pref_ai_include_study_stats_key">deurim_ai_include_study_stats</string>
+    <string name="pref_ai_include_study_stats_title" maxLength="41">Include study stats</string>
+    <string name="pref_ai_include_study_stats_summ">Also send the card\'s reviews, lapses, interval, ease or FSRS memory state, and recent answers, so the AI can tailor its help</string>
     <string name="pref_ai_system_prompt_dialog_message">Sent to the AI before the card\'s front and back in every chat. Clear the text to restore the built-in instruction.</string>
     <!-- %s = the provider's default model id -->
     <string name="ai_model_item_default">Default (%s)</string>

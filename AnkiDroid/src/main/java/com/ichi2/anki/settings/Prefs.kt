@@ -493,6 +493,9 @@ open class PrefsRepository protected constructor(
     /** User-written instruction sent ahead of the card in every AI chat. Blank/unset means the built-in one. */
     var aiSystemPrompt by stringPref(R.string.pref_ai_system_prompt_key)
 
+    /** Whether the AI chat also receives the card's review history and scheduling stats. */
+    val aiIncludeStudyStats by booleanPref(R.string.pref_ai_include_study_stats_key, false)
+
     /**
      * User-chosen model id for [provider], kept per provider so switching provider and back
      * restores it. Blank/unset means "use [AiProvider.defaultModel]".

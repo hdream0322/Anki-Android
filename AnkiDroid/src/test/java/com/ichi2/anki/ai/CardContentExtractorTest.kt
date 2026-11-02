@@ -107,6 +107,22 @@ class CardContentExtractorTest {
     }
 
     @Test
+    fun `puts study stats inside the card after the tags`() {
+        val result = CardContentExtractor.extract("Q", "A", tags = listOf("t"), studyStats = "<study_stats>\nreviews: 1\n</study_stats>")
+
+        assertEquals(
+            "<card>\n<tags>t</tags>\n<study_stats>\nreviews: 1\n</study_stats>\n<front>Q</front>\n<back>A</back>\n</card>\n\n" +
+                CardContentExtractor.INSTRUCTION,
+            result,
+        )
+    }
+
+    @Test
+    fun `default instruction explains the study stats tag`() {
+        assertEquals(true, CardContentExtractor.INSTRUCTION.contains("<study_stats>"))
+    }
+
+    @Test
     fun `default instruction explains the study state tag`() {
         assertEquals(true, CardContentExtractor.INSTRUCTION.contains("<study_state>"))
     }

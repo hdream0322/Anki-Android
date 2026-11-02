@@ -77,7 +77,7 @@ import com.ichi2.anki.CollectionManager.TR
 import com.ichi2.anki.CollectionManager.withCol
 import com.ichi2.anki.Whiteboard.Companion.createInstance
 import com.ichi2.anki.Whiteboard.OnPaintColorChangeListener
-import com.ichi2.anki.ai.CardContentExtractor
+import com.ichi2.anki.ai.aiChatSystemPrompt
 import com.ichi2.anki.ai.chat.AiChatBottomSheetFragment
 import com.ichi2.anki.cardviewer.Gesture
 import com.ichi2.anki.cardviewer.SoundEffectPlayer
@@ -1323,17 +1323,7 @@ open class Reviewer :
         }
         Timber.i("opening AI chat")
         launchCatchingTask {
-            val instruction = CardContentExtractor.instructionOrDefault(Prefs.aiSystemPrompt)
-            val content =
-                withCol {
-                    CardContentExtractor.extract(
-                        card.question(this),
-                        card.answer(this),
-                        instruction,
-                        deckName = decks.name(card.currentDeckId()),
-                        tags = card.note(this).tags,
-                    )
-                }
+            val content = withCol { aiChatSystemPrompt(card) }
             AiChatBottomSheetFragment.show(supportFragmentManager, AiChatLaunchArgs(card.nid, content, isDisplayingAnswer))
         }
     }

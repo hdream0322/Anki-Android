@@ -13,7 +13,7 @@ import com.ichi2.anki.CollectionManager.TR
 import com.ichi2.anki.CollectionManager.withCol
 import com.ichi2.anki.Flag
 import com.ichi2.anki.Reviewer
-import com.ichi2.anki.ai.CardContentExtractor
+import com.ichi2.anki.ai.aiChatSystemPrompt
 import com.ichi2.anki.asyncIO
 import com.ichi2.anki.cardviewer.SingleCardSide
 import com.ichi2.anki.cardviewer.appendNoSuggestAttributes
@@ -49,7 +49,6 @@ import com.ichi2.anki.servicelayer.MARKED_TAG
 import com.ichi2.anki.servicelayer.NoteService
 import com.ichi2.anki.servicelayer.isBuryNoteAvailable
 import com.ichi2.anki.servicelayer.isSuspendNoteAvailable
-import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.tryRedo
 import com.ichi2.anki.tryUndo
 import com.ichi2.anki.ui.windows.reviewer.autoadvance.AnswerAction
@@ -717,17 +716,7 @@ class ReviewerViewModel(
 
     private suspend fun openAiChat() {
         val card = currentCard.await()
-        val instruction = CardContentExtractor.instructionOrDefault(Prefs.aiSystemPrompt)
-        val content =
-            withCol {
-                CardContentExtractor.extract(
-                    card.question(this),
-                    card.answer(this),
-                    instruction,
-                    deckName = decks.name(card.currentDeckId()),
-                    tags = card.note(this).tags,
-                )
-            }
+        val content = withCol { aiChatSystemPrompt(card) }
         openAiChatFlow.emit(AiChatLaunchArgs(noteId = card.nid, cardContent = content, isAnswerShown = showingAnswer.value))
     }
 

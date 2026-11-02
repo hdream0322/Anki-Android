@@ -110,6 +110,8 @@
     <string name="pref_ai_system_prompt_reset_title">시스템 프롬프트 초기화</string>
     <string name="pref_ai_system_prompt_reset_summ">기본 지시문으로 되돌려요</string>
     <string name="pref_ai_system_prompt_reset_confirm">직접 입력한 시스템 프롬프트를 지우고 기본 지시문을 사용할까요?</string>
+    <string name="pref_ai_include_study_stats_title">카드 학습 정보 함께 보내기</string>
+    <string name="pref_ai_include_study_stats_summ">복습·실패 횟수, 간격, ease 또는 FSRS 기억 상태, 최근 답변 기록을 AI에게 함께 보내서 상황에 맞게 도와줘요</string>
     <string name="pref_ai_system_prompt_dialog_message">모든 채팅에서 카드 앞면·뒷면보다 먼저 AI에게 전달돼요. 내용을 모두 지우면 기본 지시문으로 돌아가요.</string>
     <string name="ai_model_item_default">기본값 (%s)</string>
     <string name="ai_model_item_custom">직접 입력…</string>

@@ -39,6 +39,7 @@ import com.google.android.material.color.MaterialColors
 import com.google.android.material.navigation.NavigationView
 import com.ichi2.anki.CollectionManager.TR
 import com.ichi2.anki.NoteEditorFragment.Companion.NoteEditorCaller
+import com.ichi2.anki.ai.history.AiChatHistoryActivity
 import com.ichi2.anki.common.android.animationEnabled
 import com.ichi2.anki.common.destinations.BrowserDestination
 import com.ichi2.anki.common.destinations.DeferredNavigation
@@ -395,6 +396,11 @@ abstract class NavigationDrawerActivity(
                     R.id.nav_stats -> {
                         Timber.i("Navigating to stats")
                         openStatistics()
+                    }
+
+                    R.id.nav_ai_chat_history -> {
+                        Timber.i("Navigating to AI chat history")
+                        startActivity(Intent(this@NavigationDrawerActivity, AiChatHistoryActivity::class.java))
                     }
 
                     R.id.nav_settings -> {

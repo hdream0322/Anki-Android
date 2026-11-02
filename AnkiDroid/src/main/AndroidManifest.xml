@@ -380,6 +380,11 @@
             android:configChanges="keyboardHidden|orientation|screenSize"
             />
         <activity
+            android:name=".ai.history.AiChatHistoryActivity"
+            android:label="@string/ai_chat_history_title"
+            android:exported="false"
+            />
+        <activity
             android:name="com.ichi2.anki.Reviewer"
             android:exported="true"
             android:theme="@style/Theme_Dark.Launcher"

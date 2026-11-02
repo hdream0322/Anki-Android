@@ -188,5 +188,13 @@
     <string name="ai_chat_clear_history">채팅 기록 삭제</string>
     <string name="ai_chat_clear_history_confirm">이 카드의 AI 채팅 기록을 모두 삭제할까요? 되돌릴 수 없어요.</string>
     <string name="ai_chat_history_cleared">채팅 기록을 삭제했어요</string>
+    <string name="ai_chat_history_title">AI 채팅 기록</string>
+    <string name="ai_chat_history_empty">아직 AI 채팅 기록이 없어요. 학습 중에 카드에 대해 AI에게 질문하면 여기에 모여요</string>
+    <string name="ai_chat_history_you">나: %s</string>
+    <string name="ai_chat_history_ai">AI: %s</string>
+    <string name="ai_chat_history_note_missing">이 카드는 더 이상 존재하지 않아요</string>
+    <plurals name="ai_chat_history_meta">
+        <item quantity="other">%1$d개 · %2$s</item>
+    </plurals>
     <string name="deurim_disabled_in_build">%s (이 빌드에서 비활성화됨)</string>
 </resources>

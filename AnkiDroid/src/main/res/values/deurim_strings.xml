@@ -258,6 +258,16 @@
     <string name="ai_chat_clear_history">Clear chat history</string>
     <string name="ai_chat_clear_history_confirm">Delete all AI chat messages for this note? This can\'t be undone.</string>
     <string name="ai_chat_history_cleared">Chat history cleared</string>
+    <!-- AI chat history screen, opened from the navigation drawer -->
+    <string name="ai_chat_history_title">AI chat history</string>
+    <string name="ai_chat_history_empty">No AI chats yet. Ask AI about a card while reviewing and it will show up here</string>
+    <string name="ai_chat_history_you">Me: %s</string>
+    <string name="ai_chat_history_ai">AI: %s</string>
+    <string name="ai_chat_history_note_missing">This card no longer exists</string>
+    <plurals name="ai_chat_history_meta">
+        <item quantity="one">%1$d message · %2$s</item>
+        <item quantity="other">%1$d messages · %2$s</item>
+    </plurals>
     <string name="custom_button_ai_chat_key">customButtonAiChat</string>
     <!-- Bug report / feedback page opened from Help and More (replaces AnkiDroid's help page) -->
     <string name="link_deurim_feedback" translatable="false">https://imgo2.deurim.com/feedback</string>

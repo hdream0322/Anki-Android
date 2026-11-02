@@ -11,6 +11,7 @@ import androidx.annotation.WorkerThread
 import androidx.core.database.sqlite.transaction
 import com.ichi2.anki.ai.AiChatMessage
 import com.ichi2.anki.ai.AiChatRole
+import com.ichi2.anki.ai.AiChatSummary
 import com.ichi2.anki.common.time.TimeManager
 import com.ichi2.anki.common.utils.annotation.KotlinCleanup
 import com.ichi2.anki.libanki.DeckId
@@ -773,6 +774,36 @@ object MetaDB {
             Timber.e(e, "Error fetching AI chat messages from MetaDB")
         }
         return messages
+    }
+
+    /** Returns one summary per note with AI chat history, most recently active note first. */
+    fun getAiChatSummaries(context: Context): List<AiChatSummary> {
+        openDBIfClosed(context)
+        val summaries = mutableListOf<AiChatSummary>()
+        try {
+            metaDb!!
+                .rawQuery(
+                    """SELECT m.nid, g.cnt, m.role, m.content, m.createdAt
+                    FROM aiChatMessages m
+                    JOIN (SELECT nid, COUNT(*) AS cnt, MAX(_id) AS lastId FROM aiChatMessages GROUP BY nid) g
+                    ON m._id = g.lastId
+                    ORDER BY m._id DESC""",
+                    null,
+                ).use { cur ->
+                    while (cur.moveToNext()) {
+                        summaries +=
+                            AiChatSummary(
+                                nid = cur.getLong(0),
+                                messageCount = cur.getInt(1),
+                                lastMessage = AiChatMessage(AiChatRole.fromStorageValue(cur.getString(2)), cur.getString(3)),
+                                lastAt = cur.getLong(4),
+                            )
+                    }
+                }
+        } catch (e: Exception) {
+            Timber.e(e, "Error fetching AI chat summaries from MetaDB")
+        }
+        return summaries
     }
 
     fun close() {

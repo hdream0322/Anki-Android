@@ -15,6 +15,10 @@
         <item
             android:id="@+id/nav_stats"
             android:icon="@drawable/ic_bar_chart_black"/>
+        <item
+            android:id="@+id/nav_ai_chat_history"
+            android:icon="@drawable/ic_ai_chat"
+            android:title="@string/ai_chat_history_title"/>
     </group>
     <group  android:id="@+id/group2">
         <item

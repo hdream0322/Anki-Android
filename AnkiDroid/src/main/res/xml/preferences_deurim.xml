@@ -137,5 +137,10 @@
             android:key="@string/pref_ai_system_prompt_key"
             android:title="@string/pref_ai_system_prompt_title"
             android:dialogMessage="@string/pref_ai_system_prompt_dialog_message"/>
+        <Preference
+            android:key="@string/pref_ai_system_prompt_reset_key"
+            android:persistent="false"
+            android:title="@string/pref_ai_system_prompt_reset_title"
+            android:summary="@string/pref_ai_system_prompt_reset_summ"/>
     </PreferenceCategory>
 </PreferenceScreen>

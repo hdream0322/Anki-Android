@@ -129,7 +129,24 @@ class DeurimSettingsFragment : SettingsFragment() {
     }
 
     private fun initAiSystemPromptPref() {
-        requirePreference<EditTextPreference>(R.string.pref_ai_system_prompt_key).apply {
+        val promptPref = requirePreference<EditTextPreference>(R.string.pref_ai_system_prompt_key)
+        val resetPref = requirePreference<Preference>(R.string.pref_ai_system_prompt_reset_key)
+
+        fun refreshResetEnabled() {
+            resetPref.isEnabled = !promptPref.text.isNullOrBlank()
+        }
+        resetPref.setOnPreferenceClickListener {
+            AlertDialog.Builder(requireContext()).show {
+                setMessage(R.string.pref_ai_system_prompt_reset_confirm)
+                positiveButton(R.string.pref_ai_system_prompt_reset_title) {
+                    promptPref.text = null
+                    refreshResetEnabled()
+                }
+                negativeButton(CommonString.dialog_cancel)
+            }
+            true
+        }
+        promptPref.apply {
             setOnBindEditTextListener { editText ->
                 editText.inputType =
                     InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
@@ -155,9 +172,11 @@ class DeurimSettingsFragment : SettingsFragment() {
                 // Blank or unchanged-from-default is stored as unset, so a later change to the
                 // built-in instruction still reaches users who never customised it.
                 (preference as EditTextPreference).text = trimmed.takeIf { it.isNotEmpty() && it != CardContentExtractor.INSTRUCTION }
+                refreshResetEnabled()
                 false
             }
         }
+        refreshResetEnabled()
     }
 
     /** Re-evaluates the API key summary, which names the selected provider. No-op until the key preference is set up. */

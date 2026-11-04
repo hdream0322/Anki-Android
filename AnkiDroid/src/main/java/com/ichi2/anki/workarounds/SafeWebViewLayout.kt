@@ -2,12 +2,15 @@
 
 package com.ichi2.anki.workarounds
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.print.PrintDocumentAdapter
 import android.util.AttributeSet
 import android.view.ViewGroup
 import android.webkit.CookieManager
+import android.webkit.DownloadListener
 import android.webkit.ValueCallback
+import android.webkit.WebBackForwardList
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -16,6 +19,8 @@ import androidx.annotation.MainThread
 import androidx.core.view.ancestors
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.findFragment
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import com.ichi2.anki.BuildConfig
 import com.ichi2.anki.common.annotations.NeedsTest
 import com.ichi2.anki.common.crashreporting.runCatchingWithReport
@@ -110,6 +115,37 @@ open class SafeWebViewLayout :
         activeWebView?.addJavascriptInterface(javascriptInterface, name)
     }
 
+    /**
+     * Requires [WebViewFeature.WEB_MESSAGE_LISTENER]
+     *
+     * @see WebViewCompat.addWebMessageListener
+     */
+    @SuppressLint("RequiresFeature") // checked by the caller
+    @MainThread
+    fun addWebMessageListener(
+        jsObjectName: String,
+        allowedOriginRules: Set<String>,
+        listener: WebViewCompat.WebMessageListener,
+    ) {
+        val webView = activeWebView ?: return
+        WebViewCompat.addWebMessageListener(webView, jsObjectName, allowedOriginRules, listener)
+    }
+
+    /**
+     * Requires [WebViewFeature.DOCUMENT_START_SCRIPT]
+     *
+     * @see WebViewCompat.addDocumentStartJavaScript
+     */
+    @SuppressLint("RequiresFeature") // checked by the caller
+    @MainThread
+    fun addDocumentStartJavaScript(
+        script: String,
+        allowedOriginRules: Set<String>,
+    ) {
+        val webView = activeWebView ?: return
+        WebViewCompat.addDocumentStartJavaScript(webView, script, allowedOriginRules)
+    }
+
     @MainThread
     fun loadUrl(url: String) {
         activeWebView?.loadUrl(url)
@@ -139,6 +175,19 @@ open class SafeWebViewLayout :
 
     @MainThread
     fun canGoBack(): Boolean = activeWebView?.canGoBack() ?: false
+
+    @MainThread
+    fun clearHistory() {
+        activeWebView?.clearHistory()
+    }
+
+    @MainThread
+    fun copyBackForwardList(): WebBackForwardList = uncheckedWebView.copyBackForwardList()
+
+    @MainThread
+    fun setDownloadListener(listener: DownloadListener?) {
+        activeWebView?.setDownloadListener(listener)
+    }
 
     @MainThread
     fun pageUp(): Boolean = activeWebView?.pageUp(false) ?: false

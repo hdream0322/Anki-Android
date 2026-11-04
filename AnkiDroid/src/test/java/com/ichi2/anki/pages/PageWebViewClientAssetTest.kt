@@ -25,7 +25,7 @@ class PageWebViewClientAssetTest : PageWebViewClientTestBase() {
 
         // Pin the entire declaration, including the bootstrap script hash, to require review on backend updates.
         // Backend updates are expected to change this hash and fail this test until the new declaration is reviewed.
-        val expectedPolicy = "script-src 'self' 'sha256-ZtbRHoVXnThxdihCTDoE7B58+asHn6tYkHhb2gnJ6hA='"
+        val expectedPolicy = "script-src 'self' 'sha256-XpoJA08ATXObFc7evd1cfPlsgDlPlfwKL1KNy6qVFH0='"
         assertEquals(
             listOf(expectedPolicy),
             policies,
@@ -125,9 +125,9 @@ class PageWebViewClientAssetTest : PageWebViewClientTestBase() {
 
                 val otherOrigins =
                     listOf(
-                        url.buildUpon().scheme("https").build(),
-                        url.buildUpon().encodedAuthority("127.0.0.1:${url.port + 1}").build(),
-                        url.buildUpon().encodedAuthority("example.org:${url.port}").build(),
+                        url.buildUpon().scheme("http").build(),
+                        url.buildUpon().encodedAuthority("${url.host}:8443").build(),
+                        url.buildUpon().encodedAuthority("example.org").build(),
                         url.buildUpon().encodedAuthority("user@${url.encodedAuthority}").build(),
                     )
                 for (other in otherOrigins) {

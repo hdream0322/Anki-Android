@@ -42,6 +42,7 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebView.HitTestResult
 import android.webkit.WebViewClient
@@ -65,6 +66,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.children
 import androidx.core.view.isVisible
 import androidx.lifecycle.Lifecycle.State.RESUMED
+import androidx.lifecycle.lifecycleScope
 import anki.collection.OpChanges
 import anki.scheduler.CardAnswer.Rating
 import com.drakeet.drawer.FullDraggableContainer
@@ -130,7 +132,7 @@ import com.ichi2.anki.model.FieldFilters.NoSuggestFilter
 import com.ichi2.anki.multimedia.getAvTag
 import com.ichi2.anki.observability.ChangeManager
 import com.ichi2.anki.observability.undoableOp
-import com.ichi2.anki.pages.AnkiServer
+import com.ichi2.anki.pages.PostRequestBridge
 import com.ichi2.anki.pages.PostRequestHandler
 import com.ichi2.anki.pages.PostRequestUri
 import com.ichi2.anki.reviewer.AutomaticAnswer
@@ -150,7 +152,6 @@ import com.ichi2.anki.snackbar.BaseSnackbarBuilderProvider
 import com.ichi2.anki.snackbar.SnackbarBuilder
 import com.ichi2.anki.snackbar.showSnackbar
 import com.ichi2.anki.study.StudyCompletionUi
-import com.ichi2.anki.ui.windows.reviewer.StudyScreenRepository
 import com.ichi2.anki.utils.OnlyOnce.Method.ANSWER_CARD
 import com.ichi2.anki.utils.OnlyOnce.preventSimultaneousExecutions
 import com.ichi2.anki.utils.ext.isTouchWithinBounds
@@ -278,10 +279,6 @@ abstract class AbstractFlashcardViewer :
      * Gesture Allocation
      */
     protected val gestureProcessor = GestureProcessor(this)
-
-    // needs to be lateinit due to a reliance on Context
-
-    lateinit var server: AnkiServer
 
     @get:VisibleForTesting
     var cardContent: String? = null
@@ -560,8 +557,6 @@ abstract class AbstractFlashcardViewer :
 
         setContentView(getContentViewAttr(fullscreenMode))
 
-        val port = StudyScreenRepository().getServerPort()
-        server = AnkiServer(this, port).also { it.start() }
         // Make ACTION_PROCESS_TEXT for in-app searching possible on > Android 4.0
         delegate.isHandleNativeActionModesEnabled = true
 
@@ -669,9 +664,6 @@ abstract class AbstractFlashcardViewer :
 
     override fun onDestroy() {
         super.onDestroy()
-        if (this::server.isInitialized) {
-            server.stop()
-        }
         tts.releaseTts(this)
         // WebView.destroy() should be called after the end of use
         // http://developer.android.com/reference/android/webkit/WebView.html#destroy()
@@ -1076,6 +1068,8 @@ abstract class AbstractFlashcardViewer :
                     allowFileAccess = true
                     // enable dom storage so that sessionStorage & localStorage can be used in webview
                     domStorageEnabled = true
+                    // the cards are served over https, but their templates may use http:// resources, like scripts
+                    mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                 }
                 webChromeClient = AnkiDroidWebChromeClient()
                 isFocusableInTouchMode = typeAnswer!!.useInputTag
@@ -1086,6 +1080,7 @@ abstract class AbstractFlashcardViewer :
                     webViewClient = this
                     this@AbstractFlashcardViewer.webViewClient = this
                 }
+                PostRequestBridge(this@AbstractFlashcardViewer, lifecycleScope).attachTo(this)
             }
         Timber.d(
             "Focusable = %s, Focusable in touch mode = %s",
@@ -1588,7 +1583,7 @@ abstract class AbstractFlashcardViewer :
         if (card != null) {
             card.settings.mediaPlaybackRequiresUserGesture = cardMediaPlayer.config?.autoplay != true
             card.loadDataWithBaseURL(
-                server.baseUrl(),
+                PostRequestBridge.BASE_URL,
                 content,
                 "text/html",
                 null,

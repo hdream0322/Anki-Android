@@ -4,6 +4,7 @@
 package com.ichi2.testutils
 
 import androidx.annotation.CallSuper
+import com.ichi2.anki.CollectionManager
 import com.ichi2.anki.ioDispatcher
 import com.ichi2.anki.libanki.CollectionFiles
 import com.ichi2.anki.libanki.testutils.InMemoryAnkiTest
@@ -21,8 +22,10 @@ open class JvmTest : InMemoryAnkiTest() {
     @get:Rule
     val ignoreFlakyTests = IgnoreFlakyTestsInCIRule()
 
-    @get:Rule
-    val collectionStorage = CollectionStorageRule { CollectionFiles.InMemory }
+    protected open val collectionFiles: CollectionFiles get() = CollectionFiles.InMemory
+
+    @get:Rule(order = 1)
+    val collectionStorage = CollectionStorageRule { collectionFiles }
 
     override val collectionManager = ProductionCollectionManager
 
@@ -39,9 +42,15 @@ open class JvmTest : InMemoryAnkiTest() {
     @CallSuper
     override fun tearDown() {
         try {
-            super.tearDown()
+            if (CollectionManager.isOpenUnsafe()) {
+                col.debugEnsureNoOpenPointers()
+            }
         } finally {
-            ioDispatcher = Dispatchers.IO
+            try {
+                super.tearDown()
+            } finally {
+                ioDispatcher = Dispatchers.IO
+            }
         }
     }
 
@@ -49,4 +58,9 @@ open class JvmTest : InMemoryAnkiTest() {
         super.setupTestDispatcher(dispatcher)
         ioDispatcher = dispatcher
     }
+
+    override fun withTestDispatcher(
+        dispatcher: TestDispatcher,
+        block: () -> Unit,
+    ) = withCollectionTestDispatcher(dispatcher, block)
 }

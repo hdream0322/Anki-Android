@@ -20,7 +20,6 @@ import com.ichi2.anki.libanki.Note
 import com.ichi2.anki.libanki.NoteId
 import com.ichi2.anki.libanki.NotetypeJson
 import com.ichi2.anki.libanki.clozeNumbersInNote
-import com.ichi2.anki.pages.AnkiServer
 import com.ichi2.anki.reviewer.CardSide
 import com.ichi2.anki.utils.ext.require
 import kotlinx.coroutines.CompletableDeferred
@@ -50,7 +49,6 @@ class TemplatePreviewerViewModel(
     private val templateNames: Deferred<List<String>>
     private val clozeOrds: Deferred<List<CardOrdinal>>?
     override var currentCard: Deferred<Card>
-    override val server = AnkiServer(this).also { it.start() }
 
     /**
      * Ordered list of cards with empty fronts
@@ -77,35 +75,35 @@ class TemplatePreviewerViewModel(
                     tags = arguments.tags.toMutableList()
                 }
             }
-        currentCard =
-            asyncIO {
-                val note = note.await()
-                withCol {
-                    note.ephemeralCard(
-                        col = this,
-                        ord = ordFlow.value,
-                        customNoteType = notetype,
-                        fillEmpty = fillEmpty,
-                        deckId = arguments.deckId,
-                    )
-                }
-            }
         if (isCloze) {
             val clozeNumbers =
                 asyncIO {
                     val note = note.await()
                     withCol { clozeNumbersInNote(note) }
                 }
-            clozeOrds =
+            val ords =
                 asyncIO {
-                    clozeNumbers.await().map { it - 1 }
+                    val note = note.await()
+                    // cards of removed clozes are kept until 'Empty Cards' is used
+                    val existingCardOrds = withCol { note.cards(this) }.map { it.ord }
+                    val cardOrds = (clozeNumbers.await().map { it - 1 } + existingCardOrds).distinct().sorted()
+                    // the requested card may not exist, e.g. the template editor requests the first card
+                    if (cardOrds.isNotEmpty() && ordFlow.value !in cardOrds) {
+                        ordFlow.value = cardOrds.first()
+                    }
+                    cardOrds
                 }
+            clozeOrds = ords
             templateNames =
                 asyncIO {
                     val tr = CollectionManager.TR
-                    clozeNumbers.await().map { tr.cardTemplatesCard(it) }
+                    ords.await().map { tr.cardTemplatesCard(it + 1) }
                 }
-            cardsWithEmptyFronts = null
+            cardsWithEmptyFronts =
+                asyncIO {
+                    val ordsInFields = clozeNumbers.await().map { it - 1 }
+                    ords.await().map { it !in ordsInFields }
+                }
         } else {
             clozeOrds = null
             templateNames = CompletableDeferred(notetype.templatesNames)
@@ -128,6 +126,21 @@ class TemplatePreviewerViewModel(
                     }
                 }
         }
+        currentCard =
+            asyncIO {
+                // a cloze card is only selected after its ords are loaded
+                clozeOrds?.await()
+                val note = note.await()
+                withCol {
+                    note.ephemeralCard(
+                        col = this,
+                        ord = ordFlow.value,
+                        customNoteType = notetype,
+                        fillEmpty = fillEmpty,
+                        deckId = arguments.deckId,
+                    )
+                }
+            }
     }
 
     /* *********************************************************************************************
@@ -143,6 +156,8 @@ class TemplatePreviewerViewModel(
             return
         }
         launchCatchingIO {
+            // a cloze card is only selected after its ords are loaded
+            clozeOrds?.await()
             ordFlow.collectLatest { ord ->
                 currentCard =
                     asyncIO {
@@ -198,8 +213,10 @@ class TemplatePreviewerViewModel(
         }
 
     suspend fun getSafeClozeOrd(): CardOrdinal {
-        val ords = clozeOrds?.await() ?: return 0
-        return if (ords.isEmpty()) 0 else ordFlow.value.coerceIn(0, ords.size - 1)
+        if (clozeOrds == null) return 0
+        clozeOrds.await()
+        // the previewer is recreated on the same card, e.g. after an edit
+        return ordFlow.value
     }
 
     fun updateContent(

@@ -11,6 +11,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.res.Resources
+import android.database.DatabaseErrorHandler
+import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -166,6 +168,23 @@ open class AnkiDroidApp :
 
     override fun getDatabasePath(name: String): File = profileContext?.getDatabasePath(name) ?: super.getDatabasePath(name)
 
+    override fun openOrCreateDatabase(
+        name: String,
+        mode: Int,
+        factory: SQLiteDatabase.CursorFactory?,
+    ): SQLiteDatabase = profileContext?.openOrCreateDatabase(name, mode, factory) ?: super.openOrCreateDatabase(name, mode, factory)
+
+    override fun openOrCreateDatabase(
+        name: String,
+        mode: Int,
+        factory: SQLiteDatabase.CursorFactory?,
+        errorHandler: DatabaseErrorHandler?,
+    ): SQLiteDatabase =
+        profileContext?.openOrCreateDatabase(name, mode, factory, errorHandler)
+            ?: super.openOrCreateDatabase(name, mode, factory, errorHandler)
+
+    override fun deleteDatabase(name: String): Boolean = profileContext?.deleteDatabase(name) ?: super.deleteDatabase(name)
+
     override fun getDir(
         name: String,
         mode: Int,
@@ -187,43 +206,12 @@ open class AnkiDroidApp :
             return
         }
 
-        ApplicationContextInitializer.setInstance(this)
-        appName = getString(R.string.app_name)
-
-        initializeAcraCrashReporter()
-        initializeNavigator()
-        initializeWidgetRepository()
-        WidgetNotificationScheduler.register { scheduleNotification() }
-        WidgetStatus.register(Prefs) { context -> AnkiDroidWidgetSmall.UpdateService().doUpdate(context) }
-        Animations.setPreferencesProvider { context -> PrefsRepository(context) }
-        CollectionLockedException.messageProvider = {
-            getString(CommonString.database_locked_summary_new, getString(CommonString.col_path))
-        }
-        ChangeManager.throwOnDuplicateSubscription = BuildConfig.DEBUG
-        val logType = LogType.value
-        when (logType) {
-            LogType.DEBUG -> Timber.plant(DebugTree())
-            LogType.ROBOLECTRIC -> Timber.plant(RobolectricDebugTree())
-            LogType.PRODUCTION -> Timber.plant(ProductionCrashReportingTree())
-        }
-        Timber.plant(ReminderLogTree(this))
-        if (BuildConfig.ENABLE_LEAK_CANARY && !isRobolectric) {
-            LeakCanaryConfiguration.setInitialConfigFor(this)
-        } else {
-            LeakCanaryConfiguration.disable()
-        }
-        Timber.tag(TAG)
-        Timber.d("Startup - Application Start")
-        Timber.i("Timber config: $logType")
-
-        // analytics after ACRA, they both install UncaughtExceptionHandlers but Analytics chains while ACRA does not
-        initializeAnalytics()
-        // Last in the UncaughtExceptionHandlers chain is our filter service
-        ThrowableFilterService.initialize()
-
-        applicationScope.launch {
-            Timber.i("AnkiDroidApp: listing debug info")
-            Timber.i(DebugInfoService.getDebugInfo(this@AnkiDroidApp))
+        val crashReporting = CrashReportingContext.apply { setupCrashReporting() }
+        setupApplicationDependencies()
+        with(crashReporting) {
+            setupLogging()
+            setupUsageAnalytics()
+            launchStartupLogging()
         }
 
         // Stop after analytics and logging are initialised.
@@ -231,17 +219,7 @@ open class AnkiDroidApp :
             Timber.d("Skipping AnkiDroidApp.onCreate from ACRA sender process")
             return
         }
-        launchPreviousAnrReporting()
-        ProfileManager.attachError?.let {
-            Timber.w(it, "Failed to load the profile environment, running on the base context")
-        }
-        launchCacheCleanup()
-        if (AdaptionUtil.isUserATestClient) {
-            showThemedToast(this.applicationContext, getString(CommonString.user_is_a_robot), false)
-        }
-
-        setWebContentsDebuggingEnabled(Prefs.isWebDebugEnabled)
-
+        setupMainProcessMaintenance()
         setupContextMenus()
 
         setup("makeBackendUsable") { makeBackendUsable(this) }
@@ -250,20 +228,18 @@ open class AnkiDroidApp :
         setupBackendChangeManager()
 
         // Probe WebView availability before any other init touches it (#5794).
-        if (!checkWebViewAvailable()) {
+        if (!setupWebView()) {
             return
         }
 
-        // Forget the last deck that was used in the CardBrowser
-        CardBrowser.clearLastDeckId()
+        setupCardBrowser()
         val anki = AnkiContext.apply { setupAnkiBackend() }
         with(anki) { initializeAnkiDroidDirectory() }
         with(anki) { setupDayRollover() }
-
-        restoreRecurringAlarms(this, RECURRING_WIDGETS)
+        setupRecurringAlarms()
 
         setupLifecycleLogging()
-        activityAgnosticDialogs = ActivityAgnosticDialogs.register(this)
+        setupActivityAgnosticDialogs()
         setupTextToSpeech()
         setupCustomFieldFilters()
     }
@@ -347,7 +323,95 @@ open class AnkiDroidApp :
                 }
             }
             instance = this
+            ApplicationContextInitializer.setInstance(this)
+            appName = getString(R.string.app_name)
             true
+        }
+    }
+
+    private fun setupCrashReporting() {
+        setup("setupCrashReporting") {
+            initializeAcraCrashReporter()
+        }
+    }
+
+    /** Registers the application-specific implementations used by shared modules. */
+    private fun setupApplicationDependencies() {
+        setup("setupApplicationDependencies") {
+            initializeNavigator()
+            initializeWidgetRepository()
+            initializeDatabaseErrorDialogs()
+            WidgetNotificationScheduler.register { scheduleNotification() }
+            WidgetStatus.register(Prefs) { context -> AnkiDroidWidgetSmall.UpdateService().doUpdate(context) }
+            Animations.setPreferencesProvider { context -> PrefsRepository(context) }
+            CollectionLockedException.messageProvider = {
+                getString(CommonString.database_locked_summary_new, getString(CommonString.col_path))
+            }
+            ChangeManager.throwOnDuplicateSubscription = BuildConfig.DEBUG
+        }
+    }
+
+    // Keep crash reporting ahead of logging setup so failures while planting trees or configuring
+    // LeakCanary can be reported.
+    context(_: CrashReportingContext)
+    private fun setupLogging() {
+        setup("setupLogging") {
+            val logType = LogType.value
+            when (logType) {
+                LogType.DEBUG -> Timber.plant(DebugTree())
+                LogType.ROBOLECTRIC -> Timber.plant(RobolectricDebugTree())
+                LogType.PRODUCTION -> Timber.plant(ProductionCrashReportingTree())
+            }
+            Timber.plant(ReminderLogTree(this))
+            if (BuildConfig.ENABLE_LEAK_CANARY && !isRobolectric) {
+                LeakCanaryConfiguration.setInitialConfigFor(this)
+            } else {
+                LeakCanaryConfiguration.disable()
+            }
+            Timber.tag(TAG)
+            Timber.d("Startup - Application Start")
+            Timber.i("Timber config: $logType")
+        }
+    }
+
+    context(_: CrashReportingContext)
+    private fun setupUsageAnalytics() {
+        setup("setupUsageAnalytics") {
+            // Analytics chains UncaughtExceptionHandlers, while ACRA does not, so initialize ACRA first.
+            initializeAnalytics()
+            // Install the filter last so it sanitizes exceptions before either reporting handler sees them.
+            ThrowableFilterService.initialize()
+        }
+    }
+
+    /**
+     * Launches startup diagnostics after Timber is configured.
+     *
+     * [DebugInfoService.getDebugInfo] reads `CrashReportService.isEnabled()` to include the
+     * crash-reporting status. Before the reporter is initialized, that read warns and returns
+     * the default `false`, so crash reporting must be set up before collecting the diagnostics.
+     */
+    context(_: CrashReportingContext)
+    private fun launchStartupLogging() {
+        setup("launchStartupLogging") {
+            applicationScope.launch {
+                Timber.i("AnkiDroidApp: listing debug info")
+                Timber.i(DebugInfoService.getDebugInfo(this@AnkiDroidApp))
+            }
+        }
+    }
+
+    /** Starts maintenance and diagnostics which must not run in the ACRA sender process. */
+    private fun setupMainProcessMaintenance() {
+        setup("setupMainProcessMaintenance") {
+            launchPreviousAnrReporting()
+            ProfileManager.attachError?.let {
+                Timber.w(it, "Failed to load the profile environment, running on the base context")
+            }
+            launchCacheCleanup()
+            if (AdaptionUtil.isUserATestClient) {
+                showThemedToast(applicationContext, getString(CommonString.user_is_a_robot), false)
+            }
         }
     }
 
@@ -474,6 +538,20 @@ open class AnkiDroidApp :
             ChangeManager.subscribe(this)
         }
 
+    /** Configures WebView and records a fatal initialization error if it is unavailable. */
+    private fun setupWebView(): Boolean =
+        setup("setupWebView") {
+            setWebContentsDebuggingEnabled(Prefs.isWebDebugEnabled)
+            checkWebViewAvailable()
+        }
+
+    private fun setupCardBrowser() {
+        setup("setupCardBrowser") {
+            // Forget the last deck that was used in the CardBrowser.
+            CardBrowser.clearLastDeckId()
+        }
+    }
+
     private fun setupAnkiBackend() =
         setup("setupAnkiBackend") {
             LanguageUtil.setDefaultBackendLanguages()
@@ -486,6 +564,12 @@ open class AnkiDroidApp :
             DayRolloverHandler.listenForRolloverEvents(this)
             DayRolloverAlarm.scheduleNext(this)
         }
+
+    private fun setupRecurringAlarms() {
+        setup("setupRecurringAlarms") {
+            restoreRecurringAlarms(this, RECURRING_WIDGETS)
+        }
+    }
 
     private fun setupLifecycleLogging() =
         setup("setupLifecycleLogging") {
@@ -533,6 +617,12 @@ open class AnkiDroidApp :
                 },
             )
         }
+
+    private fun setupActivityAgnosticDialogs() {
+        setup("setupActivityAgnosticDialogs") {
+            activityAgnosticDialogs = ActivityAgnosticDialogs.register(this)
+        }
+    }
 
     private fun setupTextToSpeech() {
         setup("setupTextToSpeech") {
@@ -622,6 +712,9 @@ open class AnkiDroidApp :
      */
 
     object AnkiContext
+
+    /** Crash reporting is initialized for dependent diagnostics and to capture later startup failures. */
+    private object CrashReportingContext
 
     companion object {
         /**

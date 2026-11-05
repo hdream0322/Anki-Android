@@ -337,7 +337,7 @@ class DeckPickerViewModel :
             progressManager.withProgress {
                 Timber.i("empty filtered deck %s", deckId)
                 withCol { decks.select(deckId) }
-                undoableOp { sched.emptyFilteredDeck(decks.selected()) }
+                undoableOp { sched.emptyFilteredDeck(deckId) }
                 flowOfDeckCountsChanged.emit(Unit)
             }
         }
@@ -345,7 +345,6 @@ class DeckPickerViewModel :
     /**
      * Rebuilds a filtered deck with its current filter settings
      */
-    @CheckResult
     fun rebuildFilteredDeck(deckId: DeckId): Job =
         viewModelScope.launch {
             progressManager.withProgress(message = DeckPickerProgress.REBUILDING_FILTERED_DECK) {

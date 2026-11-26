@@ -11,7 +11,7 @@ import org.json.JSONException
 import org.json.JSONObject
 
 class GeminiProvider : AiProvider {
-    override val defaultModel = "gemini-3.8-flash"
+    override val defaultModel = "gemini-4-hydrogen"
     override val pricingUrl = "https://ai.google.dev/gemini-api/docs/pricing"
 
     override fun buildRequest(

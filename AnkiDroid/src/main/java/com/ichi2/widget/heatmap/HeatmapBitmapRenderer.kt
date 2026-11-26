@@ -16,7 +16,6 @@
 package com.ichi2.widget.heatmap
 
 import android.content.Context
-import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.view.View
@@ -36,12 +35,8 @@ object HeatmapBitmapRenderer {
         data: ReviewHeatmapData,
         widthPx: Int,
     ): Bitmap {
-        // 다크/라이트 모드에 맞춰 테마를 골라 잡아야 색이 자연스럽게 따라간다.
-        val nightMode =
-            context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
-                Configuration.UI_MODE_NIGHT_YES
-        val themedContext =
-            ContextThemeWrapper(context, if (nightMode) CommonR.style.Theme_Dark else CommonR.style.Theme_Light)
+        // Theme.AnkiDroid is a DayNight theme: it follows the uiMode of [context].
+        val themedContext = ContextThemeWrapper(context, CommonR.style.Theme_AnkiDroid)
 
         val view =
             ReviewHeatmapView(themedContext).apply {

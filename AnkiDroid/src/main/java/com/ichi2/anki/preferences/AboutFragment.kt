@@ -127,7 +127,7 @@ class AboutFragment : Fragment(R.layout.fragment_about) {
             try {
                 startActivity(market)
             } catch (_: android.content.ActivityNotFoundException) {
-                IntentUtil.tryOpenIntent(requireAnkiActivity(), web)
+                IntentUtil.tryOpenIntent(requireActivity(), web)
             }
         }
 
@@ -139,7 +139,7 @@ class AboutFragment : Fragment(R.layout.fragment_about) {
         // Deurim: in-app 업데이트 기록을 GitHub Releases 페이지로 연결
         binding.openChangelog.setOnClickListener {
             val intent = Intent(Intent.ACTION_VIEW, "https://github.com/hdream0322/Anki-Android/releases".toUri())
-            IntentUtil.tryOpenIntent(requireAnkiActivity(), intent)
+            IntentUtil.tryOpenIntent(requireActivity(), intent)
         }
 
         binding.copyDebugInfo.text = TR.sentenceCase.copyDebugInfo

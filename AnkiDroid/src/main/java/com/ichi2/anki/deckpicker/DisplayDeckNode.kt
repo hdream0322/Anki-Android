@@ -95,9 +95,9 @@ data class DisplayDeckNode private constructor(
             node: DeckNode,
             matchesSearchOrChild: Boolean,
             selectedDeckId: DeckId,
-            lastStudiedByDeck: Map<DeckId, Long>,
-            order: DeckSortOrder,
-            dayStartMillis: Long,
+            lastStudiedByDeck: Map<DeckId, Long> = emptyMap(),
+            order: DeckSortOrder = DeckSortOrder.NAME,
+            dayStartMillis: Long = 0L,
             colorByDeck: Map<DeckId, DeckColor> = emptyMap(),
         ): DisplayDeckNode =
             DisplayDeckNode(

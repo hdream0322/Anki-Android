@@ -17,7 +17,6 @@ import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.ListAdapter
@@ -40,7 +39,7 @@ import com.ichi2.anki.libanki.Collection
 import com.ichi2.anki.snackbar.showSnackbar
 import com.ichi2.anki.startup.ensureStorageIsReady
 import com.ichi2.anki.ui.windows.reviewer.AiChatLaunchArgs
-import com.ichi2.anki.utils.ext.collectIn
+import com.ichi2.anki.utils.ext.collectInLifecycle
 import dev.androidbroadcast.vbpd.viewBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -86,8 +85,8 @@ class AiChatHistoryActivity : AnkiActivity(R.layout.activity_ai_chat_history) {
         binding.historyList.layoutManager = LinearLayoutManager(this)
         binding.historyList.adapter = adapter
 
-        viewModel.items.collectIn(lifecycleScope) { items ->
-            if (items == null) return@collectIn
+        viewModel.items.collectInLifecycle { items ->
+            if (items == null) return@collectInLifecycle
             adapter.submitList(items)
             binding.emptyText.isVisible = items.isEmpty()
         }

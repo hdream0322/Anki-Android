@@ -45,7 +45,7 @@ import com.ichi2.anki.snackbar.setMaxLines
 import com.ichi2.anki.snackbar.showSnackbar
 import com.ichi2.anki.ui.windows.reviewer.AiChatLaunchArgs
 import com.ichi2.anki.utils.ext.behavior
-import com.ichi2.anki.utils.ext.collectIn
+import com.ichi2.anki.utils.ext.collectInViewLifecycle
 import com.ichi2.anki.utils.openUrl
 import com.ichi2.anki.workarounds.OnWebViewRecreatedListener
 import com.ichi2.anki.workarounds.SafeWebViewClient
@@ -115,11 +115,11 @@ class AiChatBottomSheetFragment :
 
         setupMessageWebView()
 
-        viewModel.messages.collectIn(viewLifecycleOwner.lifecycleScope) { messages ->
+        viewModel.messages.collectInViewLifecycle { messages ->
             if (isMessagePageLoaded) showMessages(messages)
         }
 
-        viewModel.errorFlow.collectIn(viewLifecycleOwner.lifecycleScope) { error ->
+        viewModel.errorFlow.collectInViewLifecycle { error ->
             val message = errorMessage(error)
             binding.retryReason.text = message
             val details = technicalDetails(error)
@@ -129,16 +129,16 @@ class AiChatBottomSheetFragment :
             }
         }
 
-        viewModel.canRetry.collectIn(viewLifecycleOwner.lifecycleScope) { canRetry ->
+        viewModel.canRetry.collectInViewLifecycle { canRetry ->
             binding.retryBar.isVisible = canRetry
             if (!canRetry) binding.retryReason.setText(R.string.ai_chat_no_reply)
         }
 
-        viewModel.modelFallbackFlow.collectIn(viewLifecycleOwner.lifecycleScope) { fallback ->
+        viewModel.modelFallbackFlow.collectInViewLifecycle { fallback ->
             showSnackbar(getString(R.string.ai_chat_model_unavailable, fallback.unavailable, fallback.fallback))
         }
 
-        viewModel.isStreaming.collectIn(viewLifecycleOwner.lifecycleScope) { isStreaming ->
+        viewModel.isStreaming.collectInViewLifecycle { isStreaming ->
             binding.sendButton.isEnabled = !isStreaming
             binding.messageInput.isEnabled = !isStreaming
             binding.clearHistoryButton.isEnabled = !isStreaming

@@ -233,7 +233,7 @@ class ReviewerFragment :
             navigate(destination)
         }
 
-        viewModel.openAiChatFlow.collectIn(lifecycleScope) { args ->
+        viewModel.openAiChatFlow.collectInViewLifecycle { args ->
             com.ichi2.anki.ai.chat.AiChatBottomSheetFragment
                 .show(childFragmentManager, args)
         }

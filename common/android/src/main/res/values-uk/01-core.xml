@@ -132,13 +132,14 @@
         <item quantity="other">Видалити тип картки «%2$s» та його %1$d картки?</item>
     </plurals>
     <string name="card_template_editor_save_error">Не вдалося зберегти зміни шаблону картки: %s</string>
+    <string name="card_template_editor_changes_saved">Changes saved</string>
     <string name="template_for_current_card_deleted">Тип картки для поточної картки було видалено.</string>
     <!-- Permissions -->
     <string name="read_write_permission_label">Читати й записувати в базу даних AnkiDroid</string>
     <string name="read_write_permission_description">доступ до наявних карток, колод, записів та їх типів, а також створення нових</string>
     <!-- Context Menu -->
-    <string name="card_browser_context_menu" comment="The value which appears in the system context menu.">Card browser</string>
-    <string name="context_menu_anki_card_label">Anki card</string>
+    <string name="card_browser_context_menu" comment="The value which appears in the system context menu.">Переглядач карток</string>
+    <string name="context_menu_anki_card_label">Anki картка</string>
     <!-- Sync conflict -->
     <string name="sync_conflict_message_new">Колекції не можна поєднати.\nЯку колекцію Ви хочете зберегти?</string>
     <string name="sync_conflict_keep_local_new" comment="Select AnkiDroid files to keep while syncing">AnkiDroid</string>

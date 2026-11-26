@@ -18,7 +18,6 @@ import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
-import androidx.annotation.LayoutRes
 import androidx.annotation.MainThread
 import androidx.core.view.MenuHost
 import androidx.core.view.MenuProvider
@@ -34,8 +33,9 @@ import anki.collection.OpChanges
 import com.google.android.material.snackbar.Snackbar
 import com.ichi2.anki.CollectionManager.TR
 import com.ichi2.anki.CollectionManager.withCol
+import com.ichi2.anki.browser.BrowserEvent
 import com.ichi2.anki.browser.BrowserRowCollection
-import com.ichi2.anki.browser.BrowserSearchFeedbackMode
+import com.ichi2.anki.browser.BrowserUiEffect
 import com.ichi2.anki.browser.CardBrowserFragment
 import com.ichi2.anki.browser.CardBrowserLaunchOptions
 import com.ichi2.anki.browser.CardBrowserViewModel
@@ -62,6 +62,7 @@ import com.ichi2.anki.common.utils.annotation.KotlinCleanup
 import com.ichi2.anki.common.utils.ext.getLongExtra
 import com.ichi2.anki.common.utils.ext.onPermanentDismissal
 import com.ichi2.anki.databinding.ActivityCardBrowserBinding
+import com.ichi2.anki.databinding.ActivityCardBrowserSearchviewBinding
 import com.ichi2.anki.dialogs.DiscardChangesDialog
 import com.ichi2.anki.dialogs.SavedBrowserSearchesDialogFragment
 import com.ichi2.anki.dialogs.registerDeckSelectedHandler
@@ -78,18 +79,20 @@ import com.ichi2.anki.model.SelectableDeck
 import com.ichi2.anki.observability.ChangeManager
 import com.ichi2.anki.scheduling.registerOnForgetHandler
 import com.ichi2.anki.settings.Prefs
+import com.ichi2.anki.settings.uiConfigPrefs
 import com.ichi2.anki.snackbar.showSnackbar
 import com.ichi2.anki.startup.ensureStorageIsReady
 import com.ichi2.anki.ui.ResizablePaneManager
 import com.ichi2.anki.ui.internationalization.sentenceCase
 import com.ichi2.anki.utils.ext.addPrepareMenuProvider
-import com.ichi2.anki.utils.ext.launchCollectionInLifecycleScope
+import com.ichi2.anki.utils.ext.collectInLifecycle
 import com.ichi2.anki.utils.ext.onAllFragmentsLoaded
-import com.ichi2.anki.utils.showSearchError
+import com.ichi2.themes.Themes
 import com.ichi2.ui.CardBrowserSearchView
 import com.ichi2.utils.AndroidUiUtils.hideKeyboard
 import com.ichi2.utils.LanguageUtil
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.receiveAsFlow
 import timber.log.Timber
 
 @Suppress("LeakingThis")
@@ -111,7 +114,7 @@ open class CardBrowser :
 
     lateinit var viewModel: CardBrowserViewModel
 
-    private lateinit var binding: ActivityCardBrowserBinding
+    private var binding: ActivityCardBrowserBinding? = null
 
     lateinit var cardBrowserFragment: CardBrowserFragment
 
@@ -124,7 +127,6 @@ open class CardBrowser :
     private val mySearchesItem: MenuItem? get() = cardBrowserFragment.mySearchesItem
 
     // Dev option for Issue 18709
-    // TODO: Broken currently; needs R.layout.activity_card_browser_searchview
     val useSearchView: Boolean
         get() = Prefs.devUsingCardBrowserSearchView
 
@@ -137,11 +139,6 @@ open class CardBrowser :
             } else {
                 null
             }
-
-    @Suppress("unused")
-    @get:LayoutRes
-    private val layout: Int
-        get() = if (useSearchView) R.layout.activity_card_browser_searchview else R.layout.activity_card_browser
 
     init {
         ChangeManager.subscribe(this)
@@ -191,8 +188,20 @@ open class CardBrowser :
             return
         }
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT))
-        binding = ActivityCardBrowserBinding.inflate(layoutInflater)
+        enableEdgeToEdge(
+            statusBarStyle =
+                if (useSearchView) {
+                    SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { Themes.isNightTheme }
+                } else {
+                    SystemBarStyle.dark(Color.TRANSPARENT)
+                },
+        )
+        val contentBinding =
+            if (useSearchView) {
+                ActivityCardBrowserSearchviewBinding.inflate(layoutInflater)
+            } else {
+                ActivityCardBrowserBinding.inflate(layoutInflater).also { binding = it }
+            }
         if (!ensureStorageIsReady()) {
             return
         }
@@ -203,7 +212,7 @@ open class CardBrowser :
 
         val launchOptions = intent?.toCardBrowserLaunchOptions() // must be called after super.onCreate()
 
-        setViewBinding(binding)
+        setViewBinding(contentBinding)
         initNavigationDrawer(findViewById(android.R.id.content))
         applyToolbarInsets()
 
@@ -216,22 +225,22 @@ open class CardBrowser :
         val fragmented =
             Prefs.devIsCardBrowserFragmented &&
                 !useSearchView &&
-                binding.noteEditorFrame?.visibility == View.VISIBLE
+                binding?.noteEditorFrame?.visibility == View.VISIBLE
         Timber.i("Using split Browser: %b", fragmented)
 
         if (fragmented) {
             ResizablePaneManager(
-                parentLayout = requireNotNull(binding.cardBrowserXlView) { "cardBrowserXlView" },
-                divider = requireNotNull(binding.cardBrowserResizingDivider) { "cardBrowserResizingDivider" },
-                startPane = requireNotNull(binding.cardBrowserFrame) { "cardBrowserFrame" },
-                endPane = requireNotNull(binding.noteEditorFrame) { "noteEditorFrame" },
-                sharedPrefs = Prefs.getUiConfig(this),
+                parentLayout = requireNotNull(binding?.cardBrowserXlView) { "cardBrowserXlView" },
+                divider = requireNotNull(binding?.cardBrowserResizingDivider) { "cardBrowserResizingDivider" },
+                startPane = requireNotNull(binding?.cardBrowserFrame) { "cardBrowserFrame" },
+                endPane = requireNotNull(binding?.noteEditorFrame) { "noteEditorFrame" },
+                sharedPrefs = uiConfigPrefs(),
                 startPaneWeightKey = PREF_CARD_BROWSER_PANE_WEIGHT,
                 endPaneWeightKey = PREF_NOTE_EDITOR_PANE_WEIGHT,
             )
         } else {
-            binding.noteEditorFrame?.isVisible = false
-            binding.cardBrowserResizingDivider?.isVisible = false
+            binding?.noteEditorFrame?.isVisible = false
+            binding?.cardBrowserResizingDivider?.isVisible = false
         }
 
         // must be called once we have an accessible collection
@@ -256,7 +265,6 @@ open class CardBrowser :
         startLoadingCollection()
 
         setupFlows()
-        setupNewSearchView()
         registerOnForgetHandler { viewModel.queryAllSelectedCardIds() }
         registerSaveSearchHandler()
         registerDeckSelectedHandler(action = ::onDeckSelected)
@@ -274,7 +282,11 @@ open class CardBrowser :
                     launchCatchingTask {
                         val search = viewModel.savedSearches().find { it.name == searchName } ?: return@launchCatchingTask
                         Timber.d("OnSelection using search terms: %s", search.query)
-                        searchForQuery(search.query)
+                        if (useSearchView) {
+                            cardBrowserFragment.searchViewModel.submitSavedSearch(search)
+                        } else {
+                            searchForQuery(search.query)
+                        }
                     }
                 }
                 SavedBrowserSearchesDialogFragment.TYPE_SEARCH_REMOVED -> {
@@ -355,11 +367,6 @@ open class CardBrowser :
                 menu[R.id.action_preview_many]?.isVisible = false
             }
         }
-    }
-
-    private fun setupNewSearchView() {
-        if (!useSearchView) return
-        supportActionBar?.hide()
     }
 
     override fun setupBackPressedCallbacks() {
@@ -490,9 +497,7 @@ open class CardBrowser :
                     // this causes a very brief flicker, as we call `setQuery` to restore the menu state
                     searchView?.post { searchView?.clearFocus() }
                 }
-                is SearchState.Error -> {
-                    showSearchError(searchState.error)
-                }
+                is SearchState.Error -> { }
             }
         }
 
@@ -504,7 +509,7 @@ open class CardBrowser :
             launchCatchingTask {
                 when (command) {
                     is NoteEditorCommand.LoadInPane -> {
-                        binding.noteEditorFrame?.isVisible = true
+                        binding?.noteEditorFrame?.isVisible = true
                         val editor = fragment
                         when {
                             // Issue 19737: the pane already displays this selection. Refresh it in
@@ -523,21 +528,31 @@ open class CardBrowser :
                         navigate(command.destination)
                     }
                     NoteEditorCommand.HidePane -> {
-                        binding.noteEditorFrame?.isVisible = false
+                        binding?.noteEditorFrame?.isVisible = false
                         invalidateOptionsMenu()
                     }
                 }
             }
         }
 
-        viewModel.flowOfSearchQueryExpanded.launchCollectionInLifecycleScope(::onSearchQueryExpanded)
-        viewModel.flowOfSelectedRows.launchCollectionInLifecycleScope(::onSelectedRowsChanged)
-        viewModel.flowOfFilterQuery.launchCollectionInLifecycleScope(::onFilterQueryChanged)
-        viewModel.flowOfDeckId.launchCollectionInLifecycleScope(::onDeckIdChanged)
-        viewModel.flowOfMultiSelectModeChanged.launchCollectionInLifecycleScope(::onMultiSelectModeChanged)
-        viewModel.flowOfSearchState.launchCollectionInLifecycleScope(::searchStateChanged)
-        viewModel.flowOfLastCompletedSearch.filterNotNull().launchCollectionInLifecycleScope(::onLastCompletedSearchChanged)
-        viewModel.flowOfNoteEditorCommand.launchCollectionInLifecycleScope(::onNoteEditorCommand)
+        viewModel.flowOfSearchQueryExpanded.collectInLifecycle(::onSearchQueryExpanded)
+        viewModel.flowOfSelectedRows.collectInLifecycle(::onSelectedRowsChanged)
+        viewModel.flowOfFilterQuery.collectInLifecycle(::onFilterQueryChanged)
+        viewModel.flowOfDeckId.collectInLifecycle(::onDeckIdChanged)
+        viewModel.flowOfMultiSelectModeChanged.collectInLifecycle(::onMultiSelectModeChanged)
+        viewModel.flowOfSearchState.collectInLifecycle(::searchStateChanged)
+        viewModel.flowOfLastCompletedSearch.filterNotNull().collectInLifecycle(::onLastCompletedSearchChanged)
+        viewModel.flowOfNoteEditorCommand.collectInLifecycle(::onNoteEditorCommand)
+        viewModel.uiEffects.receiveAsFlow().collectInLifecycle { effect ->
+            when (effect) {
+                BrowserUiEffect.RefreshControls -> refreshControls()
+            }
+        }
+    }
+
+    private fun refreshControls() {
+        hideProgressBar()
+        invalidateOptionsMenu()
     }
 
     private fun hideKeyboard() {
@@ -619,25 +634,6 @@ open class CardBrowser :
         )
     }
 
-    private fun forceRefreshSearch(
-        useSearchTextValue: Boolean = false,
-        feedbackMode: BrowserSearchFeedbackMode = BrowserSearchFeedbackMode.NONE,
-    ) {
-        if (useSearchTextValue && searchView != null) {
-            viewModel.setQuery(searchView!!.query.toString(), feedbackMode = feedbackMode)
-        } else {
-            viewModel.launchSearchForCards(feedbackMode = feedbackMode)
-        }
-    }
-
-    private fun refreshBrowserUI(feedbackMode: BrowserSearchFeedbackMode) {
-        hideProgressBar()
-        // reload whole view
-        forceRefreshSearch(feedbackMode = feedbackMode)
-        viewModel.endMultiSelectMode(SingleSelectCause.Other)
-        invalidateOptionsMenu() // maybe the availability of undo changed
-    }
-
     /**
      * Implementation of `by viewModels()` for use in [onCreate]
      *
@@ -656,7 +652,7 @@ open class CardBrowser :
             idsFileDirectory = IdsFile.getDirectory(),
             options = launchOptions,
             isFragmented = fragmented,
-            initialDeckId = intent?.getLongExtra(CardBrowserViewModel.EXTRA_DECK_ID),
+            initialDeckId = intent?.getLongExtra(CardBrowserLaunchOptions.EXTRA_DECK_ID),
         ),
         defaultViewModelCreationExtras,
     )[CardBrowserViewModel::class.java]
@@ -665,19 +661,14 @@ open class CardBrowser :
         changes: OpChanges,
         handler: Any?,
     ) {
-        if (handler === this || handler === viewModel) {
-            return
-        }
-
-        if (changes.browserSidebar ||
-            changes.browserTable ||
-            changes.noteText ||
-            changes.card
-        ) {
-            // We refresh the Browser's own UI
-            val feedbackMode =
-                if (handler is NoteEditorFragment) BrowserSearchFeedbackMode.COUNT_ONLY else BrowserSearchFeedbackMode.NONE
-            refreshBrowserUI(feedbackMode)
+        val origin =
+            when {
+                handler === this || handler === viewModel -> BrowserEvent.CollectionChanged.Origin.BROWSER
+                handler is NoteEditorFragment -> BrowserEvent.CollectionChanged.Origin.NOTE_EDITOR
+                else -> BrowserEvent.CollectionChanged.Origin.EXTERNAL
+            }
+        launchCatchingTask {
+            viewModel.onEvent(BrowserEvent.CollectionChanged(changes, origin))
         }
     }
 

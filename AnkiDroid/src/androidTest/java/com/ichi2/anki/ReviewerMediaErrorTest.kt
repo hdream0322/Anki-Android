@@ -3,11 +3,14 @@
 package com.ichi2.anki
 
 import android.content.Intent
+import android.os.Build
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.annotation.RequiresApi
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.assertion.ViewAssertions.doesNotExist
@@ -137,7 +140,7 @@ class ReviewerMediaErrorTest : InstrumentedTest() {
         }
     }
 
-    /** @param errorBaseUrl its requests are answered by [errorResponse] */
+    /** @param errorBaseUrl its requests the reviewer does not serve are answered by [errorResponse] */
     private fun ActivityScenario<Reviewer>.recordWebViewErrors(errorBaseUrl: String): LinkedBlockingQueue<Pair<String?, Int>> {
         val errors = LinkedBlockingQueue<Pair<String?, Int>>()
         onActivity { reviewer ->
@@ -147,12 +150,14 @@ class ReviewerMediaErrorTest : InstrumentedTest() {
                     override fun shouldInterceptRequest(
                         view: WebView,
                         request: WebResourceRequest,
-                    ): WebResourceResponse? =
-                        if ("${request.url.scheme}://${request.url.encodedAuthority}" == errorBaseUrl) {
+                    ): WebResourceResponse? {
+                        client.shouldInterceptRequest(view, request)?.let { return it }
+                        return if ("${request.url.scheme}://${request.url.encodedAuthority}" == errorBaseUrl) {
                             errorResponse(request)
                         } else {
-                            client.shouldInterceptRequest(view, request)
+                            null
                         }
+                    }
 
                     override fun onReceivedError(
                         view: WebView,
@@ -172,6 +177,12 @@ class ReviewerMediaErrorTest : InstrumentedTest() {
                         client.onReceivedHttpError(view, request, errorResponse)
                         errors.add(request.url.path to errorResponse.statusCode)
                     }
+
+                    @RequiresApi(Build.VERSION_CODES.O)
+                    override fun onRenderProcessGone(
+                        view: WebView,
+                        detail: RenderProcessGoneDetail,
+                    ): Boolean = client.onRenderProcessGone(view, detail)
                 }
         }
         return errors

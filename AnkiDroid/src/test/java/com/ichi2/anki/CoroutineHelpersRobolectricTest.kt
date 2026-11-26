@@ -15,6 +15,8 @@ import com.ichi2.anki.common.crashreporting.CrashReportService
 import com.ichi2.anki.common.crashreporting.CrashReporter
 import com.ichi2.anki.exception.CollectionLockedException
 import com.ichi2.anki.exception.StorageNotConfiguredException
+import com.ichi2.anki.libanki.Consts
+import com.ichi2.anki.observability.undoableOp
 import com.ichi2.anki.preferences.PreferencesActivity
 import com.ichi2.testutils.BackendEmulatingOpenConflict
 import com.ichi2.testutils.FragmentCoroutineTracker
@@ -265,7 +267,7 @@ class CoroutineHelpersRobolectricTest : RobolectricTest() {
             throwOnShowError = false
             val controller = Robolectric.buildActivity(FragmentActivity::class.java).also(::saveControllerForCleanup)
             val activity = controller.create().get()
-            activity.setTheme(CommonR.style.Theme_Light)
+            activity.setTheme(CommonR.style.Theme_AnkiDroid)
 
             activity.launchCatchingTask { withCol { } }
             advanceRobolectricLooper()
@@ -286,6 +288,18 @@ class CoroutineHelpersRobolectricTest : RobolectricTest() {
             }
         }
 
+    @Test
+    fun `launchCatching can end with undoableOp`() =
+        runTest {
+            var message: String? = null
+
+            launchCatching(errorMessageHandler = { message = it }) {
+                undoableOp { sched.unburyDeck(Consts.DEFAULT_DECK_ID) }
+            }.join()
+
+            assertNull(message)
+        }
+
     /**
      * The locked-collection dialog offers Settings, opened at the Advanced screen, where
      * changing the 'AnkiDroid directory' resolves the conflict
@@ -296,7 +310,7 @@ class CoroutineHelpersRobolectricTest : RobolectricTest() {
             throwOnShowError = false
             val controller = Robolectric.buildActivity(FragmentActivity::class.java).also(::saveControllerForCleanup)
             val activity = controller.create().get()
-            activity.setTheme(CommonR.style.Theme_Light)
+            activity.setTheme(CommonR.style.Theme_AnkiDroid)
 
             activity.launchCatchingTask { withCol { } }
             advanceRobolectricLooper()

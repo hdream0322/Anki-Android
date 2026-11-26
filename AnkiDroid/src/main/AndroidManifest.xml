@@ -111,7 +111,7 @@
         android:preserveLegacyExternalStorage="true"
         android:resizeableActivity="true"
         android:supportsRtl="true"
-        android:theme="@style/Theme_Light"
+        android:theme="@style/Theme.AnkiDroid"
         android:enableOnBackInvokedCallback="true"
         android:manageSpaceActivity="com.ichi2.anki.ui.windows.managespace.ManageSpaceActivity"
         >
@@ -131,7 +131,8 @@
                 <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.MULTIWINDOW_LAUNCHER" />
             </intent-filter>
-            <!-- *.apkg matcher. NOTE: when pathPattern is used, host and scheme must also be specified -->
+            <!-- Match local imports by extension.
+                 NOTE: when pathPattern is used, host and scheme must also be specified. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -140,125 +141,65 @@
                 <data
                     android:host="*"
                     android:mimeType="*/*"
-                    android:pathPattern=".*\\.apkg"
-                    android:scheme="http"
-                    />
-                <data
-                    android:host="*"
-                    android:mimeType="*/*"
-                    android:pathPattern=".*\\.apkg"
-                    android:scheme="https"
-                    />
-                <data
-                    android:host="*"
-                    android:mimeType="*/*"
-                    android:pathPattern=".*\\.apkg"
+                    android:pathPattern="/.*\\.apkg"
                     android:scheme="content"
                     />
                 <data
                     android:host="*"
                     android:mimeType="*/*"
-                    android:pathPattern=".*\\.apkg"
+                    android:pathPattern="/.*\\.apkg"
                     android:scheme="file"
                     />
                 <!-- .colpkg files -->
                 <data
                     android:host="*"
                     android:mimeType="*/*"
-                    android:pathPattern=".*\\.colpkg"
-                    android:scheme="http"
-                    />
-                <data
-                    android:host="*"
-                    android:mimeType="*/*"
-                    android:pathPattern=".*\\.colpkg"
-                    android:scheme="https"
-                    />
-                <data
-                    android:host="*"
-                    android:mimeType="*/*"
-                    android:pathPattern=".*\\.colpkg"
+                    android:pathPattern="/.*\\.colpkg"
                     android:scheme="content"
                     />
                 <data
                     android:host="*"
                     android:mimeType="*/*"
-                    android:pathPattern=".*\\.colpkg"
+                    android:pathPattern="/.*\\.colpkg"
                     android:scheme="file"
                     />
                 <!-- tsv files -->
                 <data
                     android:host="*"
                     android:mimeType="*/*"
-                    android:pathPattern=".*\\.tsv"
-                    android:scheme="http"
-                    />
-                <data
-                    android:host="*"
-                    android:mimeType="*/*"
-                    android:pathPattern=".*\\.tsv"
-                    android:scheme="https"
-                    />
-                <data
-                    android:host="*"
-                    android:mimeType="*/*"
-                    android:pathPattern=".*\\.tsv"
+                    android:pathPattern="/.*\\.tsv"
                     android:scheme="content"
                     />
                 <data
                     android:host="*"
                     android:mimeType="*/*"
-                    android:pathPattern=".*\\.tsv"
+                    android:pathPattern="/.*\\.tsv"
                     android:scheme="file"
                     />
                 <!-- csv files -->
                 <data
                     android:host="*"
                     android:mimeType="*/*"
-                    android:pathPattern=".*\\.csv"
-                    android:scheme="http"
-                    />
-                <data
-                    android:host="*"
-                    android:mimeType="*/*"
-                    android:pathPattern=".*\\.csv"
-                    android:scheme="https"
-                    />
-                <data
-                    android:host="*"
-                    android:mimeType="*/*"
-                    android:pathPattern=".*\\.csv"
+                    android:pathPattern="/.*\\.csv"
                     android:scheme="content"
                     />
                 <data
                     android:host="*"
                     android:mimeType="*/*"
-                    android:pathPattern=".*\\.csv"
+                    android:pathPattern="/.*\\.csv"
                     android:scheme="file"
                     />
                 <!-- text files -->
                 <data
                     android:host="*"
                     android:mimeType="*/*"
-                    android:pathPattern=".*\\.txt"
-                    android:scheme="http"
-                    />
-                <data
-                    android:host="*"
-                    android:mimeType="*/*"
-                    android:pathPattern=".*\\.txt"
-                    android:scheme="https"
-                    />
-                <data
-                    android:host="*"
-                    android:mimeType="*/*"
-                    android:pathPattern=".*\\.txt"
+                    android:pathPattern="/.*\\.txt"
                     android:scheme="content"
                     />
                 <data
                     android:host="*"
                     android:mimeType="*/*"
-                    android:pathPattern=".*\\.txt"
+                    android:pathPattern="/.*\\.txt"
                     android:scheme="file"
                     />
             </intent-filter>
@@ -303,7 +244,7 @@
         </activity>
         <activity
             android:name="com.ichi2.anki.DeckPicker"
-            android:theme="@style/Theme_Dark.Launcher"
+            android:theme="@style/Theme.AnkiDroid.Launcher"
             android:exported="false"
             android:configChanges="keyboardHidden|orientation|screenSize"
             />
@@ -332,7 +273,7 @@
         <activity
             android:name="com.ichi2.anki.CardBrowser"
             android:label="@string/card_browser"
-            android:theme="@style/Theme_Dark.Launcher"
+            android:theme="@style/Theme.AnkiDroid.Launcher"
             android:exported="false"
             android:parentActivityName=".DeckPicker"
             />
@@ -387,7 +328,7 @@
         <activity
             android:name="com.ichi2.anki.Reviewer"
             android:exported="true"
-            android:theme="@style/Theme_Dark.Launcher"
+            android:theme="@style/Theme.AnkiDroid.Launcher"
             android:configChanges="keyboardHidden|orientation|screenSize"
             android:windowSoftInputMode="adjustResize"
             android:parentActivityName=".DeckPicker">
@@ -436,7 +377,7 @@
         <activity
             android:name="com.ichi2.anki.IntentHandler2"
             android:label="@string/fact_adder_intent_title"
-            android:theme="@style/Theme_Dark.Launcher"
+            android:theme="@style/Theme.AnkiDroid.Launcher"
             android:exported="true"
             android:configChanges="keyboardHidden|orientation|screenSize"
             >
@@ -533,28 +474,6 @@
         <receiver
             android:name="com.ichi2.anki.receiver.ExportSharedReceiver"
             android:exported="false" />
-
-        <!-- Configuration view for the DeckPickerWidget.
-             It is opened when adding a new deck picker widget and
-             by configuration button which appears when the widget is hold or resized.-->
-        <activity
-            android:name="com.ichi2.widget.deckpicker.DeckPickerWidgetConfig"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
-            </intent-filter>
-        </activity>
-
-        <!-- Configuration view for the CardAnalysisWidget.
-             It is opened when adding a new widget and
-             by configuration button which appears when the widget is hold or resized.-->
-        <activity
-            android:name="com.ichi2.widget.cardanalysis.CardAnalysisWidgetConfig"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
-            </intent-filter>
-        </activity>
 
         <!-- Deurim: Heatmap widget. Shows the review heatmap for a configurable deck. -->
         <receiver

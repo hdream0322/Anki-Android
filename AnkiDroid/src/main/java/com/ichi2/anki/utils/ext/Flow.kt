@@ -9,36 +9,17 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.ichi2.anki.AnkiActivity
 import com.ichi2.anki.common.utils.android.HandlerUtils
 import com.ichi2.anki.common.utils.android.isRobolectric
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
-fun <T> Flow<T>.collectLatestIn(
-    scope: CoroutineScope,
-    action: suspend (value: T) -> Unit,
-): Job =
-    scope.launch {
-        collectLatest(action)
-    }
-
-fun <T> Flow<T>.collectIn(
-    scope: CoroutineScope,
-    collector: FlowCollector<T>,
-): Job =
-    scope.launch {
-        collect(collector)
-    }
-
 context(fragment: Fragment)
-fun <T> Flow<T>.launchCollectionInLifecycleScope(block: suspend (T) -> Unit) {
+fun <T> Flow<T>.collectInLifecycle(block: suspend (T) -> Unit) {
     fragment.lifecycleScope.launch {
         fragment.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            this@launchCollectionInLifecycleScope.collect {
+            this@collectInLifecycle.collect {
                 if (isRobolectric) {
                     fragment.lifecycle.postOnNewHandlerIfAlive { block(it) }
                 } else {
@@ -53,12 +34,15 @@ fun <T> Flow<T>.launchCollectionInLifecycleScope(block: suspend (T) -> Unit) {
  * Collects while the fragment's current view is started. Call from [Fragment.onViewCreated].
  */
 context(fragment: Fragment)
-fun <T> Flow<T>.launchCollectionInViewLifecycleScope(block: suspend (T) -> Unit): Job {
+fun <T> Flow<T>.collectInViewLifecycle(
+    state: Lifecycle.State = Lifecycle.State.STARTED,
+    block: suspend (T) -> Unit,
+): Job {
     // Capture the owner before launching: the view may be destroyed or recreated before the job starts.
     val owner = fragment.viewLifecycleOwner
     return owner.lifecycleScope.launch {
-        owner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            this@launchCollectionInViewLifecycleScope.collect(block)
+        owner.repeatOnLifecycle(state) {
+            this@collectInViewLifecycle.collect(block)
         }
     }
 }
@@ -66,18 +50,18 @@ fun <T> Flow<T>.launchCollectionInViewLifecycleScope(block: suspend (T) -> Unit)
 // Workaround a bug in overload resolution. Replace with the following when the compiler is fixed:
 //  state: Lifecycle.State = Lifecycle.State.STARTED
 context(activity: AnkiActivity)
-fun <T> Flow<T>.launchCollectionInLifecycleScope(block: suspend (T) -> Unit) {
-    launchCollectionInLifecycleScope(Lifecycle.State.STARTED, block)
+fun <T> Flow<T>.collectInLifecycle(block: suspend (T) -> Unit) {
+    collectInLifecycle(Lifecycle.State.STARTED, block)
 }
 
 context(activity: AnkiActivity)
-fun <T> Flow<T>.launchCollectionInLifecycleScope(
+fun <T> Flow<T>.collectInLifecycle(
     state: Lifecycle.State,
     block: suspend (T) -> Unit,
 ) {
     activity.lifecycleScope.launch {
         activity.lifecycle.repeatOnLifecycle(state) {
-            this@launchCollectionInLifecycleScope.collect {
+            this@collectInLifecycle.collect {
                 if (isRobolectric) {
                     activity.lifecycle.postOnNewHandlerIfAlive { block(it) }
                 } else {
@@ -89,11 +73,11 @@ fun <T> Flow<T>.launchCollectionInLifecycleScope(
 }
 
 context(activity: AnkiActivity)
-fun <T> StateFlow<T>.launchCollectionInLifecycleScope(block: suspend (T) -> Unit) {
+fun <T> StateFlow<T>.collectInLifecycle(block: suspend (T) -> Unit) {
     activity.lifecycleScope.launch {
         var lastValue: T? = null
         activity.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            this@launchCollectionInLifecycleScope.collect {
+            this@collectInLifecycle.collect {
                 // on re-resume, an unchanged value will be emitted for a StateFlow
                 if (lastValue == it) return@collect
                 lastValue = it

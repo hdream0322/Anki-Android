@@ -8,9 +8,7 @@ import android.content.DialogInterface
 import android.content.res.Configuration
 import android.os.Bundle
 import android.os.Parcelable
-import android.text.InputFilter
 import android.text.InputType
-import android.text.Spanned
 import android.view.MenuItem
 import android.view.View
 import android.view.WindowManager
@@ -20,7 +18,6 @@ import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.SearchView
 import androidx.appcompat.widget.Toolbar
-import androidx.core.content.ContextCompat
 import androidx.core.os.BundleCompat
 import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
@@ -29,7 +26,6 @@ import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.ichi2.anki.CollectionManager.TR
 import com.ichi2.anki.CommonString
@@ -37,7 +33,7 @@ import com.ichi2.anki.OnContextAndLongClickListener
 import com.ichi2.anki.R
 import com.ichi2.anki.analytics.AnalyticsDialogFragment
 import com.ichi2.anki.browser.IdsFile
-import com.ichi2.anki.common.annotations.NeedsTest
+import com.ichi2.anki.common.utils.android.getColorFromAttr
 import com.ichi2.anki.common.utils.android.showThemedToast
 import com.ichi2.anki.databinding.DialogTagsBinding
 import com.ichi2.anki.launchCatchingTask
@@ -45,6 +41,9 @@ import com.ichi2.anki.libanki.NoteId
 import com.ichi2.anki.libanki.withCollapsedWhitespace
 import com.ichi2.anki.model.CardStateFilter
 import com.ichi2.anki.snackbar.showSnackbar
+import com.ichi2.anki.tags.addTagNameInputFilter
+import com.ichi2.anki.tags.tagNameInputFilter
+import com.ichi2.anki.ui.StableScrollbarLayoutManager
 import com.ichi2.anki.utils.ext.requireParcelable
 import com.ichi2.ui.AccessibleSearchView
 import com.ichi2.utils.DisplayUtils.setDialogKeyboardResize
@@ -92,8 +91,8 @@ class TagsDialog : AnalyticsDialogFragment {
     internal lateinit var binding: DialogTagsBinding
         private set
 
-    private var type: DialogType? = null
-    internal val isEditingTags: Boolean get() = type == DialogType.EDIT_TAGS
+    internal var type: DialogType? = null
+        private set
     private var tagsArrayAdapter: TagsArrayAdapter? = null
     private var toolbarSearchView: AccessibleSearchView? = null
     private var toolbarSearchItem: MenuItem? = null
@@ -172,10 +171,6 @@ class TagsDialog : AnalyticsDialogFragment {
             listener
                 ?: TagsDialogListener.createFragmentResultSender(parentFragmentManager)
 
-    @NeedsTest(
-        "In EDIT_TAGS dialog, long-clicking a tag should open the add tag dialog with the clicked tag" +
-            " filled as prefix properly. In other dialog types, long-clicking a tag behaves like a short click.",
-    )
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         // Resolve the selection before creating any controls that could submit an operation.
         try {
@@ -195,7 +190,7 @@ class TagsDialog : AnalyticsDialogFragment {
                 getString(CommonString.select)
             }
 
-        val tagsListLayout: RecyclerView.LayoutManager = LinearLayoutManager(requireContext())
+        val tagsListLayout: RecyclerView.LayoutManager = StableScrollbarLayoutManager(requireContext())
         binding.tagsList.apply {
             requestFocus()
             layoutManager = tagsListLayout
@@ -331,9 +326,7 @@ class TagsDialog : AnalyticsDialogFragment {
         toolbar.setTitle(titleRes)
 
         val toolbarAddItem = toolbar.menu.findItem(R.id.tags_dialog_action_add)
-        val drawable = ContextCompat.getDrawable(requireContext(), CommonR.drawable.ic_add)
-        drawable?.setTint(requireContext().getColor(CommonR.color.white))
-        toolbarAddItem.icon = drawable
+        toolbarAddItem.icon?.mutate()?.setTint(getColorFromAttr(toolbar.context, CommonR.attr.actionBarTextColor))
 
         toolbarAddItem.setOnMenuItemClickListener {
             val query = toolbarSearchView!!.query.toString()
@@ -349,7 +342,8 @@ class TagsDialog : AnalyticsDialogFragment {
         val toolbarSearchItem: MenuItem? = toolbarSearchItem
         toolbarSearchView = toolbarSearchItem?.actionView as AccessibleSearchView
         val queryET = toolbarSearchView!!.findViewById<EditText>(androidx.appcompat.R.id.search_src_text)
-        queryET.filters = arrayOf(addTagFilter)
+        val queryFilter = if (type == DialogType.EDIT_TAGS) addTagNameInputFilter else tagNameInputFilter
+        queryET.filters = arrayOf(queryFilter)
         toolbarSearchView!!.queryHint = getString(CommonString.filter_tags)
         toolbarSearchView!!.setOnQueryTextListener(
             object : SearchView.OnQueryTextListener {
@@ -406,9 +400,9 @@ class TagsDialog : AnalyticsDialogFragment {
                     d?.dismiss()
                 }
         val inputET = addTagDialog.getInputField()
-        inputET.filters = arrayOf(addTagFilter)
+        inputET.filters = arrayOf(addTagNameInputFilter)
         if (!prefixTag.isNullOrEmpty()) {
-            // utilize the addTagFilter to append '::' properly by appending a space to prefixTag
+            // Append the hierarchy separator using the same rule as typed input.
             inputET.setText("$prefixTag ")
         }
         inputET.moveCursorToEnd()
@@ -489,49 +483,5 @@ class TagsDialog : AnalyticsDialogFragment {
         private const val ARG_DIALOG_TYPE = "dialogType"
         private const val ARG_CHECKED_TAGS = "checkedTags"
         private const val COMPACT_HEIGHT_DP = 480
-
-        /**
-         * The filter that constrains the inputted tag.
-         * Space is not allowed in a tag. For UX of hierarchical tag, inputting a space will instead
-         * insert "::" at the cursor. If there are already some colons in front of the cursor,
-         * complete to 2 colons. For example:
-         *   "tag"   -- input a space --> "tag::"
-         *   "tag:"  -- input a space --> "tag::"
-         *   "tag::" -- input a space --> "tag::"
-         */
-        private val addTagFilter =
-            InputFilter { source: CharSequence, start: Int, end: Int, dest: Spanned?, destStart: Int, _: Int ->
-                if (!source.subSequence(start, end).contains(' ')) {
-                    return@InputFilter null
-                }
-                var previousColonsCnt = 0
-                if (dest != null) {
-                    val previousPart = dest.take(destStart)
-                    if (previousPart.endsWith("::")) {
-                        previousColonsCnt = 2
-                    } else if (previousPart.endsWith(":")) {
-                        previousColonsCnt = 1
-                    }
-                }
-                val sb = StringBuilder()
-                for (char in source.subSequence(start, end)) {
-                    if (char == ' ') {
-                        if (previousColonsCnt == 0) {
-                            sb.append("::")
-                        } else if (previousColonsCnt == 1) {
-                            sb.append(":")
-                        }
-                    } else {
-                        sb.append(char)
-                    }
-                    previousColonsCnt =
-                        if (char == ':') {
-                            previousColonsCnt + 1
-                        } else {
-                            0
-                        }
-                }
-                sb
-            }
     }
 }

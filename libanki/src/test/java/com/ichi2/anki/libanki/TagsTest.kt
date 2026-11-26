@@ -8,9 +8,44 @@ import junit.framework.TestCase.assertEquals
 import junit.framework.TestCase.assertFalse
 import junit.framework.TestCase.assertTrue
 import org.junit.Assert.assertNotEquals
+import org.junit.Ignore
 import org.junit.Test
 
 class TagsTest : InMemoryAnkiTest() {
+    @Test
+    @Ignore("Upstream Anki Issue 5863: https://github.com/ankitects/anki/issues/5863")
+    fun `backend preserves distinct ligature tags`() =
+        runTest {
+            val note = addBasicNote()
+
+            col.backend.addNoteTags(noteIds = listOf(note.id), tags = "iff ﬃ")
+
+            assertEquals(setOf("iff", "ﬃ"), col.getNote(note.id).tags.toSet())
+        }
+
+    @Test
+    @Ignore("Upstream Anki Issue 5963: https://github.com/ankitects/anki/issues/5963")
+    fun `backend merges newer Unicode case pairs`() =
+        runTest {
+            val note = addBasicNote()
+
+            col.backend.addNoteTags(noteIds = listOf(note.id), tags = "\ua7d0 \ua7d1")
+
+            assertEquals(listOf("\ua7d0"), col.getNote(note.id).tags)
+        }
+
+    @Test
+    @Ignore("Upstream Anki Issue 5964: https://github.com/ankitects/anki/issues/5964")
+    fun `backend renames every spelling of a tag subtree`() =
+        runTest {
+            val note = addBasicNote()
+            col.backend.addNoteTags(noteIds = listOf(note.id), tags = "Straße::a STRASSE::b")
+
+            col.backend.renameTags(currentPrefix = "Straße", newPrefix = "target")
+
+            assertEquals(setOf("target::a", "target::b"), col.getNote(note.id).tags.toSet())
+        }
+
     @Test
     fun test_split() {
         val tags = Tags(col)

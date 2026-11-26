@@ -119,7 +119,9 @@ jobs:
     if: (github.event_name == 'schedule' && github.repository == 'ankidroid/Anki-Android') || (github.event_name != 'schedule')
     needs: matrix_prep
     # Windows can take 40m+ on tests
-    timeout-minutes: 60
+    # Keep this above the 'Run Unit Tests' timeout: a job timeout cancels the job, which can
+    # interrupt the Gradle cache upload and block later saves of that cache key
+    timeout-minutes: 90
     env:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     strategy:
@@ -161,6 +163,17 @@ jobs:
         with:
           fetch-depth: 50
 
+      - name: Set up Codecov
+        id: codecov
+        # Flake runs repeat the same tests. Only the first iteration uploads coverage.
+        # Runs hosted outside upstream opt in with their own Codecov token.
+        if: matrix.iteration == 1 && (github.repository == 'ankidroid/Anki-Android' || env.CODECOV_TOKEN != '')
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          # The pinned Codecov CLI's native parser does not support Python 3.15.
+          python-version: '3.13'
+          update-environment: false
+
       - name: Configure JDK
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
@@ -190,7 +203,10 @@ jobs:
 
         # update workflows/README.md when modifying this step
       - name: Run Unit Tests
-        run: ./gradlew jacocoUnitTestReport --daemon
+        # A step timeout fails the job rather than cancelling it, so the Gradle cache is still saved.
+        # Leave at least 10m of the job timeout for setup (≤5m) and the cache upload (≤4m)
+        timeout-minutes: 65
+        run: ./gradlew :AnkiDroid:jacocoCiUnitTestReports --daemon
 
 
       # Only runs:
@@ -239,7 +255,10 @@ jobs:
         if: contains(matrix.os, 'windows')
         run: ./gradlew --stop
 
-      - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
-        with:
-          verbose: true
-          fail_ci_if_error: ${{ github.repository == 'ankidroid/Anki-Android' }} # optional (default = false)
+      - name: Upload unit coverage by module
+        if: steps.codecov.outcome == 'success' && hashFiles('AnkiDroid/build/reports/codecov/*-test.xml') != ''
+        shell: bash
+        env:
+          CODECOV_PYTHON: ${{ steps.codecov.outputs.python-path }}
+          FORK_BRANCH: ${{ github.event.pull_request.head.repo.full_name != github.repository && github.event.pull_request.head.label || '' }}
+        run: bash .github/upload_unit_coverage.sh

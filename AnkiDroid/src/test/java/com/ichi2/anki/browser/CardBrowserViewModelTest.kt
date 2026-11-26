@@ -7,6 +7,7 @@ import androidx.core.content.edit
 import androidx.core.os.BundleCompat
 import androidx.lifecycle.SavedStateHandle
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import anki.collection.OpChanges
 import app.cash.turbine.TurbineTestContext
 import app.cash.turbine.test
 import com.ichi2.anki.AnkiDroidApp
@@ -47,12 +48,14 @@ import com.ichi2.anki.browser.CardBrowserViewModel.ToggleSelectionState.SELECT_N
 import com.ichi2.anki.browser.CardBrowserViewModelTestBase.InitMode
 import com.ichi2.anki.browser.RepositionCardsRequest.NoRepositionableCardsError
 import com.ichi2.anki.browser.RepositionCardsRequest.RepositionData
+import com.ichi2.anki.browser.search.CardState
 import com.ichi2.anki.browser.search.SavedSearch
 import com.ichi2.anki.common.destinations.NoteEditorDestination
 import com.ichi2.anki.common.utils.ext.ifNotZero
 import com.ichi2.anki.common.utils.ext.ignoreAccentsInSearch
 import com.ichi2.anki.export.ExportDialogFragment
 import com.ichi2.anki.flagCardForNote
+import com.ichi2.anki.ioDispatcher
 import com.ichi2.anki.libanki.BrowserConfig
 import com.ichi2.anki.libanki.Card
 import com.ichi2.anki.libanki.CardId
@@ -67,7 +70,6 @@ import com.ichi2.anki.model.CardStateFilter
 import com.ichi2.anki.model.CardsOrNotes
 import com.ichi2.anki.model.SelectableDeck
 import com.ichi2.anki.model.SortType
-import com.ichi2.anki.model.cardBrowserNoSorting
 import com.ichi2.anki.noteeditor.toIntent
 import com.ichi2.anki.observability.ensureNoOpsExecuted
 import com.ichi2.anki.observability.ensureOpWithHandler
@@ -81,6 +83,8 @@ import com.ichi2.testutils.IntentAssert
 import com.ichi2.testutils.createTransientDirectory
 import com.ichi2.testutils.ext.reopenWithLanguage
 import com.ichi2.testutils.mockIt
+import com.ichi2.testutils.withCollectionAccessOn
+import com.ichi2.testutils.withQueuedCollectionAccess
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -88,9 +92,11 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.setMain
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.contains
@@ -118,8 +124,178 @@ import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import com.ichi2.testutils.withViewModel as withOwnedViewModel
 
 class CardBrowserViewModelTest : JvmCardBrowserViewModelTestBase() {
+    @Test
+    fun `initial deck loading preserves a submitted search success callback`() =
+        runTest {
+            val matchingCard = addBasicNote("dog").firstCard().id
+            val scheduler = checkNotNull(currentCoroutineContext()[TestCoroutineScheduler])
+            withCollectionAccessOn(StandardTestDispatcher(scheduler)) {
+                val viewModel =
+                    CardBrowserViewModel(
+                        lastDeckIdRepository = createLastDeckIdRepository(),
+                        idsFileDirectory = createTransientDirectory(),
+                        options = null,
+                        initialDeckId = null,
+                        preferences = AnkiDroidApp.sharedPreferencesProvider,
+                        isFragmented = false,
+                        savedStateHandle = SavedStateHandle(),
+                    )
+                withOwnedViewModel(viewModel) {
+                    assertEquals(false, initCompleted)
+                    var successes = 0
+                    launchSearchForCards(searchRequestFlow.value.copy(query = "dog"), forceRefresh = false) { successes++ }.join()
+                    assertEquals("dog", searchRequestFlow.value.query)
+                    assertEquals(0, successes)
+
+                    scheduler.runCurrent()
+                    searchJob?.join()
+
+                    assertTrue(initCompleted)
+                    assertThat(searchRequestFlow.value.filters.decks, not(empty()))
+                    assertEquals(listOf(CardOrNoteId(matchingCard)), cards.toList())
+                    assertEquals(1, successes)
+
+                    launchSearchForCards()
+                    searchJob?.join()
+                    assertEquals(1, successes)
+                }
+            }
+        }
+
+    @Test
+    fun `a replacement search during startup discards the pending success callback`() =
+        runViewModelTest(initMode = InitMode.MANUAL) {
+            addBasicNote("cat")
+            val matchingCard = addBasicNote("dog").firstCard().id
+            var successes = 0
+            launchSearchForCards(searchRequestFlow.value.copy(query = "cat"), forceRefresh = false) { successes++ }.join()
+            setQuery("dog").join()
+
+            manualInit()
+            searchJob?.join()
+
+            assertEquals(listOf(CardOrNoteId(matchingCard)), cards.toList())
+            assertEquals(0, successes)
+        }
+
+    @Test
+    fun `a pending search cannot replace a newer submission after a refresh - Issue 23301`() =
+        runViewModelTest {
+            addBasicNote("older")
+            val newerCard = addBasicNote("newer").firstCard().id
+            searchJob?.join()
+            val scheduler = checkNotNull(currentCoroutineContext()[TestCoroutineScheduler])
+            val olderRequest = searchRequestFlow.value.copy(query = "older")
+            val newerRequest = searchRequestFlow.value.copy(query = "newer")
+            val successfulQueries = mutableListOf<String>()
+
+            withCollectionAccessOn(StandardTestDispatcher(scheduler)) {
+                launchSearchForCards(olderRequest, forceRefresh = false) { successfulQueries += "older" }
+                // Refreshing invalidates the cache while the older request is still comparing queries.
+                launchSearchForCards()
+                launchSearchForCards(newerRequest, forceRefresh = false) { successfulQueries += "newer" }
+                scheduler.runCurrent()
+                searchJob?.join()
+            }
+
+            assertEquals(newerRequest, searchRequestFlow.value)
+            assertEquals(listOf(CardOrNoteId(newerCard)), cards.toList())
+            assertEquals(listOf("newer"), successfulQueries)
+        }
+
+    @Test
+    fun `a refresh alone does not discard a pending submission`() =
+        runViewModelTest {
+            val matchingCard = addBasicNote("cat").firstCard().id
+            searchJob?.join()
+            val scheduler = checkNotNull(currentCoroutineContext()[TestCoroutineScheduler])
+            val request = searchRequestFlow.value.copy(query = "cat")
+            var successes = 0
+
+            withCollectionAccessOn(StandardTestDispatcher(scheduler)) {
+                launchSearchForCards(request, forceRefresh = false) { successes++ }
+                launchSearchForCards()
+                scheduler.runCurrent()
+                searchJob?.join()
+            }
+
+            assertEquals(request, searchRequestFlow.value)
+            assertEquals(listOf(CardOrNoteId(matchingCard)), cards.toList())
+            assertEquals(1, successes)
+        }
+
+    @Test
+    fun `refreshes of a pending search report success only once`() =
+        runViewModelTest {
+            val matchingCard = addBasicNote("cat").firstCard().id
+            searchJob?.join()
+            val scheduler = checkNotNull(currentCoroutineContext()[TestCoroutineScheduler])
+            val previousDispatcher = ioDispatcher
+            var successes = 0
+            try {
+                ioDispatcher = StandardTestDispatcher(scheduler)
+                launchSearchForCards(searchRequestFlow.value.copy(query = "cat"), forceRefresh = false) { successes++ }.join()
+                val submittedSearch = assertNotNull(searchJob)
+                repeat(2) { launchSearchForCards() }
+                searchJob?.join()
+
+                assertTrue(submittedSearch.isCancelled)
+                assertEquals(1, successes)
+                assertEquals(listOf(CardOrNoteId(matchingCard)), cards.toList())
+
+                launchSearchForCards()
+                searchJob?.join()
+                assertEquals(1, successes)
+            } finally {
+                ioDispatcher = previousDispatcher
+            }
+        }
+
+    @Test
+    fun `refreshing a replacement query does not report success for the canceled submission`() =
+        runViewModelTest {
+            addBasicNote("cat")
+            val matchingCard = addBasicNote("dog").firstCard().id
+            searchJob?.join()
+            val scheduler = checkNotNull(currentCoroutineContext()[TestCoroutineScheduler])
+            val previousDispatcher = ioDispatcher
+            var successes = 0
+            try {
+                ioDispatcher = StandardTestDispatcher(scheduler)
+                launchSearchForCards(searchRequestFlow.value.copy(query = "cat"), forceRefresh = false) { successes++ }.join()
+                setQuery("dog").join()
+                launchSearchForCards()
+                searchJob?.join()
+
+                assertEquals(0, successes)
+                assertEquals("dog", searchRequestFlow.value.query)
+                assertEquals(listOf(CardOrNoteId(matchingCard)), cards.toList())
+            } finally {
+                ioDispatcher = previousDispatcher
+            }
+        }
+
+    @Test
+    fun `overlapping rejected searches never report success`() =
+        runViewModelTest(notes = 1) {
+            searchJob?.join()
+            var successes = 0
+            val rejected = searchRequestFlow.value.copy(query = "is:now")
+            val scheduler = checkNotNull(currentCoroutineContext()[TestCoroutineScheduler])
+            withCollectionAccessOn(StandardTestDispatcher(scheduler)) {
+                repeat(2) {
+                    launchSearchForCards(rejected, forceRefresh = false) { successes++ }
+                }
+                scheduler.runCurrent()
+                searchJob?.join()
+            }
+
+            assertEquals(0, successes)
+        }
+
     @Test
     fun `delete search history - Issue 14989`() =
         runViewModelTest {
@@ -778,7 +954,7 @@ class CardBrowserViewModelTest : JvmCardBrowserViewModelTestBase() {
             assertThat("3 rows are selected", selectedRows.size, equalTo(3))
             assertThat("selection is not marked", queryAllSelectedNotes().all { !it.isMarked() })
 
-            toggleMark()
+            onEvent(BrowserEvent.ToggleMarkRequested)
 
             assertThat("3 rows are still selected", selectedRows.size, equalTo(3))
             assertThat("selection is now marked", queryAllSelectedNotes().all { it.isMarked() })
@@ -857,7 +1033,7 @@ class CardBrowserViewModelTest : JvmCardBrowserViewModelTestBase() {
         runViewModelTest(notes = 2) {
             selectRowsWithPositions(0)
 
-            ensureOpWithHandler(this) { toggleMark() }
+            ensureOpWithHandler(this) { onEvent(BrowserEvent.ToggleMarkRequested) }
         }
 
     @Test
@@ -881,7 +1057,7 @@ class CardBrowserViewModelTest : JvmCardBrowserViewModelTestBase() {
         runViewModelTest(notes = 2) {
             selectRowsWithPositions(0)
 
-            assertProgressAround { toggleMark() }
+            assertProgressAround { onEvent(BrowserEvent.ToggleMarkRequested) }
         }
 
     @Test
@@ -1648,6 +1824,34 @@ class CardBrowserViewModelTest : JvmCardBrowserViewModelTestBase() {
         }
 
     @Test
+    fun `control refreshes survive a stopped browser and are consumed once`() =
+        runViewModelTest {
+            // The STARTED collector is cancelled while the note editor activity is on top.
+            uiEffects.receiveAsFlow().test {
+                expectNoEvents()
+            }
+            repeat(2) {
+                onEvent(
+                    BrowserEvent.CollectionChanged(
+                        OpChanges.newBuilder().setNoteText(true).build(),
+                        BrowserEvent.CollectionChanged.Origin.NOTE_EDITOR,
+                    ),
+                )
+            }
+
+            uiEffects.receiveAsFlow().test {
+                repeat(2) {
+                    assertEquals(BrowserUiEffect.RefreshControls, awaitItem())
+                }
+                expectNoEvents()
+            }
+            // Another stop/start without an edit must not repeat the refresh.
+            uiEffects.receiveAsFlow().test {
+                expectNoEvents()
+            }
+        }
+
+    @Test
     fun `initial search does not request feedback - Issue 21242`() =
         runViewModelTest(notes = 2, initMode = InitMode.MANUAL) {
             flowOfSearchState.test {
@@ -2028,6 +2232,37 @@ class CardBrowserViewModelTest : JvmCardBrowserViewModelTestBase() {
 
                 expectMostRecentItem()
             }
+        }
+
+    @Test
+    fun `returning to the current text supersedes a queued text search`() =
+        runTest {
+            val browser = viewModel()
+            val current = browser.searchRequestFlow.value
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            withQueuedCollectionAccess {
+                browser.launchSearchForCards(current.copy(query = "cat"), forceRefresh = false)
+                browser.launchSearchForCards(current, forceRefresh = false)
+                advanceUntilIdle()
+            }
+            assertEquals(current, browser.searchRequestFlow.value)
+        }
+
+    @Test
+    fun `unticking a card state supersedes the queued tick`() =
+        runTest {
+            val browser = viewModel()
+            val current = browser.searchRequestFlow.value
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            withQueuedCollectionAccess {
+                browser.launchSearchForCards(
+                    current.copyFilters { it.copy(cardStates = listOf(CardState.entries.first())) },
+                    forceRefresh = false,
+                )
+                browser.launchSearchForCards(current, forceRefresh = false)
+                advanceUntilIdle()
+            }
+            assertEquals(current, browser.searchRequestFlow.value)
         }
 
     @Test

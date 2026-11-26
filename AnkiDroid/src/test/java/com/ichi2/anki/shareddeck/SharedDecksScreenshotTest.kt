@@ -36,6 +36,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.shadows.ShadowChoreographer
 import java.time.Duration
+import java.util.Locale
 
 /**
  * Screenshot tests for [SharedDecksActivity]
@@ -80,6 +81,27 @@ class SharedDecksScreenshotTest : ScreenshotTest() {
         captureScreen(name)
     }
 
+    /**
+     * Regression coverage for long localized stat labels wrapping onto multiple lines:
+     * both stat cards should match height and long words should hyphenate cleanly.
+     */
+    @Test
+    fun downloadFragmentWrappedStatLabel() {
+        val previousLocale = Locale.getDefault()
+        Locale.setDefault(Locale.GERMAN)
+        try {
+            RuntimeEnvironment.setQualifiers("+de")
+            RuntimeEnvironment.setFontScale(1.5f)
+            withSharedDecks { activity ->
+                activity.showDownloadFragment(percent = 30)
+                activity.simulateNavigationBar()
+                captureScreen("download_wrapped_stat_label")
+            }
+        } finally {
+            Locale.setDefault(previousLocale)
+        }
+    }
+
     @Test
     fun loginRequiredDialog() =
         withSharedDecks { activity ->
@@ -104,9 +126,11 @@ class SharedDecksScreenshotTest : ScreenshotTest() {
      * Shows [SharedDecksDownloadFragment] as the activity's download listener would,
      * with a mocked [DownloadManager] reporting a stable in-progress download.
      * A [percent] of -1 makes progress unavailable, showing the indeterminate indicator.
+     * A [percent] of 0 reports no bytes yet, showing the spinning ring.
      */
     private fun SharedDecksActivity.showDownloadFragment(percent: Int) {
-        if (percent < 0) {
+        val animatesForever = percent <= 0
+        if (animatesForever) {
             ShadowChoreographer.setPaused(true)
             ShadowChoreographer.setFrameDelay(Duration.ofMillis(16))
         }
@@ -140,8 +164,8 @@ class SharedDecksScreenshotTest : ScreenshotTest() {
                 SharedDecksActivity.SHARED_DECKS_DOWNLOAD_FRAGMENT,
             )
         }
-        if (percent < 0) {
-            // The indeterminate animation never ends. Capture a fixed frame instead of draining it.
+        if (animatesForever) {
+            // The animation never ends. Capture a fixed frame instead of draining it.
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
         } else {
             advanceRobolectricLooper()

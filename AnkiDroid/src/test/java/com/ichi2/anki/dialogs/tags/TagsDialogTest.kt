@@ -9,11 +9,13 @@ import android.os.Bundle
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowManager
+import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.testing.FragmentScenario
 import androidx.lifecycle.Lifecycle
+import androidx.recyclerview.widget.RecyclerView
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ichi2.anki.CommonString
 import com.ichi2.anki.R
@@ -28,9 +30,6 @@ import com.ichi2.testutils.parcelledCopy
 import com.ichi2.testutils.saveState
 import com.ichi2.ui.CheckBoxTriStates
 import com.ichi2.ui.CheckBoxTriStates.State.CHECKED
-import com.ichi2.ui.CheckBoxTriStates.State.INDETERMINATE
-import com.ichi2.ui.CheckBoxTriStates.State.UNCHECKED
-import com.ichi2.utils.ListUtil
 import com.ichi2.utils.getInputField
 import com.ichi2.utils.getInputTextLayout
 import com.ichi2.utils.positiveButton
@@ -88,13 +87,11 @@ class TagsDialogTest : RobolectricTest() {
             }
         val listener = Mockito.mock(TagsDialogListener::class.java)
         val args = TagsDialog().withArguments(targetContext, TagsDialog.DialogType.EDIT_TAGS, ids).requireArguments()
-        FragmentScenario.launch(TagsDialog::class.java, args, CommonR.style.Theme_Light, TagsDialogFactory(listener)).use { scenario ->
+        FragmentScenario.launch(TagsDialog::class.java, args, CommonR.style.Theme_AnkiDroid, TagsDialogFactory(listener)).use { scenario ->
             scenario.moveToState(Lifecycle.State.STARTED)
             scenario.onFragment { fragment ->
                 advanceRobolectricLooperUntil { fragment.binding.tagsList.adapter != null }
-                val recycler = fragment.binding.tagsList
-                recycler.measure(0, 0)
-                recycler.layout(0, 0, 100, 1000)
+                val recycler = fragment.forceLayout()
                 val parent = RecyclerViewUtils.viewHolderAt<TagsArrayAdapter.ViewHolder>(recycler, 0)
                 repeat(parentClicks) { parent.checkBoxView.performClick() }
                 (fragment.requireDialog() as AlertDialog).getButton(AlertDialog.BUTTON_POSITIVE).performClick()
@@ -118,7 +115,7 @@ class TagsDialogTest : RobolectricTest() {
         val fragment = TagsDialog(listener).withArguments(targetContext, TagsDialog.DialogType.EDIT_TAGS, listOf(addBasicNote().id))
         fragment.requireArguments().requireParcelable<IdsFile>(TagsDialog.ARG_TAGS_FILE).changeFile()
         Robolectric.buildActivity(FragmentActivity::class.java).use { controller ->
-            controller.get().setTheme(CommonR.style.Theme_Light)
+            controller.get().setTheme(CommonR.style.Theme_AnkiDroid)
             val activity = controller.setup().get()
             fragment.show(activity.supportFragmentManager, "tags")
             advanceRobolectricLooper()
@@ -134,7 +131,7 @@ class TagsDialogTest : RobolectricTest() {
         val file = fragment.requireArguments().requireParcelable<IdsFile>(TagsDialog.ARG_TAGS_FILE)
         val savedState =
             Robolectric.buildActivity(FragmentActivity::class.java).use { controller ->
-                controller.get().setTheme(CommonR.style.Theme_Light)
+                controller.get().setTheme(CommonR.style.Theme_AnkiDroid)
                 val activity = controller.setup().get()
                 fragment.show(activity.supportFragmentManager, "tags")
                 advanceRobolectricLooper()
@@ -143,7 +140,7 @@ class TagsDialogTest : RobolectricTest() {
         assertTrue(file.delete())
         ShadowToast.reset()
         Robolectric.buildActivity(FragmentActivity::class.java).use { controller ->
-            controller.get().setTheme(CommonR.style.Theme_Light)
+            controller.get().setTheme(CommonR.style.Theme_AnkiDroid)
             val activity = controller.setup(savedState).get()
             advanceRobolectricLooper()
             assertNull(activity.supportFragmentManager.findFragmentByTag("tags"))
@@ -151,602 +148,49 @@ class TagsDialogTest : RobolectricTest() {
         }
     }
 
-    // regression test #8762
-    // test for #8763
+    /** The hierarchy policy is covered in TagTreeTest; check the dialog-to-adapter update here. */
     @Test
-    fun test_AddNewTag_shouldBeVisibleInRecyclerView_andSortedCorrectly() {
-        val type = TagsDialog.DialogType.EDIT_TAGS
-        val allTags = listOf("a", "b", "d", "e")
-        val checkedTags = arrayListOf("a", "b")
-        val args =
-            TagsDialog(ParametersUtils.whatever())
-                .withTestArguments(type, checkedTags, allTags)
-                .requireArguments()
-        val mockListener = Mockito.mock(TagsDialogListener::class.java)
-        val factory = TagsDialogFactory(mockListener)
-        runTagsDialogScenario(args, factory) { f: TagsDialog ->
-            val recycler = f.binding.tagsList
-            val tag = "zzzz"
-            f.addTag(tag)
-
-            // workaround robolectric recyclerView issue
-            // update recycler
-            recycler.measure(0, 0)
-            recycler.layout(0, 0, 100, 1000)
-            val lastItem = RecyclerViewUtils.viewHolderAt<TagsArrayAdapter.ViewHolder>(recycler, 4)
-            val newTagItemItem = RecyclerViewUtils.viewHolderAt<TagsArrayAdapter.ViewHolder>(recycler, 2)
-            Assert.assertEquals(5, recycler.adapter!!.itemCount.toLong())
-            Assert.assertEquals(tag, newTagItemItem.text)
-            Assert.assertTrue(newTagItemItem.isChecked)
-            Assert.assertNotEquals(tag, lastItem.text)
-            Assert.assertFalse(lastItem.isChecked)
-        }
-    }
-
-    // test for #8763
-    @Test
-    fun test_AddNewTag_existingTag_shouldBeSelectedAndSorted() {
-        val type = TagsDialog.DialogType.EDIT_TAGS
-        val allTags = listOf("a", "b", "d", "e")
-        val checkedTags = arrayListOf("a", "b")
-        val args =
-            TagsDialog(ParametersUtils.whatever())
-                .withTestArguments(type, checkedTags, allTags)
-                .requireArguments()
-        val mockListener = Mockito.mock(TagsDialogListener::class.java)
-        val factory = TagsDialogFactory(mockListener)
-        runTagsDialogScenario(args, factory) { f: TagsDialog ->
-            val recycler = f.binding.tagsList
-            val tag = "e"
-            f.addTag(tag)
-
-            // workaround robolectric recyclerView issue
-            // update recycler
-            recycler.measure(0, 0)
-            recycler.layout(0, 0, 100, 1000)
-            val lastItem = RecyclerViewUtils.viewHolderAt<TagsArrayAdapter.ViewHolder>(recycler, 3)
-            val newTagItemItem = RecyclerViewUtils.viewHolderAt<TagsArrayAdapter.ViewHolder>(recycler, 2)
-            Assert.assertEquals(4, recycler.adapter!!.itemCount.toLong())
-            Assert.assertEquals(tag, newTagItemItem.text)
-            Assert.assertTrue(newTagItemItem.isChecked)
-            Assert.assertNotEquals(tag, lastItem.text)
-            Assert.assertFalse(lastItem.isChecked)
-        }
-    }
-
-    @Test
-    fun `unchecking parent after check all keeps it indeterminate`() {
-        withTagsAfterTogglingAll(arrayListOf("1")) { parent, child ->
-            parent.performClick()
-            assertThat(parent.state, equalTo(INDETERMINATE))
-            assertThat(child.state, equalTo(CHECKED))
-
-            child.performClick()
-            assertThat(parent.state, equalTo(UNCHECKED))
-        }
-    }
-
-    @Test
-    fun `uncheck all clears the indeterminate cycle for parents`() {
-        withTagsAfterTogglingAll(arrayListOf("1", "1::2")) { parent, child ->
-            parent.performClick()
-            parent.performClick()
-            assertThat(parent.state, equalTo(UNCHECKED))
-            assertThat(child.state, equalTo(UNCHECKED))
-        }
-    }
-
-    @Test
-    fun `partially selected hierarchical tags are visible at the top`() {
-        val first = addBasicNote("first")
-        val second = addBasicNote("second")
-        val unrelated = addBasicNote("unrelated")
-        col.tags.bulkAdd(listOf(first.id), "B::B")
-        col.tags.bulkAdd(listOf(second.id), "C::child::leaf")
-        col.tags.bulkAdd(listOf(unrelated.id), "aaa")
-        val args =
-            TagsDialog()
-                .withArguments(targetContext, TagsDialog.DialogType.EDIT_TAGS, listOf(first.id, second.id))
-                .requireArguments()
-
+    fun `adding a tag refreshes its visible checked row`() {
+        val args = editTagsArguments(listOf("parent::existing"))
         runTagsDialogScenario(args) { fragment ->
-            val recycler = fragment.binding.tagsList
-            recycler.measure(0, 0)
-            recycler.layout(0, 0, 100, 1000)
-            val expected = listOf("B", "B::B", "C", "C::child", "C::child::leaf", "aaa")
-            assertEquals(expected.size, recycler.adapter!!.itemCount)
-            expected.forEachIndexed { index, tag ->
-                val holder = RecyclerViewUtils.viewHolderAt<TagsArrayAdapter.ViewHolder>(recycler, index)
-                assertEquals(tag, holder.text)
-                assertEquals(if (tag == "aaa") UNCHECKED else INDETERMINATE, holder.checkboxState)
-            }
-        }
-    }
-
-    @Test
-    fun `unchecking a partially selected child clears its parent and allows rechecking`() {
-        withPartiallySelectedTags("B::B") { holders ->
-            val parent = holders.getValue("B")
-            val child = holders.getValue("B::B")
-            child.checkBoxView.performClick()
-            assertEquals(UNCHECKED, child.checkboxState)
-            assertEquals(UNCHECKED, parent.checkboxState)
-
-            child.checkBoxView.performClick()
-            assertEquals(CHECKED, child.checkboxState)
-            assertEquals(INDETERMINATE, parent.checkboxState)
-
-            child.checkBoxView.performClick()
-            assertEquals(UNCHECKED, parent.checkboxState)
-        }
-    }
-
-    @Test
-    fun `parent stays indeterminate until all partially selected children are unchecked`() {
-        withPartiallySelectedTags("B::one B::two") { holders ->
-            val parent = holders.getValue("B")
-            holders.getValue("B::one").checkBoxView.performClick()
-            assertEquals(INDETERMINATE, parent.checkboxState)
-            holders.getValue("B::two").checkBoxView.performClick()
-            assertEquals(UNCHECKED, parent.checkboxState)
-        }
-    }
-
-    @Test
-    fun `unchecking a partially selected descendant clears every ancestor`() {
-        withPartiallySelectedTags("B::child::leaf") { holders ->
-            holders.getValue("B::child::leaf").checkBoxView.performClick()
-            assertEquals(UNCHECKED, holders.getValue("B::child").checkboxState)
-            assertEquals(UNCHECKED, holders.getValue("B").checkboxState)
-        }
-    }
-
-    @Test
-    fun `unchecking a child preserves a parent tag present on some notes`() {
-        withPartiallySelectedTags("B B::child") { holders ->
-            val parent = holders.getValue("B")
-            holders.getValue("B::child").checkBoxView.performClick()
-            assertEquals(INDETERMINATE, parent.checkboxState)
-            parent.checkBoxView.performClick()
-            assertEquals(UNCHECKED, parent.checkboxState)
-        }
-    }
-
-    @Test
-    fun `explicitly changing a partially selected parent replaces its original selection`() {
-        withPartiallySelectedTags("B B::child") { holders ->
-            val parent = holders.getValue("B")
-            parent.checkBoxView.performClick()
-            assertEquals(CHECKED, parent.checkboxState)
-            parent.checkBoxView.performClick()
-            assertEquals(INDETERMINATE, parent.checkboxState)
-            holders.getValue("B::child").checkBoxView.performClick()
-            assertEquals(UNCHECKED, parent.checkboxState)
-        }
-    }
-
-    @Test
-    fun `unchecking a fully selected child preserves partially selected siblings`() {
-        withPartiallySelectedTags("B::one B::two", "B::one") { holders ->
-            val parent = holders.getValue("B")
-            holders.getValue("B::one").checkBoxView.performClick()
-            assertEquals(INDETERMINATE, parent.checkboxState)
-            assertEquals(INDETERMINATE, holders.getValue("B::two").checkboxState)
-            holders.getValue("B::two").checkBoxView.performClick()
-            assertEquals(UNCHECKED, parent.checkboxState)
-        }
-    }
-
-    private fun withPartiallySelectedTags(
-        tags: String,
-        secondTags: String = "",
-        block: (Map<String, TagsArrayAdapter.ViewHolder>) -> Unit,
-    ) {
-        val first = addBasicNote("first")
-        val second = addBasicNote("second")
-        col.tags.bulkAdd(listOf(first.id), tags)
-        col.tags.bulkAdd(listOf(second.id), secondTags)
-        val args =
-            TagsDialog()
-                .withArguments(targetContext, TagsDialog.DialogType.EDIT_TAGS, listOf(first.id, second.id))
-                .requireArguments()
-        runTagsDialogScenario(args) { fragment ->
-            val recycler = fragment.binding.tagsList
-            recycler.measure(0, 0)
-            recycler.layout(0, 0, 100, 1000)
-            val holders =
+            fragment.addTag("parent::added")
+            val recycler = fragment.forceLayout()
+            val rows =
                 (0 until recycler.adapter!!.itemCount)
                     .map { RecyclerViewUtils.viewHolderAt<TagsArrayAdapter.ViewHolder>(recycler, it) }
-                    .associateBy { it.text }
-            block(holders)
+            assertEquals(listOf("parent", "parent::added", "parent::existing"), rows.map { it.text })
+            assertEquals(CHECKED, rows[1].checkboxState)
         }
     }
 
+    /**
+     * The Edit Tags search field is also an Add Tag shortcut. Pasting an indented tag
+     * there should add the tag itself, without inventing an empty parent.
+     */
     @Test
-    fun test_checked_unchecked_indeterminate() {
-        val type = TagsDialog.DialogType.EDIT_TAGS
-        val expectedAllTags = listOf("a", "b", "d", "e")
-        val checkedTags = arrayListOf("a", "b")
-        val expectedCheckedTags = listOf("a", "b")
-        val expectedUncheckedTags = listOf("d", "e")
-        val expectedIndeterminate = emptyList<String>()
-        val args =
-            TagsDialog(ParametersUtils.whatever())
-                .withTestArguments(type, checkedTags, expectedAllTags)
-                .requireArguments()
-        val mockListener = Mockito.mock(TagsDialogListener::class.java)
-        val factory = TagsDialogFactory(mockListener)
-        runTagsDialogScenario(args, factory) { f: TagsDialog ->
-            val recycler = f.binding.tagsList
+    fun `adding from search ignores leading ideographic whitespace`() {
+        runTagsDialogScenario(editTagsArguments(emptyList())) { fragment ->
+            val menu = fragment.binding.toolbar.root.menu
+            val search = menu.findItem(R.id.tags_dialog_action_filter)
+            // The Add action uses the search query directly only with the search field expanded.
+            assertTrue(search.expandActionView())
+            val input = search.actionView!!.findViewById<EditText>(androidx.appcompat.R.id.search_src_text)
+            input.setText("\u3000子")
+            assertTrue(menu.performIdentifierAction(R.id.tags_dialog_action_add, 0))
+            advanceRobolectricLooper()
 
-            // workaround robolectric recyclerView issue
-            // update recycler
-            recycler.measure(0, 0)
-            recycler.layout(0, 0, 100, 1000)
-            val itemCount = recycler.adapter!!.itemCount
-            val foundAllTags: MutableList<String> = ArrayList()
-            val foundCheckedTags: MutableList<String> = ArrayList()
-            val foundUncheckedTags: MutableList<String> = ArrayList()
-            val foundIndeterminate: MutableList<String> = ArrayList()
-            for (i in 0 until itemCount) {
-                val vh = RecyclerViewUtils.viewHolderAt<TagsArrayAdapter.ViewHolder>(recycler, i)
-                val tag = vh.text
-                foundAllTags.add(tag)
-                when (vh.checkboxState) {
-                    CheckBoxTriStates.State.INDETERMINATE -> foundIndeterminate.add(tag)
-                    CheckBoxTriStates.State.UNCHECKED -> foundUncheckedTags.add(tag)
-                    CheckBoxTriStates.State.CHECKED -> foundCheckedTags.add(tag)
+            val recycler = fragment.forceLayout()
+            val rows =
+                (0 until recycler.adapter!!.itemCount).map {
+                    RecyclerViewUtils.viewHolderAt<TagsArrayAdapter.ViewHolder>(
+                        recycler,
+                        it,
+                    )
                 }
-            }
-            ListUtil.assertListEquals(expectedAllTags, foundAllTags)
-            ListUtil.assertListEquals(expectedCheckedTags, foundCheckedTags)
-            ListUtil.assertListEquals(expectedUncheckedTags, foundUncheckedTags)
-            ListUtil.assertListEquals(expectedIndeterminate, foundIndeterminate)
-        }
-    }
-
-    @Test
-    fun test_TagsDialog_expandPathToCheckedTagsUponOpening() {
-        val type = TagsDialog.DialogType.FILTER_BY_TAG
-        val allTags =
-            listOf(
-                "fruit::apple",
-                "fruit::pear",
-                "fruit::pear::big",
-                "sport::football",
-                "sport::tennis",
-                "book",
-            )
-        val checkedTags =
-            arrayListOf(
-                "fruit::pear::big",
-                "sport::tennis",
-            )
-        val args =
-            TagsDialog(ParametersUtils.whatever())
-                .withTestArguments(type, checkedTags, allTags)
-                .requireArguments()
-        val mockListener = Mockito.mock(TagsDialogListener::class.java)
-        val factory = TagsDialogFactory(mockListener)
-        runTagsDialogScenario(args, factory) { f: TagsDialog ->
-            val recycler = f.binding.tagsList
-
-            fun getItem(index: Int): TagsArrayAdapter.ViewHolder = RecyclerViewUtils.viewHolderAt(recycler, index)
-
-            fun updateLayout() {
-                recycler.measure(0, 0)
-                recycler.layout(0, 0, 100, 2000)
-            }
-            updateLayout()
-
-            // v fruit         [-]
-            //   - apple       [ ]
-            //   v pear        [-]
-            //     - big       [x]
-            // v sport         [-]
-            //   - football    [ ]
-            //   - tennis      [x]
-            // - book          [ ]
-            Assert.assertEquals(8, recycler.adapter!!.itemCount.toLong())
-            Assert.assertEquals("fruit", getItem(0).text)
-            Assert.assertEquals("fruit::apple", getItem(1).text)
-            Assert.assertEquals("fruit::pear", getItem(2).text)
-            Assert.assertEquals("fruit::pear::big", getItem(3).text)
-            Assert.assertEquals("sport", getItem(4).text)
-            Assert.assertEquals("sport::football", getItem(5).text)
-            Assert.assertEquals("sport::tennis", getItem(6).text)
-            Assert.assertEquals("book", getItem(7).text)
-        }
-    }
-
-    @Test
-    fun test_AddNewTag_newHierarchicalTag_pathToItShouldBeExpanded() {
-        val type = TagsDialog.DialogType.EDIT_TAGS
-        val allTags = listOf("common::speak", "common::speak::daily", "common::sport::tennis", "common::sport::football")
-        val checkedTags = arrayListOf("common::speak::daily", "common::sport::tennis")
-        val args =
-            TagsDialog(ParametersUtils.whatever())
-                .withTestArguments(type, checkedTags, allTags)
-                .requireArguments()
-        val mockListener = Mockito.mock(TagsDialogListener::class.java)
-        val factory = TagsDialogFactory(mockListener)
-        runTagsDialogScenario(args, factory) { f: TagsDialog ->
-            val recycler = f.binding.tagsList
-            val tag = "common::sport::football::small"
-            f.addTag(tag)
-
-            // v common        [-]
-            //   v speak       [-]
-            //     - daily     [x]
-            //   v sport       [-]
-            //     v football  [-]
-            //       > small   [x]
-            //     - tennis    [x]
-            recycler.measure(0, 0)
-            recycler.layout(0, 0, 100, 1000)
-            Assert.assertEquals(7, recycler.adapter!!.itemCount.toLong())
-            val item0 = RecyclerViewUtils.viewHolderAt<TagsArrayAdapter.ViewHolder>(recycler, 0)
-            val item1 = RecyclerViewUtils.viewHolderAt<TagsArrayAdapter.ViewHolder>(recycler, 1)
-            val item2 = RecyclerViewUtils.viewHolderAt<TagsArrayAdapter.ViewHolder>(recycler, 2)
-            val item3 = RecyclerViewUtils.viewHolderAt<TagsArrayAdapter.ViewHolder>(recycler, 3)
-            val item4 = RecyclerViewUtils.viewHolderAt<TagsArrayAdapter.ViewHolder>(recycler, 4)
-            val item5 = RecyclerViewUtils.viewHolderAt<TagsArrayAdapter.ViewHolder>(recycler, 5)
-            val item6 = RecyclerViewUtils.viewHolderAt<TagsArrayAdapter.ViewHolder>(recycler, 6)
-            Assert.assertEquals("common", item0.text)
-            Assert.assertEquals("common::speak", item1.text)
-            Assert.assertEquals("common::speak::daily", item2.text)
-            Assert.assertEquals("common::sport", item3.text)
-            Assert.assertEquals("common::sport::football", item4.text)
-            Assert.assertEquals("common::sport::football::small", item5.text)
-            Assert.assertEquals("common::sport::tennis", item6.text)
-            Assert.assertEquals(CheckBoxTriStates.State.INDETERMINATE, item0.checkBoxView.state)
-            Assert.assertEquals(CheckBoxTriStates.State.INDETERMINATE, item1.checkBoxView.state)
-            Assert.assertEquals(CheckBoxTriStates.State.CHECKED, item2.checkBoxView.state)
-            Assert.assertEquals(CheckBoxTriStates.State.INDETERMINATE, item3.checkBoxView.state)
-            Assert.assertEquals(CheckBoxTriStates.State.INDETERMINATE, item4.checkBoxView.state)
-            Assert.assertTrue(item5.checkBoxView.isChecked)
-            Assert.assertTrue(item6.checkBoxView.isChecked)
-        }
-    }
-
-    @Test
-    fun test_AddNewTag_newHierarchicalTag_willUniformHierarchicalTag() {
-        val type = TagsDialog.DialogType.EDIT_TAGS
-        val allTags = listOf("common")
-        val checkedTags = arrayListOf("common")
-        val args =
-            TagsDialog(ParametersUtils.whatever())
-                .withTestArguments(type, checkedTags, allTags)
-                .requireArguments()
-        val mockListener = Mockito.mock(TagsDialogListener::class.java)
-        val factory = TagsDialogFactory(mockListener)
-        runTagsDialogScenario(args, factory) { f: TagsDialog ->
-            val recycler = f.binding.tagsList
-            val tag = "common::::careless"
-            f.addTag(tag)
-
-            // v common        [x]
-            //   > blank       [-]
-            //     - careless  [x]
-            recycler.measure(0, 0)
-            recycler.layout(0, 0, 100, 1000)
-            Assert.assertEquals(3, recycler.adapter!!.itemCount.toLong())
-            val item0 = RecyclerViewUtils.viewHolderAt<TagsArrayAdapter.ViewHolder>(recycler, 0)
-            val item1 = RecyclerViewUtils.viewHolderAt<TagsArrayAdapter.ViewHolder>(recycler, 1)
-            val item2 = RecyclerViewUtils.viewHolderAt<TagsArrayAdapter.ViewHolder>(recycler, 2)
-            Assert.assertEquals("common", item0.text)
-            Assert.assertEquals("common::blank", item1.text)
-            Assert.assertEquals("common::blank::careless", item2.text)
-            Assert.assertTrue(item0.checkBoxView.isChecked)
-            Assert.assertTrue(item1.checkBoxView.state == CheckBoxTriStates.State.INDETERMINATE)
-            Assert.assertTrue(item2.checkBoxView.isChecked)
-        }
-    }
-
-    @Test
-    fun test_SearchTag_showAllRelevantTags() {
-        val type = TagsDialog.DialogType.FILTER_BY_TAG
-        val allTags =
-            listOf(
-                "common::speak",
-                "common::speak::tennis",
-                "common::sport::tennis",
-                "common::sport::football",
-                "common::sport::football::small",
-            )
-        val checkedTags =
-            arrayListOf(
-                "common::speak::tennis",
-                "common::sport::tennis",
-                "common::sport::football::small",
-            )
-        val args =
-            TagsDialog(ParametersUtils.whatever())
-                .withTestArguments(type, checkedTags, allTags)
-                .requireArguments()
-        val mockListener = Mockito.mock(TagsDialogListener::class.java)
-        val factory = TagsDialogFactory(mockListener)
-        runTagsDialogScenario(args, factory) { f: TagsDialog ->
-            val recycler = f.binding.tagsList
-            val adapter = recycler.adapter!! as TagsArrayAdapter
-            adapter.filter.filter("tennis")
-
-            // v common        [-]
-            //   v speak       [-]
-            //     - tennis    [x]
-            //   v sport       [-]
-            //     - tennis    [x]
-            recycler.measure(0, 0)
-            recycler.layout(0, 0, 100, 1000)
-            Assert.assertEquals(5, recycler.adapter!!.itemCount.toLong())
-            val item0 = RecyclerViewUtils.viewHolderAt<TagsArrayAdapter.ViewHolder>(recycler, 0)
-            val item1 = RecyclerViewUtils.viewHolderAt<TagsArrayAdapter.ViewHolder>(recycler, 1)
-            val item2 = RecyclerViewUtils.viewHolderAt<TagsArrayAdapter.ViewHolder>(recycler, 2)
-            val item3 = RecyclerViewUtils.viewHolderAt<TagsArrayAdapter.ViewHolder>(recycler, 3)
-            val item4 = RecyclerViewUtils.viewHolderAt<TagsArrayAdapter.ViewHolder>(recycler, 4)
-            Assert.assertEquals("common", item0.text)
-            Assert.assertEquals("common::speak", item1.text)
-            Assert.assertEquals("common::speak::tennis", item2.text)
-            Assert.assertEquals("common::sport", item3.text)
-            Assert.assertEquals("common::sport::tennis", item4.text)
-        }
-    }
-
-    @Test
-    fun test_SearchTag_willInheritExpandState() {
-        val type = TagsDialog.DialogType.FILTER_BY_TAG
-        val allTags = listOf("common::speak", "common::sport::tennis")
-        val checkedTags = arrayListOf<String>()
-        val args =
-            TagsDialog(ParametersUtils.whatever())
-                .withTestArguments(type, checkedTags, allTags)
-                .requireArguments()
-        val mockListener = Mockito.mock(TagsDialogListener::class.java)
-        val factory = TagsDialogFactory(mockListener)
-        runTagsDialogScenario(args, factory) { f: TagsDialog ->
-            val recycler = f.binding.tagsList
-
-            fun updateLayout() {
-                recycler.measure(0, 0)
-                recycler.layout(0, 0, 100, 2000)
-            }
-
-            val adapter = recycler.adapter!! as TagsArrayAdapter
-            adapter.filter.filter("sport")
-            updateLayout()
-            // v common     [ ]
-            //   v sport    [ ]
-            //     - tennis [ ]
-            Assert.assertEquals(3, recycler.adapter!!.itemCount.toLong())
-
-            adapter.filter.filter("")
-            updateLayout()
-            // v common     [ ]
-            //   - speak    [ ]
-            //   v sport    [ ]
-            //     - tennis [ ]
-            Assert.assertEquals(4, recycler.adapter!!.itemCount.toLong())
-        }
-    }
-
-    @Test
-    fun test_CheckTags_intermediateTagsShouldToggleDynamically() {
-        val type = TagsDialog.DialogType.FILTER_BY_TAG
-        val allTags =
-            listOf(
-                "common::speak",
-                "common::speak::tennis",
-                "common::sport::tennis",
-                "common::sport::football",
-                "common::sport::football::small",
-            )
-        val checkedTags = arrayListOf<String>()
-        val args =
-            TagsDialog(ParametersUtils.whatever())
-                .withTestArguments(type, checkedTags, allTags)
-                .requireArguments()
-        val mockListener = Mockito.mock(TagsDialogListener::class.java)
-        val factory = TagsDialogFactory(mockListener)
-        runTagsDialogScenario(args, factory) { f: TagsDialog ->
-            val recycler = f.binding.tagsList
-
-            fun getItem(index: Int): TagsArrayAdapter.ViewHolder = RecyclerViewUtils.viewHolderAt(recycler, index)
-
-            fun updateLayout() {
-                recycler.measure(0, 0)
-                recycler.layout(0, 0, 100, 2000)
-            }
-            updateLayout()
-            getItem(0).itemView.performClick()
-            updateLayout()
-            getItem(1).itemView.performClick()
-            updateLayout()
-            getItem(3).itemView.performClick()
-            updateLayout()
-            getItem(4).itemView.performClick()
-            updateLayout()
-            // v common        [ ]
-            //   v speak       [ ]
-            //     - tennis    [ ]
-            //   v sport       [ ]
-            //     v football  [ ]
-            //       - small   [ ]
-            //     - tennis    [ ]
-            Assert.assertEquals(7, recycler.adapter!!.itemCount.toLong())
-
-            getItem(2).checkBoxView.performClick()
-            updateLayout()
-            getItem(5).checkBoxView.performClick()
-            updateLayout()
-            // v common        [-]
-            //   v speak       [-]
-            //     - tennis    [x]
-            //   v sport       [-]
-            //     v football  [-]
-            //       - small   [x]
-            //     - tennis    [ ]
-            Assert.assertEquals(CheckBoxTriStates.State.INDETERMINATE, getItem(0).checkboxState)
-            Assert.assertEquals(CheckBoxTriStates.State.INDETERMINATE, getItem(1).checkboxState)
-            Assert.assertEquals(CheckBoxTriStates.State.CHECKED, getItem(2).checkboxState)
-            Assert.assertEquals(CheckBoxTriStates.State.INDETERMINATE, getItem(3).checkboxState)
-            Assert.assertEquals(CheckBoxTriStates.State.INDETERMINATE, getItem(4).checkboxState)
-            Assert.assertEquals(CheckBoxTriStates.State.CHECKED, getItem(5).checkboxState)
-            Assert.assertEquals(CheckBoxTriStates.State.UNCHECKED, getItem(6).checkboxState)
-
-            getItem(2).checkBoxView.performClick()
-            updateLayout()
-            getItem(5).checkBoxView.performClick()
-            updateLayout()
-            // v common        [ ]
-            //   v speak       [ ]
-            //     - tennis    [ ]
-            //   v sport       [ ]
-            //     v football  [ ]
-            //       - small   [ ]
-            //     - tennis    [ ]
-            Assert.assertEquals(CheckBoxTriStates.State.UNCHECKED, getItem(0).checkboxState)
-            Assert.assertEquals(CheckBoxTriStates.State.UNCHECKED, getItem(1).checkboxState)
-            Assert.assertEquals(CheckBoxTriStates.State.UNCHECKED, getItem(2).checkboxState)
-            Assert.assertEquals(CheckBoxTriStates.State.UNCHECKED, getItem(3).checkboxState)
-            Assert.assertEquals(CheckBoxTriStates.State.UNCHECKED, getItem(4).checkboxState)
-            Assert.assertEquals(CheckBoxTriStates.State.UNCHECKED, getItem(5).checkboxState)
-            Assert.assertEquals(CheckBoxTriStates.State.UNCHECKED, getItem(6).checkboxState)
-
-            getItem(5).checkBoxView.performClick()
-            updateLayout()
-            // v common        [-]
-            //   v speak       [ ]
-            //     - tennis    [ ]
-            //   v sport       [-]
-            //     v football  [-]
-            //       - small   [x]
-            //     - tennis    [ ]
-            Assert.assertEquals(CheckBoxTriStates.State.INDETERMINATE, getItem(0).checkboxState)
-            Assert.assertEquals(CheckBoxTriStates.State.UNCHECKED, getItem(1).checkboxState)
-            Assert.assertEquals(CheckBoxTriStates.State.UNCHECKED, getItem(2).checkboxState)
-            Assert.assertEquals(CheckBoxTriStates.State.INDETERMINATE, getItem(3).checkboxState)
-            Assert.assertEquals(CheckBoxTriStates.State.INDETERMINATE, getItem(4).checkboxState)
-            Assert.assertEquals(CheckBoxTriStates.State.CHECKED, getItem(5).checkboxState)
-            Assert.assertEquals(CheckBoxTriStates.State.UNCHECKED, getItem(6).checkboxState)
-
-            getItem(3).checkBoxView.performClick()
-            updateLayout()
-            getItem(5).checkBoxView.performClick()
-            updateLayout()
-            // v common        [-]
-            //   v speak       [ ]
-            //     - tennis    [ ]
-            //   v sport       [x]
-            //     v football  [ ]
-            //       - small   [ ]
-            //     - tennis    [ ]
-            Assert.assertEquals(CheckBoxTriStates.State.INDETERMINATE, getItem(0).checkboxState)
-            Assert.assertEquals(CheckBoxTriStates.State.UNCHECKED, getItem(1).checkboxState)
-            Assert.assertEquals(CheckBoxTriStates.State.UNCHECKED, getItem(2).checkboxState)
-            Assert.assertEquals(CheckBoxTriStates.State.CHECKED, getItem(3).checkboxState)
-            Assert.assertEquals(CheckBoxTriStates.State.UNCHECKED, getItem(4).checkboxState)
-            Assert.assertEquals(CheckBoxTriStates.State.UNCHECKED, getItem(5).checkboxState)
-            Assert.assertEquals(CheckBoxTriStates.State.UNCHECKED, getItem(6).checkboxState)
+            // Fails before the fix because the search filter emits `::` at the start of the query,
+            // and Add turns the empty first component into a visible `blank` tag.
+            assertEquals(listOf("子"), rows.map { it.text.trim() })
+            assertEquals(CHECKED, rows.single().checkboxState)
         }
     }
 
@@ -802,7 +246,7 @@ class TagsDialogTest : RobolectricTest() {
                 .arguments
         val mockListener = Mockito.mock(TagsDialogListener::class.java)
         val factory = TagsDialogFactory(mockListener)
-        FragmentScenario.launch(TagsDialog::class.java, args, CommonR.style.Theme_Light, factory).use { scenario ->
+        FragmentScenario.launch(TagsDialog::class.java, args, CommonR.style.Theme_AnkiDroid, factory).use { scenario ->
             scenario.moveToState(Lifecycle.State.STARTED)
             scenario.onFragment { Timber.d("Dialog successfully opened") }
         }
@@ -881,27 +325,6 @@ class TagsDialogTest : RobolectricTest() {
             .withTestArguments(TagsDialog.DialogType.EDIT_TAGS, arrayListOf(), allTags)
             .requireArguments()
 
-    private fun withTagsAfterTogglingAll(
-        checkedTags: ArrayList<String>,
-        block: (parent: CheckBoxTriStates, child: CheckBoxTriStates) -> Unit,
-    ) {
-        val args =
-            TagsDialog()
-                .withTestArguments(TagsDialog.DialogType.EDIT_TAGS, checkedTags, listOf("1", "1::2"))
-                .requireArguments()
-        runTagsDialogScenario(args) { fragment ->
-            val toolbar = fragment.binding.toolbar.root
-            toolbar.menu.performIdentifierAction(R.id.tags_dialog_action_select_all, 0)
-
-            val recycler = fragment.binding.tagsList
-            recycler.measure(0, 0)
-            recycler.layout(0, 0, 100, 1000)
-            val parent = RecyclerViewUtils.viewHolderAt<TagsArrayAdapter.ViewHolder>(recycler, 0).checkBoxView
-            val child = RecyclerViewUtils.viewHolderAt<TagsArrayAdapter.ViewHolder>(recycler, 1).checkBoxView
-            block(parent, child)
-        }
-    }
-
     // these are called 'withTestArguments' due to "extension is shadowed by a member" warnings
     // this is needed so we can pass in 'targetContext' for context.cacheDir
     private fun TagsDialog.withTestArguments(
@@ -974,18 +397,116 @@ class TagsDialogTest : RobolectricTest() {
     }
 
     @Test
+    fun `typing an ideographic space in a tag creates a hierarchy separator`() {
+        withAddTagDialog(emptyList()) { dialog ->
+            val input = dialog.getInputField()
+            input.setText("parent\u3000child")
+            assertEquals("parent::child", input.text.toString())
+        }
+    }
+
+    /**
+     * Pasting consecutive spaces in an Add Tag dialog should create one hierarchy separator,
+     * like typing the spaces individually. An extra separator creates an unwanted `blank` subtag.
+     */
+    @Test
+    fun `pasting consecutive tag spaces creates one hierarchy separator`() {
+        withAddTagDialog(emptyList()) { dialog ->
+            val input = dialog.getInputField()
+            for (spaces in listOf("\u3000\u3000", " \u3000")) {
+                input.setText("parent")
+                // Insert the clipboard contents in one edit so the filter sees both spaces together.
+                input.text.insert(input.text.length, "${spaces}child")
+                // Fails on the buggy revision because the second space adds another pair of colons.
+                assertEquals("parent::child", input.text.toString())
+            }
+        }
+    }
+
+    /**
+     * When a Japanese IME updates a phrase containing an ideographic space, committing it must
+     * replace the composing phrase after the tag filter changes the space into a separator.
+     */
+    @Test
+    fun `committing an ideographic tag phrase replaces the composing text`() {
+        withAddTagDialog(emptyList()) { dialog ->
+            val input = dialog.getInputField()
+            val connection = requireNotNull(input.onCreateInputConnection(EditorInfo()))
+
+            // Begin composing an incomplete reading. The input filter makes the phrase longer.
+            connection.setComposingText("親\u3000こ", 1)
+            assertEquals("親::こ", input.text.toString())
+
+            // The IME replaces the composing range with the chosen characters. On the buggy
+            // revision, the filter lost that range, so the committed phrase is appended instead.
+            connection.commitText("親\u3000子", 1)
+            assertEquals("親::子", input.text.toString())
+        }
+    }
+
+    /**
+     * A copied tag can start with an ideographic space. Only a space inside a tag name
+     * should create a hierarchy separator. There is no parent before a leading space.
+     */
+    @Test
+    fun `pasted leading ideographic space does not create an empty parent tag`() {
+        withAddTagDialog(emptyList()) { dialog ->
+            val input = dialog.getInputField()
+            // Supply the entire clipboard text to the filter in one edit, including its indentation.
+            input.setText("\u3000子")
+
+            // Fails on the buggy revision, where `::子` produces a spurious `blank::子` tag on submission.
+            assertEquals("子", input.text.toString().trim())
+        }
+    }
+
+    @Test
     fun `long-clicking a tag opens the add tag dialog prefilled with the tag as a prefix`() {
         val tag = "parent"
         runTagsDialogScenario(args = editTagsArguments(listOf(tag))) { tagsDialog ->
-            val recycler = tagsDialog.binding.tagsList
-            // Force layout so Robolectric creates the tag row.
-            recycler.measure(0, 0)
-            recycler.layout(0, 0, 100, 1000)
+            val recycler = tagsDialog.forceLayout()
             val row = RecyclerViewUtils.viewHolderAt<TagsArrayAdapter.ViewHolder>(recycler, 0)
             row.itemView.performLongClick()
             advanceRobolectricLooper()
             val addTagDialog = ShadowDialog.getLatestDialog() as AlertDialog
             assertEquals("$tag::", addTagDialog.getInputField().text.toString())
+        }
+    }
+
+    @Test
+    fun `long-clicking a tag is ignored in every dialog type except EDIT_TAGS`() {
+        // CUSTOM_STUDY only lists the tags of the notes passed in, so pass a tagged note
+        val noteId =
+            addBasicNote().id.also {
+                col.tags.bulkAdd(
+                    noteIds = listOf(it),
+                    tags = "tag",
+                )
+            }
+        for (type in TagsDialog.DialogType.entries - TagsDialog.DialogType.EDIT_TAGS) {
+            val args =
+                TagsDialog()
+                    .withArguments(
+                        context = targetContext,
+                        type = type,
+                        noteIds = listOf(noteId),
+                    ).requireArguments()
+            runTagsDialogScenario(args = args) { tagsDialog ->
+                val recycler = tagsDialog.forceLayout()
+                val row = RecyclerViewUtils.viewHolderAt<TagsArrayAdapter.ViewHolder>(recycler, 0)
+                val dialogBefore = ShadowDialog.getLatestDialog()
+                val consumed = row.itemView.performLongClick()
+                advanceRobolectricLooper()
+                assertFalse(
+                    actual = consumed,
+                    message = "$type: the long click should not be consumed",
+                )
+                assertEquals(
+                    expected = dialogBefore,
+                    actual = ShadowDialog.getLatestDialog(),
+                    message = "$type: no add tag dialog should be shown",
+                )
+            }
         }
     }
 
@@ -1006,7 +527,7 @@ class TagsDialogTest : RobolectricTest() {
         factory: TagsDialogFactory? = null,
         block: (TagsDialog) -> Unit,
     ) {
-        FragmentScenario.launch(TagsDialog::class.java, args, CommonR.style.Theme_Light, factory).use { scenario ->
+        FragmentScenario.launch(TagsDialog::class.java, args, CommonR.style.Theme_AnkiDroid, factory).use { scenario ->
             scenario.moveToState(Lifecycle.State.STARTED)
             scenario.onFragment { tagsDialog: TagsDialog ->
                 advanceRobolectricLooperUntil { tagsDialog.binding.tagsList.adapter != null }
@@ -1015,6 +536,16 @@ class TagsDialogTest : RobolectricTest() {
         }
     }
 }
+
+/**
+ * Forces layout so Robolectric creates the tag row.
+ * Workaround for the robolectric recyclerView issue.
+ */
+private fun TagsDialog.forceLayout(height: Int = 1000): RecyclerView =
+    binding.tagsList.also {
+        it.measure(0, 0)
+        it.layout(0, 0, 100, height)
+    }
 
 val TagsArrayAdapter.ViewHolder.checkBoxView: CheckBoxTriStates
     get() = this.binding.checkBoxView

@@ -16,6 +16,8 @@ import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.setFragmentResult
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LiveData
 import com.google.android.material.chip.Chip
 import com.google.android.material.color.MaterialColors
@@ -48,6 +50,7 @@ import com.ichi2.utils.Permissions
 import com.ichi2.utils.customView
 import com.ichi2.utils.negativeButton
 import com.ichi2.utils.neutralButton
+import com.ichi2.utils.outlineWindow
 import com.ichi2.utils.positiveButton
 import kotlinx.parcelize.Parcelize
 import timber.log.Timber
@@ -150,6 +153,7 @@ class AddEditReminderDialog : DialogFragment() {
         super.onResume()
         val timePickerDialog = parentFragmentManager.findFragmentByTag(TIME_PICKER_TAG) as? MaterialTimePicker
         timePickerDialog?.let {
+            it.outlineWindow()
             it.clearOnPositiveButtonClickListeners()
             it.addOnPositiveButtonClickListener {
                 viewModel.setTime(ReviewReminderTime(timePickerDialog.hour, timePickerDialog.minute))
@@ -338,7 +342,17 @@ class AddEditReminderDialog : DialogFragment() {
         dialog.addOnPositiveButtonClickListener {
             viewModel.setTime(ReviewReminderTime(dialog.hour, dialog.minute))
         }
+        dialog.outlineWindow()
         dialog.show(parentFragmentManager, TIME_PICKER_TAG)
+    }
+
+    /** Outlines the picker's window in E-ink once its dialog exists. See [outlineWindow]. */
+    private fun MaterialTimePicker.outlineWindow() {
+        lifecycle.addObserver(
+            object : DefaultLifecycleObserver {
+                override fun onStart(owner: LifecycleOwner) = requireDialog().outlineWindow()
+            },
+        )
     }
 
     private fun onSubmit() {

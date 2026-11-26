@@ -55,14 +55,9 @@ class PreferencesTest : RobolectricTest() {
     }
 
     @Test
-    @Throws(ConfirmModSchemaException::class)
-    fun testDayOffsetExhaustiveV2() {
-        runTest {
-            for (i in 0..23) {
-                setDayOffset(preferences, i)
-                assertThat(CollectionPreferences.getDayOffset(), equalTo(i))
-            }
-        }
+    fun `PreferenceFragmentsProvider lists every preference fragment`() {
+        val expected = PreferenceTestUtils.getAllPreferencesFragments(targetContext).map { it::class }.toSet()
+        assertEquals(expected, PreferenceFragmentsProvider.FRAGMENTS.toSet())
     }
 
     /** checks if any of the Preferences fragments throws while being created */

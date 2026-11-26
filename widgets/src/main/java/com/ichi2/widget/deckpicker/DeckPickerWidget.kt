@@ -9,7 +9,6 @@ import android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import android.util.SizeF
 import android.util.TypedValue
@@ -17,7 +16,7 @@ import android.view.View
 import android.view.View.MeasureSpec
 import android.widget.RemoteViews
 import android.widget.TextView
-import androidx.core.os.BundleCompat
+import androidx.annotation.DrawableRes
 import com.ichi2.anki.CommonString
 import com.ichi2.anki.common.coroutines.applicationScope
 import com.ichi2.anki.common.crashreporting.CrashReportService
@@ -40,6 +39,7 @@ import com.ichi2.widget.cancelRecurringAlarm
 import com.ichi2.widget.getAppWidgetIdsEx
 import com.ichi2.widget.getAppWidgetManager
 import com.ichi2.widget.setRecurringAlarm
+import com.ichi2.widget.sizedRemoteViews
 import com.ichi2.widget.updateAppWidget
 import timber.log.Timber
 import kotlin.math.roundToInt
@@ -57,6 +57,8 @@ class DeckPickerWidget : AnalyticsWidgetProvider() {
          * Key used for passing the selected deck IDs in the intent extras.
          */
         const val EXTRA_SELECTED_DECK_IDS = "deck_picker_widget_selected_deck_ids"
+
+        private const val CORNER_RADIUS_DP = 28
 
         /**
          * Updates the widget with the deck data.
@@ -97,40 +99,8 @@ class DeckPickerWidget : AnalyticsWidgetProvider() {
                 }
 
                 val options = appWidgetManager.getAppWidgetOptions(appWidgetId.id)
-                appWidgetManager.updateAppWidget(appWidgetId, createSizedDeckViews(context, deckData, options))
+                appWidgetManager.updateAppWidget(appWidgetId, sizedRemoteViews(options) { createDeckViews(context, deckData, it) })
             }
-        }
-
-        private suspend fun createSizedDeckViews(
-            context: Context,
-            deckData: List<DeckWidgetData>,
-            options: Bundle,
-        ): RemoteViews {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                val sizes = BundleCompat.getParcelableArrayList(options, AppWidgetManager.OPTION_APPWIDGET_SIZES, SizeF::class.java)
-                if (!sizes.isNullOrEmpty()) {
-                    return RemoteViews(sizes.associateWith { createDeckViews(context, deckData, it) })
-                }
-            }
-            // Older launchers report a size range: landscape is shorter, portrait is taller.
-            return RemoteViews(
-                createDeckViews(
-                    context,
-                    deckData,
-                    SizeF(
-                        options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH).toFloat(),
-                        options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT).toFloat(),
-                    ),
-                ),
-                createDeckViews(
-                    context,
-                    deckData,
-                    SizeF(
-                        options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH).toFloat(),
-                        options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT).toFloat(),
-                    ),
-                ),
-            )
         }
 
         private suspend fun createDeckViews(
@@ -191,7 +161,22 @@ class DeckPickerWidget : AnalyticsWidgetProvider() {
                 remoteViews.addView(R.id.deckCollection, deckView)
             }
 
+            val cornersTooRound = size.height > 0 && size.height < CORNER_RADIUS_DP * 3
+            remoteViews.setBackgrounds(
+                if (cornersTooRound) {
+                    R.drawable.widget_deck_picker_rounded_background_small
+                } else {
+                    R.drawable.widget_deck_picker_rounded_background
+                },
+            )
             return remoteViews
+        }
+
+        private fun RemoteViews.setBackgrounds(
+            @DrawableRes background: Int,
+        ) {
+            setInt(android.R.id.background, "setBackgroundResource", background)
+            setInt(R.id.deckCollection, "setBackgroundResource", background)
         }
 
         /** Shrink the first row only when its configured text size cannot fit in the widget. */
@@ -234,6 +219,7 @@ class DeckPickerWidget : AnalyticsWidgetProvider() {
             remoteViews.setTextViewText(R.id.empty_widget, context.getString(CommonString.empty_collection_state_in_widget))
             remoteViews.setViewVisibility(R.id.empty_widget, View.VISIBLE)
             remoteViews.setViewVisibility(R.id.deckCollection, View.GONE)
+            remoteViews.setBackgrounds(R.drawable.widget_deck_picker_rounded_background)
 
             val configIntent = with(DeferredNavigation) { WidgetConfigDestination.DeckPicker(appWidgetId.id).toIntent() }
             val configPendingIntent =
@@ -257,6 +243,7 @@ class DeckPickerWidget : AnalyticsWidgetProvider() {
             remoteViews.setTextViewText(R.id.empty_widget, context.getString(CommonString.empty_widget_state))
             remoteViews.setViewVisibility(R.id.empty_widget, View.VISIBLE)
             remoteViews.setViewVisibility(R.id.deckCollection, View.GONE)
+            remoteViews.setBackgrounds(R.drawable.widget_deck_picker_rounded_background)
 
             val configIntent = with(DeferredNavigation) { WidgetConfigDestination.DeckPicker(appWidgetId.id).toIntent() }
             val configPendingIntent =

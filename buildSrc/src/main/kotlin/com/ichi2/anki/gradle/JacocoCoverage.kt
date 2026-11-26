@@ -12,6 +12,7 @@ import com.ichi2.anki.gradle.HasUnitTestSources.Companion.hasAndroidUnitTestSour
 import org.gradle.api.DomainObjectSet
 import org.gradle.api.Project
 import org.gradle.api.artifacts.component.ProjectComponentIdentifier
+import org.gradle.api.file.FileTree
 import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.TaskProvider
 import org.gradle.api.tasks.testing.Test
@@ -50,35 +51,57 @@ fun Project.registerJacocoCoverageReports(
     // Our merge report task
     val mergedReport =
         tasks.register<JacocoReport>("jacocoTestReport") {
-            configureJacocoReportOutput(layout, openReportRequested, linuxHtmlCmd)
+            configureJacocoReportOutput(
+                layout = layout,
+                openReportRequested = openReportRequested,
+                linuxHtmlCmd = linuxHtmlCmd,
+            )
         }
 
     // A unit-test only report task
     val unitTestReport =
         tasks.register<JacocoReport>("jacocoUnitTestReport") {
-            configureJacocoReportOutput(layout, openReportRequested, linuxHtmlCmd)
+            configureJacocoReportOutput(
+                layout = layout,
+                openReportRequested = openReportRequested,
+                linuxHtmlCmd = linuxHtmlCmd,
+            )
         }
 
     // A connected android tests only report task
     val androidTestReport =
         tasks.register<JacocoReport>("jacocoAndroidTestReport") {
-            configureJacocoReportOutput(layout, openReportRequested, linuxHtmlCmd)
+            configureJacocoReportOutput(
+                layout = layout,
+                openReportRequested = openReportRequested,
+                linuxHtmlCmd = linuxHtmlCmd,
+            )
         }
 
+    val unitCoverage =
+        UnitTestCoverageReports(
+            app = project,
+            aggregate = unitTestReport,
+        )
     configureAndroidAppCoverage(
-        unitTestReport,
-        androidTestReport,
-        mergedReport,
-        rootProject.androidTestVariantName,
-        fileFilter,
+        unitCoverage = unitCoverage,
+        androidTestReport = androidTestReport,
+        mergedReport = mergedReport,
+        androidTestVariantName = rootProject.androidTestVariantName,
+        classExcludes = fileFilter,
     )
 
     // Libraries may already be configured. Subscribe to the captured variants,
     // then select runtime dependencies when the report's graph is available.
     for (module in rootProject.allprojects.filter { it != project }) {
-        val includeModule = { module in runtimeProjectDependencies("playDebugRuntimeClasspath") }
-        module.configureAndroidLibraryCoverage(unitTestReport, fileFilter, includeModule)
-        module.configureJvmCoverage(unitTestReport, fileFilter, includeModule)
+        module.configureAndroidLibraryCoverage(
+            unitCoverage = unitCoverage,
+            classExcludes = fileFilter,
+        )
+        module.configureJvmCoverage(
+            unitCoverage = unitCoverage,
+            classExcludes = fileFilter,
+        )
     }
 }
 
@@ -87,7 +110,7 @@ fun Project.registerJacocoCoverageReports(
  * The merged report uses the emulator variant's classes and both tests' execution data.
  */
 private fun Project.configureAndroidAppCoverage(
-    unitTestReport: TaskProvider<JacocoReport>,
+    unitCoverage: UnitTestCoverageReports,
     androidTestReport: TaskProvider<JacocoReport>,
     mergedReport: TaskProvider<JacocoReport>,
     androidTestVariantName: String,
@@ -100,43 +123,66 @@ private fun Project.configureAndroidAppCoverage(
             variant.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = true
         }
         onVariants(selector().withName("playDebug")) { debugVariant ->
-            includeAndroidClasses(unitTestReport, debugVariant, classExcludes)
-            includeTestExecutionData(unitTestReport, "testPlayDebugUnitTest", "**/*.exec")
-            includeTestExecutionData(mergedReport, "testPlayDebugUnitTest", "**/*.exec")
+            unitCoverage.registerAndroidSuite(
+                module = project,
+                variant = debugVariant,
+                classExcludes = classExcludes,
+            )
+            includeTestExecutionData(
+                report = mergedReport,
+                taskName = "testPlayDebugUnitTest",
+                pattern = "**/*.exec",
+            )
         }
 
         onVariants(selector().withName("play$androidTestVariantName")) { androidTestVariant ->
             val connectedTest = "connectedPlay${androidTestVariantName}AndroidTest"
-            includeAndroidClasses(androidTestReport, androidTestVariant, classExcludes)
-            includeTestExecutionData(androidTestReport, connectedTest, "**/*.ec")
-            includeAndroidClasses(mergedReport, androidTestVariant, classExcludes)
-            includeTestExecutionData(mergedReport, connectedTest, "**/*.ec")
+            includeAndroidClasses(
+                report = androidTestReport,
+                variant = androidTestVariant,
+                classExcludes = classExcludes,
+            )
+            includeTestExecutionData(
+                report = androidTestReport,
+                taskName = connectedTest,
+                pattern = "**/*.ec",
+            )
+            includeAndroidClasses(
+                report = mergedReport,
+                variant = androidTestVariant,
+                classExcludes = classExcludes,
+            )
+            includeTestExecutionData(
+                report = mergedReport,
+                taskName = connectedTest,
+                pattern = "**/*.ec",
+            )
         }
     }
 }
 
 /** Adds an Android library's debug classes and unit-test coverage to a report. */
 private fun Project.configureAndroidLibraryCoverage(
-    report: TaskProvider<JacocoReport>,
+    unitCoverage: UnitTestCoverageReports,
     classExcludes: List<String>,
-    includeModule: () -> Boolean,
 ) {
     val coverageVariants = extensions.getByType(JacocoLibraryVariants::class.java)
     coverageVariants.variants.all {
-        includeAndroidClasses(report, this, classExcludes, includeModule)
-        // Classes from libraries without tests still count as uncovered.
-        // Their empty test tasks may require resources supplied by the app.
-        includeTestExecutionData(report, "testDebugUnitTest", "**/*.exec") {
-            includeModule() && hasAndroidUnitTestSources()
+        unitCoverage.registerAndroidSuite(
+            module = project,
+            variant = this,
+            classExcludes = classExcludes,
+        ) {
+            // Empty Android library test tasks may require resources supplied by the app.
+            hasAndroidUnitTestSources()
         }
     }
 }
 
 /** Adds a JVM module's main classes and unit-test coverage to a report. */
 private fun Project.configureJvmCoverage(
-    report: TaskProvider<JacocoReport>,
+    unitCoverage: UnitTestCoverageReports,
     classExcludes: List<String>,
-    includeModule: () -> Boolean,
 ) {
     pluginManager.withPlugin("java") {
         val mainSourceSet = extensions.getByType(SourceSetContainer::class.java).named("main")
@@ -146,12 +192,13 @@ private fun Project.configureJvmCoverage(
                 sourceSet.output.classesDirs.asFileTree
                     .matching { exclude(classExcludes) }
             }
-        report.configure {
-            if (!includeModule()) return@configure
-            sourceDirectories.from(sources)
-            classDirectories.from(classes)
-        }
-        includeTestExecutionData(report, "test", "**/*.exec", includeModule)
+        unitCoverage.registerSuite(
+            module = project,
+            taskName = "test",
+            runtimeClasspath = "testRuntimeClasspath",
+            sources = files(sources),
+            classes = files(classes),
+        )
     }
 }
 
@@ -159,8 +206,24 @@ private fun Project.includeAndroidClasses(
     report: TaskProvider<JacocoReport>,
     variant: Variant,
     classExcludes: List<String>,
-    includeModule: () -> Boolean = { true },
 ) {
+    val classes =
+        androidCoverageClasses(
+            report = report,
+            variant = variant,
+            classExcludes = classExcludes,
+        )
+    report.configure {
+        classDirectories.from(classes)
+        sourceDirectories.from(variant.sources.java?.all, variant.sources.kotlin?.all)
+    }
+}
+
+internal fun Project.androidCoverageClasses(
+    report: TaskProvider<JacocoReport>,
+    variant: Variant,
+    classExcludes: List<String>,
+): FileTree {
     val classInputs = objects.newInstance(AndroidCoverageInputs::class.java)
     val projectArtifacts = variant.artifacts.forScope(ScopedArtifacts.Scope.PROJECT)
     projectArtifacts.use(report).toGet(
@@ -168,14 +231,10 @@ private fun Project.includeAndroidClasses(
         { classInputs.jars },
         { classInputs.directories },
     )
-    report.configure {
-        if (!includeModule()) return@configure
-        classDirectories.from(classInputs.classes.matching { exclude(classExcludes) })
-        sourceDirectories.from(variant.sources.java?.all, variant.sources.kotlin?.all)
-    }
+    return classInputs.classes.matching { exclude(classExcludes) }
 }
 
-private fun Project.includeTestExecutionData(
+internal fun Project.includeTestExecutionData(
     report: TaskProvider<JacocoReport>,
     taskName: String,
     pattern: String,
@@ -190,7 +249,11 @@ private fun Project.includeTestExecutionData(
         executionData.from(coverageFiles)
         dependsOn(testTask)
         if (pattern == "**/*.exec") {
-            runUnitTestsWithoutCaching(this, coverageProject, taskName)
+            runUnitTestsWithoutCaching(
+                report = this,
+                project = coverageProject,
+                taskName = taskName,
+            )
         }
     }
 }

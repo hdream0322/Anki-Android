@@ -3,22 +3,21 @@
 package com.ichi2.testutils
 
 import android.content.SharedPreferences
-import android.content.res.Resources
 import com.github.ivanshafran.sharedpreferencesmock.SPMockBuilder
 import com.ichi2.anki.AnkiDroidApp
-import io.mockk.every
-import io.mockk.mockk
+import com.ichi2.anki.common.preferences.SharedPreferencesTestHook
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 
-/** Isolate singleton preferences without constructing an Android application or loading resources. */
+/**
+ * Isolate singleton preferences without constructing an Android application or loading resources.
+ *
+ * Keys resolve as in [inMemoryPrefs]: use [com.ichi2.anki.settings.Prefs.key] to address them.
+ */
 class JvmPreferencesRule : TestRule {
     val preferences: SharedPreferences = SPMockBuilder().createSharedPreferences()
-    private val resources =
-        mockk<Resources>().also { resources ->
-            every { resources.getString(any()) } answers { firstArg<Int>().toString() }
-        }
+    private val resources = idAsStringResources()
 
     override fun apply(
         base: Statement,
@@ -26,14 +25,14 @@ class JvmPreferencesRule : TestRule {
     ): Statement =
         object : Statement() {
             override fun evaluate() {
-                val previous = AnkiDroidApp.sharedPreferencesTestingOverride
+                val previous = SharedPreferencesTestHook.override
                 val previousResources = AnkiDroidApp.resourcesTestingOverride
                 try {
                     AnkiDroidApp.resourcesTestingOverride = resources
-                    AnkiDroidApp.sharedPreferencesTestingOverride = preferences
+                    SharedPreferencesTestHook.override = preferences
                     base.evaluate()
                 } finally {
-                    AnkiDroidApp.sharedPreferencesTestingOverride = previous
+                    SharedPreferencesTestHook.override = previous
                     AnkiDroidApp.resourcesTestingOverride = previousResources
                 }
             }

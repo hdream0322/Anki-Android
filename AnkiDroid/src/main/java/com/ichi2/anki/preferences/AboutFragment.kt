@@ -21,7 +21,6 @@ import com.ichi2.anki.R
 import com.ichi2.anki.common.utils.android.showThemedToast
 import com.ichi2.anki.databinding.FragmentAboutBinding
 import com.ichi2.anki.launchCatchingTask
-import com.ichi2.anki.requireAnkiActivity
 import com.ichi2.anki.scheduling.Fsrs
 import com.ichi2.anki.servicelayer.DebugInfoService
 import com.ichi2.anki.settings.Prefs

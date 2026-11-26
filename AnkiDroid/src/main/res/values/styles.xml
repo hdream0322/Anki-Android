@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="UnusedResources,DuplicateCrowdInStrings">
 
-    <style name="Theme_Dark.Launcher">
+    <style name="Theme.AnkiDroid.Launcher">
         <item name="android:windowBackground">@drawable/launch_screen</item>
+        <item name="android:colorBackground">@color/material_theme_grey</item>
+        <item name="android:statusBarColor">#3d3d3d</item>
+        <item name="android:navigationBarColor">@color/material_theme_grey</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">false</item>
     </style>
 
     <style name="Animation.Translucent" parent="@android:style/Animation.Translucent">
@@ -13,15 +18,6 @@
     <!-- Nav drawer style to set width specified by Material Design specification -->
     <style name="NavDrawer">
         <item name="android:layout_marginRight">@dimen/nav_drawer_margin_offset</item>
-    </style>
-
-    <style name="AnswerButton" parent="Widget.Material3.Button.ElevatedButton">
-        <item name="android:padding">0dp</item>
-        <item name="cornerRadius">@dimen/answer_button_corner_radius</item>
-        <item name="android:textSize">@dimen/reviewer_answer_button_textSize</item>
-        <item name="elevation">?attr/studyScreenElevation</item>
-        <item name="strokeWidth">?attr/widgetStrokeWidth</item>
-        <item name="strokeColor">?attr/widgetStrokeColor</item>
     </style>
 
     <!--  Material Design-style persistent footer button -->
@@ -100,20 +96,20 @@
         <item name="tabTextAppearance">@style/TextAppearance.Material3.LabelLarge</item>
         <item name="tabIndicator">@drawable/tab_layout_indicator_floating_pill</item>
         <item name="tabIndicatorHeight">14dp</item>
-        <item name="tabTextColor">@color/white</item>
-        <item name="tabIndicatorColor">@color/white</item>
+        <item name="tabTextColor">?attr/actionBarTextColor</item>
+        <item name="tabIndicatorColor">?attr/actionBarTextColor</item>
     </style>
     <style name="ThemeOverlay.App.TabLayout" parent="">
-        <item name="colorSurface">?attr/tabLayoutBackgroundColor</item> <!-- Background -->
-        <item name="colorOnSurfaceVariant">#cfff</item> <!-- Not selected text color -->
+        <item name="colorSurface">?attr/appBarColor</item> <!-- Background -->
+        <item name="colorOnSurfaceVariant">@color/tab_unselected_text_color</item> <!-- Not selected text color -->
     </style>
 
     <style name="BottomNavigationViewStyle" parent="@style/Widget.Material3.BottomNavigationView">
         <item name="materialThemeOverlay">@style/ThemeOverlay.App.BottomNavigationView</item>
     </style>
     <style name="ThemeOverlay.App.BottomNavigationView" parent="">
-        <item name="colorSecondaryContainer">?attr/tabLayoutBackgroundColor</item> <!-- Selected item indicator -->
-        <item name="colorOnSecondaryContainer">?attr/tabActiveIconColor</item> <!-- Active icon -->
+        <item name="colorSecondaryContainer">?attr/bottomNavIndicatorColor</item> <!-- Selected item indicator -->
+        <item name="colorOnSecondaryContainer">?attr/bottomNavActiveIconColor</item> <!-- Active icon -->
         <item name="colorOnSurface">?attr/colorPrimary</item> <!-- Active icon -->
         <item name="colorOnSurfaceVariant">?attr/colorPrimary</item> <!-- Inactive icon & label -->
         <item name="textAppearanceTitleSmall">@style/TextAppearance.Material3.TitleSmall</item>
@@ -145,7 +141,6 @@
     </style>
 
     <style name="AlertDialogStyle" parent="Theme.AppCompat.Dialog.Alert">
-        <item name="colorPrimary">?attr/progressDialogButtonTextColor</item>
         <item name="buttonTint">?attr/colorOnPrimary</item>
         <item name="dialogCornerRadius">@dimen/dialog_corner_radius</item>
         <item name="android:dialogCornerRadius" tools:targetApi="p">@dimen/dialog_corner_radius</item>
@@ -189,9 +184,17 @@
 
     <style name="TimePickerStyle" parent="ThemeOverlay.Material3.MaterialTimePicker">
         <item name="elevationOverlayEnabled">false</item>
-        <item name="colorTertiaryContainer">?colorPrimary</item>
-        <item name="colorOnTertiaryContainer">?colorOnPrimary</item>
-        <item name="colorPrimaryContainer">?colorPrimary</item>
+        <item name="chipStyle">@style/TimePickerStyle.Display</item>
+        <item name="materialClockStyle">@style/TimePickerStyle.Clock</item>
+    </style>
+
+    <style name="TimePickerStyle.Display" parent="Widget.Material3.MaterialTimePicker.Display">
+        <item name="chipStrokeWidth">?attr/widgetStrokeWidth</item>
+        <item name="chipStrokeColor">?attr/widgetStrokeColor</item>
+    </style>
+
+    <style name="TimePickerStyle.Clock" parent="Widget.Material3.MaterialTimePicker.Clock">
+        <item name="android:foreground">@drawable/time_picker_clock_outline</item>
     </style>
 
     <!-- Applied to a TextInputLayout which should show the error outline, but not an error message. -->
@@ -221,5 +224,7 @@
         <item name="iconGravity">textEnd</item>
         <item name="iconTint">@color/sort_pill_content_color</item>
         <item name="backgroundTint">@color/sort_pill_background_color</item>
+        <item name="strokeWidth">?attr/widgetStrokeWidth</item>
+        <item name="strokeColor">?attr/widgetStrokeColor</item>
     </style>
 </resources>

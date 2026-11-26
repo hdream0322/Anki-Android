@@ -6,7 +6,7 @@
     android:id="@+id/root_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?attr/alternativeBackgroundColor"
+    android:background="?attr/colorSurfaceDim"
     android:fitsSystemWindows="true"
     android:focusableInTouchMode="true"
     android:defaultFocusHighlightEnabled="false"
@@ -189,7 +189,7 @@
                 android:visibility="gone"
                 tools:layout="@layout/fragment_check_pronunciation" />
 
-            <com.ichi2.anki.ui.windows.reviewer.AnswerAreaView
+            <androidx.compose.ui.platform.ComposeView
                 android:id="@+id/answer_area"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"/>

@@ -4,6 +4,7 @@
 package com.ichi2.anki
 
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.withStarted
 import anki.collection.OpChangesOnly
 import anki.import_export.ImportAnkiPackageRequest
 import anki.search.SearchNode
@@ -59,9 +60,18 @@ val hideShowButtonCss =
 /**
  * Calls the native [CardBrowser] to display the results of the search query constructed from the
  * input. This method will always return the received input.
+ *
+ * @param awaitPageShown called once the query is built, as the page may be hidden while the collection is busy
  */
-suspend fun FragmentActivity.searchInBrowser(input: ByteArray): ByteArray {
+suspend fun FragmentActivity.searchInBrowser(
+    input: ByteArray,
+    awaitPageShown: suspend () -> Unit,
+): ByteArray {
     val searchString = withCol { buildSearchString(listOf(SearchNode.parseFrom(input))) }
-    navigate(BrowserDestination.Search(query = searchString, allDecks = true))
+    awaitPageShown()
+    // Collection access can suspend past onStop, so wait until the activity is visible again.
+    withStarted {
+        navigate(BrowserDestination.Search(query = searchString, allDecks = true))
+    }
     return input
 }

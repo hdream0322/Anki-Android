@@ -2,20 +2,31 @@
 
 package com.ichi2.anki.tags
 
-import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.lifecycle.ViewModelStore
 import androidx.test.filters.MediumTest
+import anki.collection.opChanges
 import com.ichi2.anki.CollectionManager
-import com.ichi2.anki.RobolectricTest
 import com.ichi2.anki.dialogs.utils.AnKingTags
 import com.ichi2.anki.exception.CollectionLockedException
+import com.ichi2.anki.observability.ChangeCounter
+import com.ichi2.anki.observability.ChangeManager
 import com.ichi2.anki.observability.ensureOpsExecuted
-import com.ichi2.testutils.NeedsRobolectric
+import com.ichi2.anki.observability.undoableOp
+import com.ichi2.testutils.JvmTest
+import com.ichi2.testutils.rules.IcuCaseFoldingRule
+import com.ichi2.testutils.withCollectionAccessOn
+import com.ichi2.testutils.withViewModel
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withContext
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.containsInAnyOrder
 import org.hamcrest.Matchers.equalTo
@@ -25,8 +36,8 @@ import org.hamcrest.Matchers.instanceOf
 import org.hamcrest.Matchers.not
 import org.hamcrest.Matchers.nullValue
 import org.hamcrest.Matchers.sameInstance
+import org.junit.Rule
 import org.junit.Test
-import org.junit.runner.RunWith
 import kotlin.system.measureTimeMillis
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -39,11 +50,695 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 /** Integration tests for [ManageTagsViewModel] with a real collection */
-@RunWith(AndroidJUnit4::class)
-@NeedsRobolectric(
-    "Preserve RobolectricTest's scoped CollectionManager dispatcher when switching to JvmTest; tag operations must finish before assertions and teardown.",
-)
-class ManageTagsViewModelTest : RobolectricTest() {
+class ManageTagsViewModelTest : JvmTest() {
+    @get:Rule
+    val caseFolding = IcuCaseFoldingRule()
+
+    @Test
+    fun `preparing rename blocks overlapping requests and mutations until eligibility is known`() =
+        runTest {
+            val note = addTags("source")
+            withViewModel {
+                withQueuedCollectionAccess {
+                    val tag = TagName.asValid("source")
+                    val request = async(start = CoroutineStart.UNDISPATCHED) { prepareRename(tag) }
+                    assertFalse(request.isCompleted)
+                    assertTrue(loadedState.isWorking)
+                    val repeatedRequest = async(start = CoroutineStart.UNDISPATCHED) { prepareRename(tag) }
+                    val deletion = removeTag(tag)
+
+                    assertEquals(true, request.await())
+                    assertNull(repeatedRequest.await())
+                    assertFalse(deletion.accepted)
+                    deletion.job.join()
+                    assertFalse(loadedState.isWorking)
+                }
+                assertEquals(listOf("source"), col.getNote(note.id).tags)
+            }
+        }
+
+    @Test
+    fun `preparing rename distinguishes unused tags from failed checks`() =
+        runTest {
+            addUnusedTags("unused")
+            withViewModel {
+                val tag = TagName.asValid("unused")
+                assertEquals(false, prepareRename(tag))
+                assertNull(loadedState.error)
+                val warning = pendingMessages.value.single()
+                assertEquals(UserMessage.NoNotesToRename, warning.message)
+                messageShown(warning.id)
+                withLockedCollection { assertNull(prepareRename(tag)) }
+                assertIs<CollectionLockedException>(loadedState.error)
+                assertFalse(loadedState.isWorking)
+                assertTrue(pendingMessages.value.isEmpty())
+            }
+        }
+
+    /**
+     * Pressing R checks whether the tag can be renamed before the rename dialog opens. The check
+     * is a tag operation, and unlike the others, it does not reload the tags when it finishes.
+     *
+     * Bug: if the collection changes elsewhere during the check (an API client adds a tag, for
+     * example), the refresh requested by [ManageTagsViewModel.opExecuted] is merged into the running
+     * check and lost. The dialog then validates against the old tags: renaming to the added tag's
+     * name is accepted, rather than reported as existing, and merges the two tags.
+     *
+     * Correct behavior: when the check finishes, the screen knows about the added tag.
+     */
+    @Test
+    fun `a tag added while preparing a rename is known when the rename dialog opens`() =
+        runTest {
+            val note = addTags("source")
+            withViewModel {
+                val source = TagName.asValid("source")
+                // Obtained before queueing: reading `col` would wait for the queue, blocking the test
+                val collection = col
+                // Collection access waits for the test scheduler, so the check stays in progress
+                withQueuedCollectionAccess {
+                    val preparation = async(start = CoroutineStart.UNDISPATCHED) { prepareRename(source) }
+                    assertTrue(loadedState.isWorking)
+
+                    // Another component adds 'destination' and notifies subscribers during the check.
+                    // This bypasses the queue, as the change does not come from this screen.
+                    collection.getNote(note.id).also {
+                        it.addTag("destination")
+                        assertTrue(collection.updateNote(it).note)
+                    }
+                    ChangeManager.notifySubscribersAllValuesChanged()
+
+                    // The tag is used, so the rename dialog opens as soon as the check returns
+                    assertEquals(true, preparation.await())
+                    // Fails on the buggy revision (expected ALREADY_EXISTS, was VALID):
+                    // the dialog checked the tags loaded before 'destination' was added
+                    assertEquals(TagInputValidation.ALREADY_EXISTS, validateTagRename(source, "destination", ::tagExists))
+                }
+            }
+        }
+
+    /**
+     * A second collection notification can arrive after the first tag read, while that read's
+     * result is still queued on Main. Keep destructive controls disabled through the follow-up
+     * read so the UI cannot submit a confirmation that the in-flight operation will drop.
+     */
+    @Test
+    fun `tag actions remain disabled between coalesced refresh reads`() =
+        runTest {
+            val note = addTags("source")
+            val collection = col
+            withViewModel {
+                // Pause collection and UI work independently so Main can publish the first tree
+                // while the follow-up collection read is still waiting.
+                val backendScheduler = TestCoroutineScheduler()
+                val previousQueue = CollectionManager.setTestDispatcher(StandardTestDispatcher(backendScheduler), useReentrantLock = false)
+                val mainDispatcher = StandardTestDispatcher(testScheduler)
+                Dispatchers.setMain(mainDispatcher)
+                try {
+                    val refresh = refreshTags()
+                    runCurrent()
+                    backendScheduler.runCurrent()
+
+                    // The completed read cannot contain this edit. The existing refresh job must
+                    // absorb the notification and read the tree again before becoming idle.
+                    collection.getNote(note.id).also {
+                        it.addTag("destination")
+                        assertTrue(collection.updateNote(it).note)
+                    }
+                    // The callback is already on Main, so the viewModelScope launch starts immediately.
+                    Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+                    ChangeManager.notifySubscribersAllValuesChanged()
+                    Dispatchers.setMain(mainDispatcher)
+                    runCurrent()
+
+                    assertFalse(refresh.isCompleted)
+                    // Fails on the buggy head: publishing the first tree re-enables actions even
+                    // though the refresh is still running and will reject a Delete confirmation.
+                    assertTrue(loadedState.isWorking)
+
+                    backendScheduler.runCurrent()
+                    runCurrent()
+                    assertTrue(refresh.isCompleted)
+                    assertFalse(loadedState.isWorking)
+                    assertTrue(tagExists(TagName.asValid("destination")))
+                } finally {
+                    CollectionManager.setTestDispatcher(previousQueue)
+                    Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+                }
+            }
+        }
+
+    /**
+     * The last note carrying a tag can change while the result of the shortcut's eligibility
+     * check is still waiting on Main. The shortcut must use eligibility from the updated tree.
+     */
+    @Test
+    fun `preparing a rename rechecks eligibility after a coalesced collection change`() =
+        runTest {
+            val note = addTags("source")
+            val collection = col
+            val source = TagName.asValid("source")
+            withViewModel {
+                // Finish the old eligibility read before Main can consume its result.
+                val backendScheduler = TestCoroutineScheduler()
+                val previousQueue = CollectionManager.setTestDispatcher(StandardTestDispatcher(backendScheduler), useReentrantLock = false)
+                Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+                try {
+                    val preparation = async { prepareRename(source) }
+                    runCurrent()
+                    backendScheduler.runCurrent()
+                    assertFalse(preparation.isCompleted)
+
+                    // A background edit removes the last use; its cached tag remains visible.
+                    collection.getNote(note.id).also {
+                        it.removeTag("source")
+                        assertTrue(collection.updateNote(it).note)
+                    }
+                    ChangeManager.notifySubscribersAllValuesChanged()
+                    repeat(4) {
+                        runCurrent()
+                        backendScheduler.runCurrent()
+                    }
+                    runCurrent()
+
+                    assertTrue(tagExists(source))
+                    // Fails on the buggy head: stale true opens a dialog for a tag with no notes.
+                    assertEquals(false, preparation.await())
+                    assertEquals(UserMessage.NoNotesToRename, pendingMessages.value.single().message)
+                } finally {
+                    CollectionManager.setTestDispatcher(previousQueue)
+                    Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+                }
+            }
+        }
+
+    /**
+     * A collection change can invalidate rename eligibility after the ViewModel check finishes
+     * and before the keyboard shortcut resumes. The shortcut must use the latest eligibility.
+     */
+    @Test
+    fun `preparing a rename checks changes before the shortcut resumes`() =
+        runTest {
+            val note = addTags("source")
+            val collection = col
+            val source = TagName.asValid("source")
+            withViewModel {
+                withQueuedCollectionAccess {
+                    // Drive the shortcut coroutine separately to model the Compose dispatcher.
+                    val shortcutScheduler = TestCoroutineScheduler()
+                    val preparation = async(shortcutScheduler + StandardTestDispatcher(shortcutScheduler)) { prepareRename(source) }
+                    shortcutScheduler.runCurrent()
+                    assertTrue(loadedState.isWorking)
+                    // Finish the check on Main while the shortcut is still waiting to resume.
+                    runCurrent()
+                    assertFalse(loadedState.isWorking)
+                    assertFalse(preparation.isCompleted)
+
+                    // Remove the tag from its only note and let the new refresh finish before
+                    // resuming the shortcut. A pending-refresh flag alone misses this change.
+                    collection.getNote(note.id).also {
+                        it.removeTag("source")
+                        assertTrue(collection.updateNote(it).note)
+                    }
+                    ChangeManager.notifySubscribersAllValuesChanged()
+                    runCurrent()
+                    assertFalse(loadedState.isWorking)
+                    shortcutScheduler.runCurrent()
+                    runCurrent()
+                    shortcutScheduler.runCurrent()
+
+                    assertTrue(preparation.isCompleted)
+                    // Fails on the buggy revision: the shortcut receives the old true result.
+                    assertEquals(false, preparation.await())
+                    assertEquals(UserMessage.NoNotesToRename, pendingMessages.value.single().message)
+                }
+            }
+        }
+
+    /**
+     * A newer rename shortcut should supersede a completed check whose caller is still
+     * suspended, even if a collection refresh arrived between the two shortcuts.
+     */
+    @Test
+    fun `a refresh does not let an older rename shortcut supersede a newer one`() =
+        runTest {
+            addTags("first", "second")
+            withViewModel {
+                withQueuedCollectionAccess {
+                    // Keep the first shortcut's caller paused after the ViewModel finishes its check.
+                    val firstScheduler = TestCoroutineScheduler()
+                    val first = async(firstScheduler + StandardTestDispatcher(firstScheduler)) { prepareRename(TagName.asValid("first")) }
+                    firstScheduler.runCurrent()
+                    runCurrent()
+                    assertFalse(loadedState.isWorking)
+                    assertFalse(first.isCompleted)
+
+                    // A completed refresh changes the revision before a newer shortcut is accepted.
+                    ChangeManager.notifySubscribersAllValuesChanged()
+                    runCurrent()
+                    val second = async { prepareRename(TagName.asValid("second")) }
+                    runCurrent()
+                    assertTrue(second.isCompleted)
+                    assertEquals(true, second.await())
+
+                    // Let the older caller resume after the newer dialog can already be shown.
+                    firstScheduler.runCurrent()
+                    runCurrent()
+                    firstScheduler.runCurrent()
+                    assertTrue(first.isCompleted)
+                    // Fails before the fix because the new refresh revision makes the older shortcut retry and return true.
+                    assertNull(first.await())
+                }
+            }
+        }
+
+    /**
+     * A refresh that cannot read the collection leaves the tag list stale. A shortcut whose
+     * check was paused must reload after the lock clears before it opens the rename dialog.
+     */
+    @Test
+    fun `preparing a rename reloads the tag list after a failed intervening refresh`() =
+        runTest {
+            val note = addTags("source")
+            val collection = col
+            val source = TagName.asValid("source")
+            withViewModel {
+                withQueuedCollectionAccess {
+                    // Let the eligibility check finish, but keep the shortcut continuation paused.
+                    val shortcutScheduler = TestCoroutineScheduler()
+                    val preparation = async(shortcutScheduler + StandardTestDispatcher(shortcutScheduler)) { prepareRename(source) }
+                    shortcutScheduler.runCurrent()
+                    runCurrent()
+                    assertFalse(loadedState.isWorking)
+                    assertFalse(preparation.isCompleted)
+
+                    // Add a conflicting destination and make its notification's reload fail.
+                    collection.getNote(note.id).also {
+                        it.addTag("destination")
+                        assertTrue(collection.updateNote(it).note)
+                    }
+                    withLockedCollection {
+                        ChangeManager.notifySubscribersAllValuesChanged()
+                        runCurrent()
+                    }
+                    assertIs<CollectionLockedException>(loadedState.error)
+
+                    // The lock has cleared, so the shortcut can reload before it returns true.
+                    shortcutScheduler.runCurrent()
+                    runCurrent()
+                    shortcutScheduler.runCurrent()
+                    assertTrue(preparation.isCompleted)
+                    assertEquals(true, preparation.await())
+                    // Fails on the buggy revision: only eligibility is checked again, leaving
+                    // destination validation unaware of the newly added tag.
+                    assertEquals(TagInputValidation.ALREADY_EXISTS, validateTagRename(source, "destination", ::tagExists))
+                }
+            }
+        }
+
+    /**
+     * Pasting a tab between colons can hide a hierarchy separator until backend normalization.
+     * Reject the empty component before the backend can turn it into a `blank` subtag.
+     */
+    @Test
+    fun `rename validation rejects empty components exposed by normalization`() =
+        runTest {
+            // An existing normalized destination makes accepting this name an unintended merge.
+            addTags("source", "target::blank")
+            withViewModel {
+                val source = TagName.asValid("source")
+                val pastedName = "target:\t:"
+                assertTrue(tagExists(TagName.asValid("target::blank")))
+
+                // Fails on the buggy revision: splitting the pasted name before removing its tab
+                // misses the trailing separator, so the dialog would accept the rename.
+                assertEquals(TagInputValidation.EMPTY_COMPONENT, validateTagRename(source, pastedName, ::tagExists))
+            }
+        }
+
+    /**
+     * Removing a pasted tab can bring a letter and combining accent together. The backend
+     * composes them when registering the renamed tag, so validation must use that spelling.
+     */
+    @Test
+    fun `rename validation uses the destination registered by the backend`() =
+        runTest {
+            // Store the composed spelling first, so accepting the paste would merge into it.
+            addTags("source", "Café")
+            withViewModel {
+                val existing = TagName.asValid("Café")
+                val pastedName = "Cafe\t\u0301"
+                assertTrue(tagExists(existing))
+
+                // Fails on the buggy revision: removing the tab leaves an uncomposed spelling
+                // that validation treats as a new tag, even though the backend composes it again.
+                assertEquals(TagInputValidation.ALREADY_EXISTS, validateTagRename(TagName.asValid("source"), pastedName, ::tagExists))
+                // Renaming the existing tag to the same pasted text would leave its spelling unchanged.
+                assertEquals(TagInputValidation.UNCHANGED, validateTagRename(existing, pastedName, ::tagExists))
+            }
+        }
+
+    @Test
+    fun `rename can be repeatedly undone and redone without losing tags`() =
+        runTest {
+            val note = addTags("source::child", "unrelated")
+            withViewModel {
+                renameTag("source", "source::renamed").join()
+                repeat(3) {
+                    ensureOpsExecuted(1) { undo().join() }
+                    assertEquals(setOf("source::child", "unrelated"), col.getNote(note.id).tags.toSet())
+                    assertTrue(tagExists(TagName.asValid("source::child")))
+                    assertNotNull(loadedState.redoLabel)
+
+                    ensureOpsExecuted(1) { redo().join() }
+                    assertEquals(setOf("source::renamed::child", "unrelated"), col.getNote(note.id).tags.toSet())
+                    assertTrue(tagExists(TagName.asValid("source::renamed::child")))
+                    assertNotNull(loadedState.undoLabel)
+                    assertNull(loadedState.redoLabel)
+                }
+                undo().join()
+                removeTag("source").join()
+                assertNull(loadedState.redoLabel)
+                val beforeRedo = col.undoStatus()
+                redo().join()
+                assertEquals(beforeRedo, col.undoStatus())
+            }
+        }
+
+    @Test
+    fun `undo stops before changes made before opening this screen`() =
+        runTest {
+            val note = addTags("source::child", "earlier")
+            col.tags.remove("earlier")
+            val historyBefore = col.undoStatus()
+            withViewModel {
+                assertNull(loadedState.undoLabel)
+                undo().join()
+                assertEquals(historyBefore, col.undoStatus())
+
+                renameTag("source", "renamed").join()
+                removeTag("renamed").join()
+                assertEquals(emptyList(), col.getNote(note.id).tags)
+                assertNotNull(loadedState.undoLabel)
+
+                ensureOpsExecuted(1) { undo().join() }
+                assertEquals(listOf("renamed::child"), col.getNote(note.id).tags)
+                assertTrue(tagExists(TagName.asValid("renamed::child")))
+                assertNotNull(loadedState.undoLabel)
+
+                undo().join()
+                assertEquals(listOf("source::child"), col.getNote(note.id).tags)
+                assertNull(loadedState.undoLabel)
+                val restored = col.undoStatus()
+                undo().join()
+                assertEquals(restored, col.undoStatus())
+                assertEquals(historyBefore.undo, restored.undo)
+                assertEquals(listOf("source::child"), col.getNote(note.id).tags)
+                assertNotNull(loadedState.redoLabel)
+
+                redo().join()
+                assertEquals(listOf("renamed::child"), col.getNote(note.id).tags)
+                redo().join()
+                assertEquals(emptyList(), col.getNote(note.id).tags)
+                assertNull(loadedState.redoLabel)
+            }
+        }
+
+    @Test
+    fun `undo restores unused tags even when no notes were affected`() =
+        runTest {
+            addUnusedTags("unused::child")
+            withViewModel {
+                removeTag("unused").join()
+                assertEquals(0, loadedState.totalTagCount)
+                assertNotNull(loadedState.undoLabel)
+                undo().join()
+                assertTrue(tagExists(TagName.asValid("unused::child")))
+                assertNull(loadedState.undoLabel)
+
+                clearUnusedTags().job.join()
+                assertEquals(0, loadedState.totalTagCount)
+                assertNotNull(loadedState.undoLabel)
+                undo().join()
+                assertTrue(tagExists(TagName.asValid("unused::child")))
+                assertNull(loadedState.undoLabel)
+            }
+        }
+
+    @Test
+    fun `no-op actions do not expose earlier history or consume a local undo`() =
+        runTest {
+            val note = addTags("used")
+            addUnusedTags("unused")
+            withViewModel {
+                renameTag("unused", "unused::child").join()
+                assertNull(loadedState.undoLabel)
+                removeTag("used").join()
+                renameTag("unused", "unused::child").join()
+                removeTag("missing").join()
+                moveTag("unused", null).join()
+                assertNotNull(loadedState.undoLabel)
+                undo().join()
+                assertEquals(listOf("used"), col.getNote(note.id).tags)
+                assertNull(loadedState.undoLabel)
+            }
+        }
+
+    @Test
+    fun `existing undo and redo stay disabled through navigation and failed actions`() =
+        runTest {
+            addTags("parent::child")
+            col.tags.remove("parent")
+            col.undo()
+            val historyBefore = col.undoStatus()
+            assertNotNull(historyBefore.undo)
+            assertNotNull(historyBefore.redo)
+            withViewModel {
+                assertNull(loadedState.undoLabel)
+                assertNull(loadedState.redoLabel)
+                undo().join()
+                redo().join()
+                assertEquals(historyBefore, col.undoStatus())
+
+                toggleCollapsed("parent").join()
+                filter("child")
+                withLockedCollection { removeTag("parent").join() }
+                assertIs<CollectionLockedException>(loadedState.error)
+                refreshTags().join()
+                assertNull(loadedState.undoLabel)
+                assertNull(loadedState.redoLabel)
+            }
+        }
+
+    @Test
+    fun `expanding filtering and refreshing do not consume undo`() =
+        runTest {
+            val note = addTags("source::child")
+            withViewModel {
+                renameTag("source", "renamed").join()
+                toggleCollapsed("renamed").join()
+                filter("child")
+                refreshTags().join()
+                assertNotNull(loadedState.undoLabel)
+                undo().join()
+                assertEquals(listOf("source::child"), col.getNote(note.id).tags)
+                assertEquals("child", searchQuery.value)
+                assertNull(loadedState.undoLabel)
+            }
+        }
+
+    @Test
+    fun `expanding and collapsing update redo availability without exposing earlier undo`() =
+        runTest {
+            val note = addTags("source", "parent::child")
+            withViewModel {
+                for (collapsed in listOf(false, true)) {
+                    removeTag("source").join()
+                    undo().join()
+                    assertNotNull(col.undoStatus().redo)
+                    assertNotNull(loadedState.redoLabel)
+
+                    toggleCollapsed("parent").join()
+
+                    assertEquals(collapsed, ManageTagsViewModel.flattenTree(col.tags.tree()).first().collapsed)
+                    assertNull(col.undoStatus().redo)
+                    assertNull(loadedState.redoLabel)
+                    assertNotNull(col.undoStatus().undo)
+                    assertNull(loadedState.undoLabel)
+                    assertEquals(listOf("parent::child", "source"), col.getNote(note.id).tags)
+                }
+            }
+        }
+
+    @Test
+    fun `another caller changing history permits shared undo and redo including earlier actions`() =
+        runTest {
+            val note = addTags("first", "second", "third", "earlier")
+            col.tags.remove("earlier")
+            withViewModel {
+                removeTag("first").join()
+                col.tags.remove("second")
+                undo().join()
+                assertEquals(listOf("second", "third"), col.getNote(note.id).tags)
+                assertNotNull(loadedState.undoLabel)
+                assertNotNull(loadedState.redoLabel)
+
+                redo().join()
+                assertEquals(listOf("third"), col.getNote(note.id).tags)
+                undo().join()
+                undo().join()
+                assertEquals(listOf("first", "second", "third"), col.getNote(note.id).tags)
+                undo().join()
+                assertEquals(setOf("first", "second", "third", "earlier"), col.getNote(note.id).tags.toSet())
+            }
+        }
+
+    @Test
+    fun `external change notifications keep mixed actions undoable`() =
+        runTest {
+            val note = addTags("first", "second")
+            withViewModel {
+                removeTag("first").join()
+                undoableOp { tags.remove("second") }
+                assertNotNull(loadedState.undoLabel)
+                assertEquals(0, loadedState.totalTagCount)
+                undo().join()
+                assertEquals(listOf("second"), col.getNote(note.id).tags)
+                undo().join()
+                assertEquals(listOf("first", "second"), col.getNote(note.id).tags)
+            }
+        }
+
+    @Test
+    fun `batched API note updates can be undone alongside tag actions`() =
+        runTest {
+            val note = addTags("source")
+            val otherNote = addBasicNote()
+            val originalText = col.getNote(note.id).fields[0]
+            val otherOriginalText = col.getNote(otherNote.id).fields[0]
+            withViewModel {
+                assertNull(loadedState.undoLabel)
+                // The content provider can make several backend changes before publishing one notification.
+                col.getNote(note.id).also {
+                    it.setField(0, "First API update")
+                    assertTrue(col.updateNote(it).note)
+                }
+                col.getNote(otherNote.id).also {
+                    it.setField(0, "Second API update")
+                    assertTrue(col.updateNote(it).note)
+                }
+                ChangeManager.notifySubscribersAllValuesChanged()
+                assertNotNull(loadedState.undoLabel)
+
+                removeTag("source").join()
+                undo().join()
+                assertEquals(listOf("source"), col.getNote(note.id).tags)
+                undo().join()
+                assertEquals("First API update", col.getNote(note.id).fields[0])
+                assertEquals(otherOriginalText, col.getNote(otherNote.id).fields[0])
+                undo().join()
+                assertEquals(originalText, col.getNote(note.id).fields[0])
+                redo().join()
+                redo().join()
+                assertEquals("First API update", col.getNote(note.id).fields[0])
+                assertEquals("Second API update", col.getNote(otherNote.id).fields[0])
+                redo().join()
+                assertEquals(emptyList(), col.getNote(note.id).tags)
+                assertNull(loadedState.redoLabel)
+            }
+        }
+
+    @Test
+    fun `a notification without a history change keeps the screen boundary`() =
+        runTest {
+            val note = addTags("source")
+            withViewModel {
+                removeTag("source").join()
+                ChangeManager.notifySubscribersAllValuesChanged()
+                undo().join()
+                assertEquals(listOf("source"), col.getNote(note.id).tags)
+                assertNull(loadedState.undoLabel)
+                val history = col.undoStatus()
+                undo().join()
+                assertEquals(history, col.undoStatus())
+            }
+        }
+
+    @Test
+    fun `reopening starts a new undo scope`() =
+        runTest {
+            val note = addTags("source")
+            withViewModel { removeTag("source").join() }
+            val before = col.undoStatus()
+            withViewModel {
+                assertNull(loadedState.undoLabel)
+                undo().join()
+                assertEquals(before, col.undoStatus())
+                assertEquals(emptyList(), col.getNote(note.id).tags)
+            }
+        }
+
+    @Test
+    fun `undo can be retried after collection access fails`() =
+        runTest {
+            val note = addTags("source")
+            withViewModel {
+                removeTag("source").join()
+                withLockedCollection { undo().join() }
+                assertIs<CollectionLockedException>(loadedState.error)
+                undo().join()
+                assertNull(loadedState.error)
+                assertNull(loadedState.undoLabel)
+                assertEquals(listOf("source"), col.getNote(note.id).tags)
+            }
+        }
+
+    @Test
+    fun `rename availability includes used descendants and does not change the collection`() =
+        runTest {
+            addTags("parent::used", "abc", "a1", "a.b")
+            addUnusedTags("parent::unused", "empty::child", "none", "a*", "a?", "a[b]")
+            val before = col.undoStatus()
+            withViewModel {
+                for (name in listOf("parent", "parent::used", "a.b")) {
+                    assertEquals(true, canRenameTag(TagName.asValid(name)), name)
+                }
+                for (name in listOf("parent::unused", "empty", "empty::child", "none", "a*", "a?", "a[b]", "missing")) {
+                    assertEquals(false, canRenameTag(TagName.asValid(name)), name)
+                }
+                assertEquals(before, col.undoStatus())
+                assertTrue(pendingMessages.value.isEmpty())
+            }
+        }
+
+    @Test
+    fun `rename availability failure reports an error instead of claiming the tag is unused`() =
+        runTest {
+            addTags("used")
+            withViewModel {
+                withLockedCollection { assertNull(canRenameTag(TagName.asValid("used"))) }
+                assertIs<CollectionLockedException>(loadedState.error)
+                refreshTags().join()
+                assertEquals(true, canRenameTag(TagName.asValid("used")))
+                assertNull(loadedState.error)
+            }
+        }
+
+    @Test
+    fun `successful rename availability check clears an earlier check failure`() =
+        runTest {
+            addTags("used")
+            addUnusedTags("unused")
+            withViewModel {
+                for ((name, expected) in listOf("used" to true, "unused" to false)) {
+                    val tag = TagName.asValid(name)
+                    withLockedCollection { assertNull(canRenameTag(tag)) }
+                    assertIs<CollectionLockedException>(loadedState.error)
+                    assertEquals(expected, canRenameTag(tag), name)
+                    assertNull(loadedState.error, name)
+                }
+            }
+        }
+
     @Test
     fun `row equality preserves parent spelling while tag identity ignores case`() {
         val original = tagListItem("parent::child", "child", 1, hasChildren = false, collapsed = false)
@@ -253,9 +948,13 @@ class ManageTagsViewModelTest : RobolectricTest() {
                     val refresh = refreshTags()
                     assertThat(refresh.isCompleted, equalTo(false))
 
-                    assertThat(removeTag("science"), sameInstance(refresh))
-                    assertThat(renameTag("history", "past"), sameInstance(refresh))
-                    assertThat(clearUnusedTags(), sameInstance(refresh))
+                    val deletion = removeTag(TagName.asValid("science"))
+                    val rename = renameTag(TagName.asValid("history"), TagName.asValid("past"))
+                    val clear = clearUnusedTags()
+                    for (operation in listOf(deletion, rename, clear)) {
+                        assertFalse(operation.accepted)
+                        assertThat(operation.job, sameInstance(refresh))
+                    }
                     assertThat(toggleCollapsed("science"), sameInstance(refresh))
                     assertThat(moveTag("history", "science"), sameInstance(refresh))
                     assertThat(refreshTags(), sameInstance(refresh))
@@ -265,7 +964,9 @@ class ManageTagsViewModelTest : RobolectricTest() {
                 assertThat(loadedState.visibleTagNames, containsInAnyOrder("science", "history", "unused"))
                 assertThat(loadedState.visibleNodes.single { it.fullTagName == "science" }.collapsed, equalTo(true))
 
-                removeTag("science").join()
+                val deletion = removeTag(TagName.asValid("science"))
+                assertTrue(deletion.accepted)
+                deletion.job.join()
                 assertThat(loadedState.visibleTagNames, containsInAnyOrder("history", "unused"))
             }
         }
@@ -314,24 +1015,58 @@ class ManageTagsViewModelTest : RobolectricTest() {
             }
         }
 
+    /**
+     * An external collection change can queue a refresh while a tag operation is running.
+     * If the operation fails, the screen must show the updated tree and the operation error.
+     */
+    @Test
+    fun `failed tag operation still refreshes tags changed elsewhere`() =
+        runTest {
+            val note = addTags("source")
+            val collection = col
+            withViewModel {
+                withQueuedCollectionAccess {
+                    // An ideographic space makes the backend reject the rename. Queue collection
+                    // access so the change notification can arrive before that failure.
+                    val rename = renameTag("source", "invalid\u3000target")
+                    assertTrue(loadedState.isWorking)
+
+                    // An external edit bypasses the ViewModel's pending rename and asks it to reload.
+                    collection.getNote(note.id).also {
+                        it.addTag("destination")
+                        assertTrue(collection.updateNote(it).note)
+                    }
+                    ChangeManager.notifySubscribersAllValuesChanged()
+                    rename.join()
+
+                    assertNotNull(loadedState.error)
+                    assertFalse(loadedState.isWorking)
+                    // Fails on the buggy revision: the exception skips the queued refresh,
+                    // so name validation still uses the tag tree from before the external edit.
+                    assertTrue(tagExists(TagName.asValid("destination")))
+                }
+            }
+        }
+
     @Test
     fun `initial load failure allows search input and retry`() =
         runTest {
             addTags("science", "history")
-            val viewModel = withLockedCollection { ManageTagsViewModel() }
-            val failure = viewModel.state.value
-            assertThat(failure, instanceOf(ManageTagsState.Error::class.java))
-            assertThat((failure as ManageTagsState.Error).error, instanceOf(CollectionLockedException::class.java))
+            withViewModel(withLockedCollection { ManageTagsViewModel() }) {
+                val failure = state.value
+                assertThat(failure, instanceOf(ManageTagsState.Error::class.java))
+                assertThat((failure as ManageTagsState.Error).error, instanceOf(CollectionLockedException::class.java))
 
-            viewModel.filter("hist")
-            assertThat(viewModel.searchQuery.value, equalTo("hist"))
+                filter("hist")
+                assertThat(searchQuery.value, equalTo("hist"))
 
-            withQueuedCollectionAccess {
-                val retry = viewModel.refreshTags()
-                assertThat(viewModel.state.value, equalTo(ManageTagsState.Loading))
-                retry.join()
+                withQueuedCollectionAccess {
+                    val retry = refreshTags()
+                    assertThat(state.value, equalTo(ManageTagsState.Loading))
+                    retry.join()
+                }
+                assertThat(loadedState.visibleTagNames, equalTo(listOf("history")))
             }
-            assertThat(viewModel.loadedState.visibleTagNames, equalTo(listOf("history")))
         }
 
     @Test
@@ -352,6 +1087,38 @@ class ManageTagsViewModelTest : RobolectricTest() {
                     refresh.join()
                     assertThat(loadedState, equalTo(previous))
                 }
+            }
+        }
+
+    @Test
+    fun `closing after a tag deletion commits still notifies collection observers`() =
+        runTest {
+            val note = addTags("source")
+            val collection = col
+            val model = ManageTagsViewModel()
+            val store = ViewModelStore().apply { put("tags", model) }
+            val observer = ChangeCounter()
+            ChangeManager.subscribe(observer)
+            val backendScheduler = TestCoroutineScheduler()
+            val previousQueue = CollectionManager.setTestDispatcher(StandardTestDispatcher(backendScheduler), useReentrantLock = false)
+            Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+            try {
+                val deletion = model.removeTag("source")
+                runCurrent()
+                backendScheduler.runCurrent()
+                assertEquals(emptyList(), collection.getNote(note.id).tags)
+                assertEquals(0, observer.changeCount)
+
+                store.clear()
+                runCurrent()
+
+                assertTrue(deletion.isCancelled)
+                assertEquals(1, observer.changeCount, "The browser must be notified about the committed deletion after navigation")
+            } finally {
+                store.clear()
+                CollectionManager.setTestDispatcher(previousQueue)
+                Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+                ChangeManager.unsubscribe(observer)
             }
         }
 
@@ -578,6 +1345,36 @@ class ManageTagsViewModelTest : RobolectricTest() {
         }
 
     @Test
+    fun `closing the screen keeps queued expansion saves ahead of a reopened screen`() =
+        runTest {
+            addTags("science::biology", "history::ancient")
+            val closing = ManageTagsViewModel()
+            withQueuedCollectionAccess {
+                withViewModel(closing) {
+                    toggleCollapsed("science")
+                    toggleCollapsed("history")
+                    toggleCollapsed("history")
+                    assertEquals(listOf("history", "science", "science::biology"), loadedState.visibleTagNames)
+                }
+                withViewModel {
+                    refreshTags().join()
+                    assertEquals(listOf("history", "science", "science::biology"), loadedState.visibleTagNames)
+                }
+            }
+        }
+
+    @Test
+    fun `completed expansion saves survive closing and reopening the screen`() =
+        runTest {
+            addTags("science::biology")
+            withViewModel { toggleCollapsed("science").join() }
+            withViewModel {
+                assertEquals(listOf("science", "science::biology"), loadedState.visibleTagNames)
+                assertFalse(loadedState.visibleNodes.first().collapsed)
+            }
+        }
+
+    @Test
     fun `deleting a tag waits for expansion saves so they cannot recreate it`() =
         runTest {
             addTags("science::biology", "history")
@@ -689,6 +1486,25 @@ class ManageTagsViewModelTest : RobolectricTest() {
                 assertThat(tags, not(hasItem("science::biology")))
                 assertThat(tags, not(hasItem("science::chemistry")))
                 assertThat(tags, hasItem("history"))
+            }
+        }
+
+    @Test
+    fun `rename reports completion only when notes changed`() =
+        runTest {
+            addUnusedTags("unused")
+            val note = addTags("source")
+            withViewModel {
+                var completions = 0
+                val onRenamed = { completions += 1 }
+
+                renameTag(TagName.asValid("unused"), TagName.asValid("destination"), onRenamed = onRenamed).job.join()
+                assertEquals(UserMessage.TagRenamed(0), pendingMessages.value.single().message)
+                assertEquals(0, completions)
+
+                renameTag(TagName.asValid("source"), TagName.asValid("destination"), onRenamed = onRenamed).job.join()
+                assertEquals(listOf("destination"), col.getNote(note.id).tags)
+                assertEquals(1, completions)
             }
         }
 
@@ -1087,7 +1903,7 @@ class ManageTagsViewModelTest : RobolectricTest() {
     fun `merge updates descendants and deduplicates tags on notes`() =
         runTest {
             val note = addBasicNote().update { listOf("source", "source::child", "target", "target::child", "unrelated").forEach(::addTag) }
-            with(ManageTagsViewModel()) {
+            withViewModel {
                 renameTag("source", "target").join()
 
                 assertThat(col.getNote(note.id).tags, containsInAnyOrder("target", "target::child", "unrelated"))
@@ -1228,6 +2044,35 @@ class ManageTagsViewModelTest : RobolectricTest() {
             }
         }
 
+    /** [com.ichi2.widget.DayRolloverAlarm] notifies subscribers synchronously from Dispatchers.IO. */
+    @Test
+    fun `day rollover on IO does not block a tag action on Main`() =
+        runTest {
+            val tag = TagName.asValid("source")
+            addTags(tag.value)
+            withViewModel {
+                val mainScheduler = TestCoroutineScheduler()
+                val mainDispatcher = StandardTestDispatcher(mainScheduler)
+                Dispatchers.setMain(mainDispatcher)
+                try {
+                    withCollectionAccessOn(mainDispatcher) {
+                        withContext(Dispatchers.IO) {
+                            ChangeManager.notifySubscribers(opChanges { studyQueues = true }, initiator = null)
+                        }
+
+                        // Main has yet to process the notification. The worker must not claim the tag operation.
+                        val deletion = removeTag(tag)
+                        assertTrue(deletion.accepted, "The rollover notification must not start a tag operation from IO")
+
+                        mainScheduler.runCurrent()
+                        assertFalse(tagExists(tag))
+                    }
+                } finally {
+                    Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+                }
+            }
+        }
+
     @Test
     fun `unchanged move preserves an available redo`() =
         runTest {
@@ -1269,7 +2114,7 @@ class ManageTagsViewModelTest : RobolectricTest() {
                 assertEquals(4, loadedState.totalTagCount)
                 assertTrue(tagExists(TagName.asValid("unused::leaf")))
 
-                clearUnusedTags().join()
+                clearUnusedTags().job.join()
 
                 assertNull(loadedState.error)
                 assertEquals(2, loadedState.totalTagCount)
@@ -1344,7 +2189,7 @@ class ManageTagsViewModelTest : RobolectricTest() {
         }
     }
 
-    private suspend fun withViewModel(block: suspend ManageTagsViewModel.() -> Unit) = ManageTagsViewModel().block()
+    private suspend fun withViewModel(block: suspend ManageTagsViewModel.() -> Unit) = withViewModel(ManageTagsViewModel(), block)
 
     /** Helper abstracting [com.ichi2.anki.libanki.Tags.all] */
     private fun checkCollectionTags(block: (List<String>) -> Unit) = block(col.tags.all())

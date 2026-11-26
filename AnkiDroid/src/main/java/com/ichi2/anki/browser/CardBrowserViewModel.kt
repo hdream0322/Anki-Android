@@ -70,6 +70,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -141,6 +143,18 @@ class CardBrowserViewModel(
     /** A job which ensures that parallel searches do not occur */
     var searchJob: Job? = null
         private set
+
+    private var successfulSearchRequest: SearchRequest? = null
+
+    private class PendingSearchSuccess(
+        val request: SearchRequest,
+        val callback: () -> Unit,
+    )
+
+    private var pendingSearchSuccess: PendingSearchSuccess? = null
+
+    // Refreshing the current results must not supersede a pending submission.
+    private var latestSearchSubmissionId = 0L
 
     // temporary flow for refactoring - called when cards are cleared
     val flowOfCardsUpdated = MutableSharedFlow<Unit>()
@@ -325,6 +339,10 @@ class CardBrowserViewModel(
      */
     val flowOfCardStateChanged = MutableSharedFlow<Unit>()
 
+    // Queue effects while the browser's STARTED collector is stopped.
+    val uiEffects: ReceiveChannel<BrowserUiEffect>
+        field = Channel<BrowserUiEffect>(Channel.BUFFERED)
+
     val flowOfChangeNoteType = MutableSharedFlow<ChangeNoteTypeResponse>()
 
     /**
@@ -431,8 +449,11 @@ class CardBrowserViewModel(
                 is SelectableDeck.Deck -> listOf(deck.toDeckNameId())
             }
 
-        val updatedFilter = searchRequestFlow.value.copyFilters { it.copy(decks = deckFilter) }
-        launchSearchForCards(updatedFilter, forceRefresh = false, feedbackMode = feedbackMode)
+        val currentSearch = searchRequestFlow.value
+        val updatedFilter = currentSearch.copyFilters { it.copy(decks = deckFilter) }
+        // Applying the initial deck still completes the search submitted during startup.
+        val onSuccess = pendingSearchSuccess?.takeIf { !initCompleted && it.request == currentSearch }?.callback
+        launchSearchForCards(updatedFilter, forceRefresh = false, feedbackMode = feedbackMode, onSuccess = onSuccess)
     }
 
     val searchRequestFlow = MutableStateFlow(SearchRequest(query = ""))
@@ -812,12 +833,36 @@ class CardBrowserViewModel(
     /** Whether any rows are selected */
     fun hasSelectedAnyRows(): Boolean = selectedRows.isNotEmpty()
 
+    /** Coordinates browser events; callers retain their existing coroutine error handling. */
+    suspend fun onEvent(event: BrowserEvent) {
+        when (event) {
+            BrowserEvent.ToggleMarkRequested -> toggleMark()
+            is BrowserEvent.CollectionChanged -> handleCollectionChanged(event)
+        }
+    }
+
+    private suspend fun handleCollectionChanged(event: BrowserEvent.CollectionChanged) {
+        if (event.origin == BrowserEvent.CollectionChanged.Origin.BROWSER) return
+        val changes = event.changes
+        if (!changes.browserSidebar && !changes.browserTable && !changes.noteText && !changes.card) return
+
+        val feedbackMode =
+            if (event.origin == BrowserEvent.CollectionChanged.Origin.NOTE_EDITOR) {
+                BrowserSearchFeedbackMode.COUNT_ONLY
+            } else {
+                BrowserSearchFeedbackMode.NONE
+            }
+        launchSearchForCards(feedbackMode = feedbackMode)
+        endMultiSelectMode(SingleSelectCause.Other)
+        uiEffects.send(BrowserUiEffect.RefreshControls)
+    }
+
     /**
      * All the notes of the selected cards will be marked
      * If one or more card is unmarked, all will be marked,
      * otherwise, they will be unmarked
      */
-    suspend fun toggleMark() {
+    private suspend fun toggleMark() {
         progressManager.withProgress {
             val cardIds = queryAllSelectedCardIds()
             if (cardIds.isEmpty()) {
@@ -1369,16 +1414,17 @@ class CardBrowserViewModel(
     }
 
     /** Previewing */
-    suspend fun queryPreviewIntentData(): PreviewerDestination {
-        // If in NOTES mode, we show one Card per Note, as this matches Anki Desktop
-        return if (selectedRowCount() > 1) {
-            PreviewerDestination(currentIndex = 0, IdsFile(idsFileDirectory, queryAllSelectedCardIds(), IdsFile.Purpose.PREVIEW))
-        } else {
-            // Preview all cards, starting from the one that is currently selected
-            val startIndex = indexOfFirstCheckedCard() ?: 0
-            PreviewerDestination(startIndex, IdsFile(idsFileDirectory, queryOneCardIdPerNote(), IdsFile.Purpose.PREVIEW))
+    suspend fun queryPreviewIntentData(): PreviewerDestination =
+        progressManager.withProgress {
+            // If in NOTES mode, we show one Card per Note, as this matches Anki Desktop
+            if (selectedRowCount() > 1) {
+                PreviewerDestination(currentIndex = 0, IdsFile(idsFileDirectory, queryAllSelectedCardIds(), IdsFile.Purpose.PREVIEW))
+            } else {
+                // Preview all cards, starting from the one that is currently selected
+                val startIndex = indexOfFirstCheckedCard() ?: 0
+                PreviewerDestination(startIndex, IdsFile(idsFileDirectory, queryOneCardIdPerNote(), IdsFile.Purpose.PREVIEW))
+            }
         }
-    }
 
     private suspend fun queryOneCardIdPerNote(): List<CardId> = cards.queryOneCardIdPerRow()
 
@@ -1455,23 +1501,35 @@ class CardBrowserViewModel(
     /**
      * @param forceRefresh if `true`, perform a search even if the search query is unchanged
      * @param feedbackMode the feedback requested for this search, resolved by [browserSearchFeedback]
+     * @param onSuccess called on the main thread when the search succeeds, including a cached result
      */
     fun launchSearchForCards(
         searchRequest: SearchRequest,
         forceRefresh: Boolean,
         feedbackMode: BrowserSearchFeedbackMode = BrowserSearchFeedbackMode.NONE,
+        onSuccess: (() -> Unit)? = null,
     ) = viewModelScope.launch {
+        val submissionId = ++latestSearchSubmissionId
         Timber.d("launching search [new syntax]: '%s'", searchRequest)
 
         context(_: Collection)
         fun SearchRequest.asSearchString(): SearchString? = this.toSearchString().getOrNull()
-        if (!forceRefresh && withCol { searchRequestFlow.value.asSearchString() == searchRequest.asSearchString() }) {
+        val cachedRequest = successfulSearchRequest
+        val isDuplicateSearch =
+            !forceRefresh && cachedRequest != null &&
+                withCol { searchRequest.asSearchString()?.let { it == cachedRequest.asSearchString() } == true } &&
+                successfulSearchRequest === cachedRequest
+        // Collection access can suspend while a newer submission updates the query.
+        if (submissionId != latestSearchSubmissionId) return@launch
+        // Equivalent queries can still change the text and chip filters shown to the user.
+        searchRequestFlow.value = searchRequest
+        if (isDuplicateSearch) {
             Timber.d("skipping duplicate search: forceRefresh is false")
+            onSuccess?.invoke()
             return@launch
         }
 
-        searchRequestFlow.value = searchRequest
-        launchSearchForCards(feedbackMode = feedbackMode)
+        launchSearchForCards(feedbackMode = feedbackMode, onSuccess = onSuccess)
     }
 
     /**
@@ -1479,11 +1537,21 @@ class CardBrowserViewModel(
      *
      * @see com.ichi2.anki.searchForRows
      */
-    fun launchSearchForCards(feedbackMode: BrowserSearchFeedbackMode = BrowserSearchFeedbackMode.NONE) {
+    fun launchSearchForCards(
+        feedbackMode: BrowserSearchFeedbackMode = BrowserSearchFeedbackMode.NONE,
+        onSuccess: (() -> Unit)? = null,
+    ) {
+        val searchRequest = searchRequestFlow.value
+        // A refresh restarts the work, but still completes the same submitted query.
+        val pendingSuccess =
+            onSuccess?.let { PendingSearchSuccess(searchRequest, it) }
+                ?: pendingSearchSuccess?.takeIf { it.request == searchRequest }
+        pendingSearchSuccess = pendingSuccess
         if (!initCompleted) return
 
         viewModelScope.launch {
             searchJob?.cancel()
+            successfulSearchRequest = null
             flowOfSearchFeedback.value = null
             // update the UI while we're searching
             clearCardsList()
@@ -1492,9 +1560,14 @@ class CardBrowserViewModel(
             searchJob?.cancel()
             searchJob =
                 launchCatchingIO(
-                    errorMessageHandler = { error -> flowOfSearchState.emit(SearchState.Error(error)) },
+                    errorMessageHandler = { error ->
+                        withContext(Dispatchers.Main) {
+                            if (pendingSearchSuccess === pendingSuccess) pendingSearchSuccess = null
+                            flowOfSearchState.emit(SearchState.Error(error))
+                        }
+                    },
                 ) {
-                    val searchString = withCol { searchRequestFlow.value.toSearchString().getOrThrow() }
+                    val searchString = withCol { searchRequest.toSearchString().getOrThrow() }
                     flowOfSearchState.emit(SearchState.Searching)
                     val sortOrder = SortType.buildSortOrder()
                     Timber.d("performing search: '%s'; order: %s", searchString, sortOrder)
@@ -1511,8 +1584,13 @@ class CardBrowserViewModel(
                     val completed = SearchState.Completed.fromCurrentState(feedbackMode)
                     withContext(Dispatchers.Main) {
                         ensureActive()
+                        successfulSearchRequest = searchRequest
                         flowOfSearchState.emit(completed)
                         flowOfSearchFeedback.value = completed.takeUnless { feedbackMode == BrowserSearchFeedbackMode.NONE }
+                        if (pendingSearchSuccess === pendingSuccess) {
+                            pendingSearchSuccess = null
+                            pendingSuccess?.callback?.invoke()
+                        }
                     }
                     selectUnvalidatedRowIds(pendingSelectionRestore)
                     pendingSelectionRestore = emptyList()
@@ -1633,8 +1711,6 @@ class CardBrowserViewModel(
             flowOfSaveSearchNamePrompt.emit(query)
         }
 
-    suspend fun getAvailableDecks(): List<SelectableDeck.Deck> = SelectableDeck.fromCollection(includeFiltered = false)
-
     /**
      * Builds a [SearchState.Completed] event reflecting the current ViewModel state.
      *
@@ -1656,18 +1732,6 @@ class CardBrowserViewModel(
             ?: NoteEditorCommand.HidePane
 
     companion object {
-        /** Intent extra carrying the [DeckId] the browser should open scoped to. */
-        const val EXTRA_DECK_ID = "deckId"
-
-        /** Intent extra carrying a [CardId] to auto-scroll to once the browser opens. */
-        const val EXTRA_CARD_ID_KEY = "cardId"
-
-        /** Intent extra (`String`) carrying the search to run. */
-        const val EXTRA_SEARCH_QUERY = "search_query"
-
-        /** Intent extra (`Boolean`) for whether [EXTRA_SEARCH_QUERY] should search all decks. */
-        const val EXTRA_ALL_DECKS = "all_decks"
-
         /** Prevents one-shot extras from being re-applied after process death. */
         private const val STATE_LAUNCH_INTENT_CONSUMED = "launchIntentConsumed"
 

@@ -4,6 +4,7 @@
 package com.ichi2.anki.dialogs
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.app.Dialog
 import android.content.Intent
 import android.os.Bundle
@@ -23,7 +24,6 @@ import com.ichi2.anki.CommonString
 import com.ichi2.anki.ConflictResolution
 import com.ichi2.anki.DatabaseRestorationListener
 import com.ichi2.anki.DeckPicker
-import com.ichi2.anki.FatalInitializationError.StorageError
 import com.ichi2.anki.InitialActivity.StartupFailure.InitializationError
 import com.ichi2.anki.LocalizedUnambiguousBackupTimeFormatter
 import com.ichi2.anki.R
@@ -59,6 +59,7 @@ import com.ichi2.anki.libanki.Consts
 import com.ichi2.anki.requireAnkiActivity
 import com.ichi2.anki.servicelayer.DebugInfoService
 import com.ichi2.anki.showImportDialog
+import com.ichi2.anki.startup.FatalInitializationError.StorageError
 import com.ichi2.anki.startup.getDefaultAnkiDroidDirectory
 import com.ichi2.anki.startup.resetAnkiDroidDirectory
 import com.ichi2.anki.ui.internationalization.sentenceCase
@@ -152,7 +153,7 @@ class DatabaseErrorDialog : AsyncDialogFragment() {
                 // to the previous dialog
                 val options = ArrayList<String>(8)
                 val values = ArrayList<ErrorHandlingEntries>(8)
-                if (!requireAnkiActivity().colIsOpenUnsafe()) {
+                if (!CollectionManager.isOpenUnsafe()) {
                     // retry
                     options.add(res.getString(CommonString.backup_retry_opening))
                     values.add(ErrorHandlingEntries.RETRY)
@@ -329,8 +330,8 @@ class DatabaseErrorDialog : AsyncDialogFragment() {
                     title(text = TR.sentenceCase.checkDatabase)
                     message(text = message)
                     positiveButton(CommonString.dialog_ok) {
-                        requireDeckPicker().integrityCheck()
                         requireActivity().dismissAllDialogFragments()
+                        requireDeckPicker().integrityCheck()
                     }
                     negativeButton(CommonString.dialog_cancel)
                 }
@@ -760,7 +761,7 @@ class DatabaseErrorDialog : AsyncDialogFragment() {
     }
 }
 
-fun AnkiActivity.showDatabaseErrorDialogInDeckPicker(
+fun Activity.showDatabaseErrorDialogInDeckPicker(
     errorDialogType: DatabaseErrorDialogType,
     exceptionData: CustomExceptionData? = null,
 ) {

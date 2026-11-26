@@ -24,12 +24,29 @@
         <attr name="colorOnSurfaceVariant" />
         <attr name="colorOutline" />
         <attr name="colorOutlineVariant" />
+        <attr name="colorSurfaceInverse" />
+        <attr name="colorOnSurfaceInverse" />
+        <attr name="colorPrimaryInverse" />
         <attr name="colorSurfaceContainer" />
         <attr name="colorSurfaceContainerHigh" />
         <attr name="colorSurfaceContainerHighest" />
         <attr name="colorSurfaceContainerLow" />
         <attr name="colorSurfaceContainerLowest" />
+        <attr name="colorSurfaceDim" />
+        <attr name="colorSurfaceBright" />
         <attr name="android:colorBackground" />
-        <attr name="fab_normal" />
+        <attr name="colorOnBackground" />
+        <!-- AnkiDroid custom colors -->
+        <attr name="fabNormalColor" />
+        <attr name="showAnswerButtonBackground" />
+        <attr name="againBackgroundColor" />
+        <attr name="againTextColor" />
+        <attr name="hardBackgroundColor" />
+        <attr name="hardTextColor" />
+        <attr name="goodBackgroundColor" />
+        <attr name="goodTextColor" />
+        <attr name="easyBackgroundColor" />
+        <attr name="easyTextColor" />
+        <attr name="studyScreenElevation" />
     </declare-styleable>
 </resources>

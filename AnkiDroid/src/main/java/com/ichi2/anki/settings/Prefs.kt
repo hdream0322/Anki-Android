@@ -19,6 +19,7 @@ import com.ichi2.anki.common.preferences.sharedPrefs
 import com.ichi2.anki.common.utils.isRunningAsUnitTest
 import com.ichi2.anki.libanki.DeckId
 import com.ichi2.anki.preferences.SharedPreferencesProvider
+import com.ichi2.anki.preferences.TimeboxTimeLimit
 import com.ichi2.anki.settings.enums.AiProviderKind
 import com.ichi2.anki.settings.enums.AppTheme
 import com.ichi2.anki.settings.enums.DayTheme
@@ -60,42 +61,36 @@ open class PrefsRepository protected constructor(
         @StringRes resId: Int,
     ): String = resources.getString(resId)
 
-    @VisibleForTesting
-    fun getBoolean(
+    private fun getBoolean(
         @StringRes keyResId: Int,
         defValue: Boolean,
     ): Boolean = sharedPrefs.getBoolean(key(keyResId), defValue)
 
-    @VisibleForTesting
-    fun putBoolean(
+    private fun putBoolean(
         @StringRes keyResId: Int,
         value: Boolean,
     ) {
         sharedPrefs.edit { putBoolean(key(keyResId), value) }
     }
 
-    @VisibleForTesting
-    fun getString(
+    private fun getString(
         @StringRes keyResId: Int,
         defValue: String?,
     ): String? = sharedPrefs.getString(key(keyResId), defValue)
 
-    @VisibleForTesting
-    fun putString(
+    private fun putString(
         @StringRes keyResId: Int,
         value: String?,
     ) {
         sharedPrefs.edit { putString(key(keyResId), value) }
     }
 
-    @VisibleForTesting
-    fun getInt(
+    private fun getInt(
         @StringRes keyResId: Int,
         defValue: Int,
     ): Int = sharedPrefs.getInt(key(keyResId), defValue)
 
-    @VisibleForTesting
-    fun putInt(
+    private fun putInt(
         @StringRes keyResId: Int,
         value: Int,
     ) = sharedPrefs.edit { putInt(key(keyResId), value) }
@@ -110,8 +105,7 @@ open class PrefsRepository protected constructor(
         value: Long,
     ) = sharedPrefs.edit { putLong(key(keyResId), value) }
 
-    @VisibleForTesting
-    fun <E> getEnum(
+    private fun <E> getEnum(
         @StringRes keyResId: Int,
         defaultValue: E,
     ): E where E : Enum<E>, E : PrefEnum {
@@ -123,7 +117,7 @@ open class PrefsRepository protected constructor(
         } ?: defaultValue
     }
 
-    fun <E> putEnum(
+    private fun <E> putEnum(
         @StringRes keyResId: Int,
         value: E,
     ) where E : Enum<E>, E : PrefEnum {
@@ -133,7 +127,6 @@ open class PrefsRepository protected constructor(
 
     // **************************************** Delegates *************************************** //
 
-    @VisibleForTesting
     fun booleanPref(
         key: String,
         defaultValue: Boolean,
@@ -153,13 +146,11 @@ open class PrefsRepository protected constructor(
             }
         }
 
-    @VisibleForTesting
     fun booleanPref(
         @StringRes keyResId: Int,
         defaultValue: Boolean,
     ): ReadWriteProperty<Any?, Boolean> = booleanPref(key(keyResId), defaultValue)
 
-    @VisibleForTesting
     fun stringPref(
         @StringRes keyResId: Int,
         defaultValue: String? = null,
@@ -179,7 +170,26 @@ open class PrefsRepository protected constructor(
             }
         }
 
-    @VisibleForTesting
+    @JvmName("nonNullStringPref")
+    fun stringPref(
+        @StringRes keyResId: Int,
+        defaultValue: String,
+    ): ReadWriteProperty<Any?, String> =
+        object : ReadWriteProperty<Any?, String> {
+            override fun getValue(
+                thisRef: Any?,
+                property: KProperty<*>,
+            ): String = getString(keyResId, defaultValue) ?: defaultValue
+
+            override fun setValue(
+                thisRef: Any?,
+                property: KProperty<*>,
+                value: String,
+            ) {
+                putString(keyResId, value)
+            }
+        }
+
     fun intPref(
         @StringRes keyResId: Int,
         defaultValue: Int,
@@ -199,7 +209,6 @@ open class PrefsRepository protected constructor(
             }
         }
 
-    @VisibleForTesting
     fun longPref(
         @StringRes keyResId: Int,
         defaultValue: Long,
@@ -219,7 +228,6 @@ open class PrefsRepository protected constructor(
             }
         }
 
-    @VisibleForTesting
     fun <E> enumPref(
         @StringRes keyResId: Int,
         defaultValue: E,
@@ -260,7 +268,8 @@ open class PrefsRepository protected constructor(
 
     // ****************************************** Sync ****************************************** //
 
-    val isAutoSyncEnabled by booleanPref(R.string.automatic_sync_choice_key, false)
+    @set:VisibleForTesting
+    var isAutoSyncEnabled by booleanPref(R.string.automatic_sync_choice_key, false)
     val displaySyncStatus by booleanPref(R.string.sync_status_badge_key, defaultValue = true)
     var allowSyncOnMeteredConnections by booleanPref(R.string.metered_sync_key, defaultValue = false)
 
@@ -277,8 +286,8 @@ open class PrefsRepository protected constructor(
      */
     var lastSyncTime by longPref(R.string.last_sync_time_key, defaultValue = 0L)
 
-    val shouldFetchMedia: ShouldFetchMedia
-        get() = getEnum(R.string.sync_fetch_media_key, ShouldFetchMedia.ALWAYS)
+    @set:VisibleForTesting
+    var shouldFetchMedia: ShouldFetchMedia by enumPref(R.string.sync_fetch_media_key, ShouldFetchMedia.ALWAYS)
 
     var networkTimeoutSecs by intPref(R.string.sync_io_timeout_secs_key, defaultValue = 60)
 
@@ -310,7 +319,7 @@ open class PrefsRepository protected constructor(
     private val minimumCardsDueForNotification by stringPref(CommonPreferenceKey.pref_notifications_minimum_cards_due_key, "1000000")
 
     override val legacyNotificationsEnabled: Boolean
-        get() = minimumCardsDueForNotification!!.toInt() < 1000000
+        get() = minimumCardsDueForNotification.toInt() < 1000000
 
     /**
      * Review reminder IDs are unique, starting at 0 and climbing upwards by one each time a new one is created.
@@ -391,10 +400,16 @@ open class PrefsRepository protected constructor(
     val showAnswerFeedback by booleanPref(R.string.show_answer_feedback_key, defaultValue = true)
     var showAnswerButtons by booleanPref(R.string.show_answer_buttons_key, true)
     val keepScreenOn by booleanPref(R.string.keep_screen_on_preference, defaultValue = false)
-    val hideHardAndEasyButtons by booleanPref(R.string.hide_hard_and_easy_key, defaultValue = false)
+    var hideHardAndEasyButtons by booleanPref(R.string.hide_hard_and_easy_key, defaultValue = false)
+    var answerButtonsUseThemeColors by booleanPref(R.string.answer_buttons_theme_colors_key, defaultValue = false)
 
-    val doubleTapInterval by intPref(R.string.double_tap_timeout_pref_key, defaultValue = 200)
-    val newStudyScreenAnswerButtonSize by intPref(R.string.answer_button_size_pref_key, defaultValue = 100)
+    @set:VisibleForTesting
+    var doubleTapInterval by intPref(R.string.double_tap_timeout_pref_key, defaultValue = 200)
+    var newStudyScreenAnswerButtonSize by intPref(R.string.answer_button_size_pref_key, defaultValue = 100)
+    var customTimeboxLimit by intPref(
+        R.string.custom_timebox_limit_key,
+        defaultValue = TimeboxTimeLimit.DEFAULT_TIMEBOX_MINUTES,
+    )
 
     /** Whether the legacy reviewer shows its session progress bar below the top bar. */
     val reviewProgressBarEnabled by booleanPref(R.string.pref_review_progress_bar_enabled_key, defaultValue = true)
@@ -411,8 +426,9 @@ open class PrefsRepository protected constructor(
     /** How fast the glow of [reviewProgressBarGlow] sweeps across the bar. */
     val reviewProgressBarGlowSpeed by enumPref(R.string.pref_review_progress_bar_glow_speed_key, ProgressGlowSpeed.MEDIUM)
 
+    private val swipeSensitivityPercent by intPref(R.string.pref_swipe_sensitivity_key, 100)
     val swipeSensitivity: Float
-        get() = getInt(R.string.pref_swipe_sensitivity_key, 100) / 100F
+        get() = swipeSensitivityPercent / 100F
 
     var frameStyle: FrameStyle by enumPref(R.string.reviewer_frame_style_key, FrameStyle.CARD)
     val hideSystemBars: HideSystemBars by enumPref(R.string.hide_system_bars_key, HideSystemBars.NONE)
@@ -429,9 +445,10 @@ open class PrefsRepository protected constructor(
     // **************************************** Controls **************************************** //
     //region Controls
 
+    private val isCornerTouchEnabled by booleanPref(R.string.gestures_corner_touch_preference, false)
     val tapGestureMode: TapGestureMode
         get() =
-            when (getBoolean(R.string.gestures_corner_touch_preference, false)) {
+            when (isCornerTouchEnabled) {
                 true -> TapGestureMode.NINE_POINT
                 false -> TapGestureMode.FOUR_POINT
             }
@@ -458,23 +475,33 @@ open class PrefsRepository protected constructor(
      *
      * @see com.ichi2.anki.preferences.DeveloperOptionsFragment
      */
+    private var isDeveloperOptionsEnabledByUser by booleanPref(R.string.developer_options_enabled_by_user_key, false)
     var isDeveloperOptionsEnabled: Boolean
-        get() = getBoolean(R.string.developer_options_enabled_by_user_key, false) || BuildConfig.DEBUG
-        set(value) = putBoolean(R.string.developer_options_enabled_by_user_key, value)
+        get() = isDeveloperOptionsEnabledByUser || BuildConfig.DEBUG
+        set(value) {
+            isDeveloperOptionsEnabledByUser = value
+        }
 
     var isNewStudyScreenEnabled by booleanPref(R.string.new_reviewer_options_key, false)
 
-    val devIsCardBrowserFragmented: Boolean
-        get() = getBoolean(R.string.dev_card_browser_fragmented, false)
+    @set:VisibleForTesting
+    var devIsCardBrowserFragmented: Boolean by booleanPref(R.string.dev_card_browser_fragmented, false)
 
-    val devBottomNavEnabled: Boolean
-        get() = getBoolean(R.string.dev_bottom_nav_key, false)
+    @set:VisibleForTesting
+    var devBottomNavEnabled: Boolean by booleanPref(R.string.dev_bottom_nav_key, false)
+
+    @set:VisibleForTesting
+    var devMaterialYouEnabled: Boolean by booleanPref(R.string.dev_material_you_key, false)
 
     @set:VisibleForTesting
     var devUsingCardBrowserSearchView: Boolean by booleanPref(R.string.dev_card_browser_search_view, false)
 
+    @set:VisibleForTesting
+    var devUsingCardBrowserSearchTools: Boolean by booleanPref(R.string.dev_card_browser_search_tools, false)
+
+    private val isWebDebugEnabledByUser by booleanPref(R.string.html_javascript_debugging_key, false)
     val isWebDebugEnabled: Boolean
-        get() = (getBoolean(R.string.html_javascript_debugging_key, false) || BuildConfig.DEBUG) && !isRunningAsUnitTest
+        get() = (isWebDebugEnabledByUser || BuildConfig.DEBUG) && !isRunningAsUnitTest
 
     // ************************************* Switch Profile option ********************************** //
 
@@ -523,14 +550,14 @@ open class PrefsRepository protected constructor(
         }
     }
 
-    // **************************************** UI Config *************************************** //
+    // ************************************** Card Browser ************************************** //
 
     /**
-     * Get the SharedPreferences used for UI configuration such as Resizable layouts
+     * Whether the Card Browser should use an efficient 'no sorting' mode when displaying results
+     *
+     * **AnkiDroid Only**
+     *
+     * TODO: This should differentiate cards & notes mode
      */
-    fun getUiConfig(context: Context): SharedPreferences = context.getSharedPreferences(UI_CONFIG_PREFERENCES_NAME, Context.MODE_PRIVATE)
-
-    companion object {
-        private const val UI_CONFIG_PREFERENCES_NAME = "ui-config"
-    }
+    var cardBrowserNoSorting by booleanPref(R.string.pref_browser_no_sorting, false)
 }

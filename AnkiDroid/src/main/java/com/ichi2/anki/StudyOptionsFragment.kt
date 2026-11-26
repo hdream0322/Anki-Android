@@ -59,8 +59,9 @@ import com.ichi2.anki.study.StudyCompletionUi
 import com.ichi2.anki.study.currentDeckStudyState
 import com.ichi2.anki.ui.internationalization.sentenceCase
 import com.ichi2.anki.utils.doOnApplyWindowInsets
-import com.ichi2.anki.utils.ext.launchCollectionInViewLifecycleScope
+import com.ichi2.anki.utils.ext.collectInViewLifecycle
 import com.ichi2.anki.utils.ext.setFragmentResultListener
+import com.ichi2.anki.utils.ext.setSupportActionBarText
 import com.ichi2.anki.utils.ext.showDialogFragment
 import com.ichi2.ui.CollectionMediaImageGetter
 import nl.dionsegijn.konfetti.core.Angle
@@ -168,10 +169,10 @@ class StudyOptionsFragment :
         super.onViewCreated(view, savedInstanceState)
         requireActivity().addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
         if (!fragmented) {
-            requireAnkiActivity().setToolbarText(title = "")
+            setSupportActionBarText(title = "")
         }
         setupContentInsets(view)
-        viewModel.flowOfState.launchCollectionInViewLifecycleScope(::rebuildUi)
+        viewModel.flowOfState.collectInViewLifecycle(Lifecycle.State.STARTED, ::rebuildUi)
         refreshInterface()
     }
 

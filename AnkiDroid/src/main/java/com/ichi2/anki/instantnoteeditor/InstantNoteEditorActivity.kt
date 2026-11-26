@@ -47,6 +47,7 @@ import com.ichi2.anki.model.SelectableDeck
 import com.ichi2.anki.progress.ViewModelProgress
 import com.ichi2.anki.progress.observeProgress
 import com.ichi2.anki.servicelayer.NoteService
+import com.ichi2.anki.showException
 import com.ichi2.anki.startup.ensureStorageIsReady
 import com.ichi2.anki.withProgress
 import com.ichi2.themes.setTransparentBackground
@@ -62,6 +63,7 @@ import dev.androidbroadcast.vbpd.viewBinding
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import timber.log.Timber
 
@@ -483,14 +485,10 @@ class InstantNoteEditorActivity : AnkiActivity(R.layout.activity_instant_note_ed
     private fun setupErrorListeners() {
         Timber.d("Setting up error listeners")
         viewModel.onError
+            .receiveAsFlow()
             .flowWithLifecycle(lifecycle)
-            .onEach { errorMessage ->
-                AlertDialog
-                    .Builder(this)
-                    .setTitle(CommonString.vague_error)
-                    .setMessage(errorMessage)
-                    .show()
-            }.launchIn(lifecycleScope)
+            .onEach { showException(it) }
+            .launchIn(lifecycleScope)
 
         viewModel.instantEditorError
             .onEach { errorMessage ->

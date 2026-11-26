@@ -14,6 +14,10 @@ configure<LibraryExtension> {
     // namespace must be unique for resources generation.
     namespace = "com.ichi2.anki.ankicommon"
     buildFeatures.buildConfig = true
+    defaultConfig {
+        buildConfigField("Boolean", "CI", (System.getenv("CI") == "true").toString())
+    }
+    buildFeatures.viewBinding = true
     testFixtures.enable = true
 }
 
@@ -47,10 +51,14 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.json)
 
+    testFixturesApi(testFixtures(project(":libanki")))
     testFixturesImplementation(project(":common:android"))
     testFixturesImplementation(project(":libanki"))
     testFixturesImplementation(libs.androidx.core)
     testFixturesImplementation(libs.androidx.test.core)
+    testFixturesImplementation(libs.hamcrest)
     testFixturesImplementation(libs.jakewharton.timber)
+    testFixturesImplementation(libs.junit4)
     testFixturesImplementation(libs.kotlin.test)
+    testFixturesImplementation(libs.kotlinx.coroutines.test)
 }

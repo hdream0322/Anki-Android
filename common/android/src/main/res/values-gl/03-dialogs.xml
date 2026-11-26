@@ -226,7 +226,7 @@
     <string name="change_cloze_mode">Cambiar modo oclusión</string>
     <!-- Outdated WebView dialog -->
     <string name="webview_update_message">O WebView do sistema está desactualizado. Algunhas funcións non funcionarán correctamente. Por favor, actualízao.\n\nVersión instalada: %1$d\nVersión mínima requirida: %2$d</string>
-    <string name="webview_unsupported_message">Your WebView is incompatible with AnkiDroid. Some features won’t work correctly. Please update it.</string>
+    <string name="webview_unsupported_message">O teu WebView non é compatíbel co AnkiDroid. Algunhas funcións non funcionarán correctamente. Por favor, actualízao.</string>
     <string name="compress">Comprimir</string>
     <!-- Tts playback error dialog -->
     <string name="tts_no_engine_title">Non hai ningún motor de texto a voz instalado</string>
@@ -271,4 +271,10 @@
     <string name="profile_name" comment="Label of the text field where the user types the name of a new profile">Nome do perfil</string>
     <string name="profile_name_empty_error" comment="Error shown when the user leaves the profile name empty">O nome do perfil non pode estar baleiro</string>
     <string name="profile_name_too_long_error" comment="Error shown when a profile name exceeds the maximum length. %1$d is the maximum number of characters">O nome do perfil debe ter %1$d caracteres ou menos</string>
+    <!-- Switch profile dialogs -->
+    <string name="switch_profile_title" comment="Title of the dialog that confirms switching to another profile. %1$s is the profile name">Cambiar a «%1$s»?</string>
+    <string name="switch_profile_message" comment="Message of the dialog that confirms switching to another profile. %1$s is the app name: \'AnkiDroid\'">O %1$s reiniciarase para abrir este perfil.</string>
+    <string name="switch_profile_confirm" comment="Button that confirms switching to another profile">Cambiar</string>
+    <string name="switch_profile_blocked" comment="Shown when the user tries to switch profiles while a sync or backup is running. %1$s is the app name: \'AnkiDroid\'">O %1$s estase sincronizando ou facendo unha copia de seguranza. Téntao de novo cando remate.</string>
+    <string name="switch_profile_failed" comment="Shown when AnkiDroid could not switch to another profile. %1$s is the profile name">Non se puido cambiar a «%1$s». Téntao de novo.</string>
 </resources>

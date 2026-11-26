@@ -26,7 +26,7 @@ import androidx.core.net.toUri
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.flowWithLifecycle
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import com.ichi2.anki.CommonString
 import com.ichi2.anki.R
@@ -37,8 +37,9 @@ import com.ichi2.anki.localizedErrorMessage
 import com.ichi2.anki.pages.PostRequestBridge
 import com.ichi2.anki.security.AppPermissions
 import com.ichi2.anki.settings.Prefs
+import com.ichi2.anki.showException
 import com.ichi2.anki.snackbar.showSnackbar
-import com.ichi2.anki.utils.ext.collectIn
+import com.ichi2.anki.utils.ext.collectInViewLifecycle
 import com.ichi2.anki.utils.ext.packageManager
 import com.ichi2.anki.utils.openUrl
 import com.ichi2.anki.workarounds.OnWebViewRecreatedListener
@@ -55,8 +56,8 @@ import com.ichi2.utils.show
 import com.ichi2.utils.stripDangerousPermissions
 import com.ichi2.utils.title
 import com.ichi2.utils.usesDangerousScheme
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
 import timber.log.Timber
 
 abstract class CardViewerFragment(
@@ -152,7 +153,7 @@ abstract class CardViewerFragment(
     ) {
         setupWebView(savedInstanceState)
         setupErrorListeners()
-        viewModel.eval.collectIn(lifecycleScope) { eval ->
+        viewModel.eval.collectInViewLifecycle(Lifecycle.State.CREATED) { eval ->
             webViewLayout.evaluateJavascript(eval)
         }
     }
@@ -220,23 +221,14 @@ abstract class CardViewerFragment(
     }
 
     private fun setupErrorListeners() {
-        viewModel.onError
-            .flowWithLifecycle(lifecycle)
-            .onEach { errorMessage ->
-                AlertDialog
-                    .Builder(requireContext())
-                    .setTitle(CommonString.vague_error)
-                    .setMessage(errorMessage)
-                    .show()
-            }.launchIn(lifecycleScope)
+        viewModel.onError.receiveAsFlow().collectInViewLifecycle { requireActivity().showException(it) }
 
-        viewModel.onMediaError
-            .onEach { showMediaErrorSnackbar(it) }
-            .launchIn(lifecycleScope)
-
-        viewModel.onTtsError
-            .onEach { showSnackbar(it.localizedErrorMessage(requireContext())) }
-            .launchIn(lifecycleScope)
+        viewModel.onMediaError.collectInViewLifecycle {
+            showMediaErrorSnackbar(it)
+        }
+        viewModel.onTtsError.collectInViewLifecycle {
+            showSnackbar(it.localizedErrorMessage(requireContext()))
+        }
     }
 
     protected open fun onCreateWebViewClient(savedInstanceState: Bundle?): CardViewerWebViewClient =

@@ -6,12 +6,15 @@ import android.annotation.SuppressLint
 import android.content.SharedPreferences
 import androidx.annotation.CheckResult
 import androidx.core.content.edit
+import androidx.lifecycle.ViewModelStore
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import anki.backend.backendError
 import anki.card_rendering.EmptyCardsReport
 import anki.card_rendering.emptyCardsReport
 import anki.collection.OpChanges
 import anki.decks.SetDeckCollapsedRequest
 import app.cash.turbine.test
+import com.google.protobuf.ByteString
 import com.ichi2.anki.CollectionManager
 import com.ichi2.anki.CollectionManager.withCol
 import com.ichi2.anki.InitialActivity
@@ -27,22 +30,28 @@ import com.ichi2.anki.libanki.Note
 import com.ichi2.anki.libanki.emptyCids
 import com.ichi2.anki.observability.ensureOpsExecuted
 import com.ichi2.anki.progress.ViewModelProgress
+import com.ichi2.testutils.JvmTest
 import com.ichi2.testutils.publicCollectionPath
 import com.ichi2.testutils.rules.BackendOverrideRule
 import com.ichi2.testutils.withAllFilesAccess
 import com.ichi2.testutils.withManageExternalStorageInManifest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.setMain
 import net.ankiweb.rsdroid.Backend
+import net.ankiweb.rsdroid.exceptions.BackendInvalidInputException
+import net.ankiweb.rsdroid.exceptions.BackendIoException
 import org.hamcrest.CoreMatchers.not
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.equalTo
 import org.hamcrest.Matchers.lessThan
+import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -54,17 +63,30 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlin.concurrent.thread
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertSame
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTime
 
 /** Test of [DeckPickerViewModel] */
-@RunWith(AndroidJUnit4::class)
-class DeckPickerViewModelTest : RobolectricTest() {
+class DeckPickerViewModelTest : JvmTest() {
     @get:Rule
     val backendOverride = BackendOverrideRule()
 
-    private val viewModel: DeckPickerViewModel by lazy { DeckPickerViewModel() }
+    private val viewModels = ViewModelStore()
+    private var viewModelCount = 0
+    private val viewModel: DeckPickerViewModel by lazy { buildViewModel() }
+
+    private fun buildViewModel() = DeckPickerViewModel().also { viewModels.put("deck-picker-${viewModelCount++}", it) }
+
+    @After
+    override fun tearDown() {
+        try {
+            viewModels.clear()
+        } finally {
+            super.tearDown()
+        }
+    }
 
     @Test
     fun `delete confirmation includes cards in subdecks`() =
@@ -251,64 +273,6 @@ class DeckPickerViewModelTest : RobolectricTest() {
         }
     }
 
-    @Test // Issue 13574: the storage decision may be deferred until permissions are granted
-    @SuppressLint("NewApi") // EXTERNAL_MANAGER requires R: Robolectric runs at API 35
-    fun `startup decides a collection path once permissions are granted`() =
-        runTest {
-            targetContext.sharedPrefs().edit { remove(CollectionHelper.PREF_COLLECTION_PATH) }
-
-            withManageExternalStorageInManifest {
-                withAllFilesAccess {
-                    viewModel.handleStartup(externalManagerEnvironment())
-                    advanceRobolectricLooperUntil { viewModel.startupJob?.isCompleted == true }
-                }
-            }
-
-            assertEquals(publicCollectionPath, targetContext.sharedPrefs().getString(CollectionHelper.PREF_COLLECTION_PATH, null))
-            assertEquals(DeckPickerViewModel.StartupResponse.Success, viewModel.flowOfStartupResponse.value)
-        }
-
-    @Test // Issue 13574: the storage decision must not be made before the user grants or skips
-    @SuppressLint("NewApi") // EXTERNAL_MANAGER requires R: Robolectric runs at API 35
-    fun `startup requests permissions without deciding a collection path`() {
-        targetContext.sharedPrefs().edit { remove(CollectionHelper.PREF_COLLECTION_PATH) }
-
-        withManageExternalStorageInManifest { viewModel.handleStartup(externalManagerEnvironment()) }
-
-        assertEquals(
-            DeckPickerViewModel.StartupResponse.RequestPermissions(StoragePermissionSet.EXTERNAL_MANAGER),
-            viewModel.flowOfStartupResponse.value,
-        )
-        assertThat(
-            "no collection path is decided before permissions are granted",
-            !targetContext.sharedPrefs().contains(CollectionHelper.PREF_COLLECTION_PATH),
-        )
-    }
-
-    /**
-     * `DeckPicker`'s environment on a build declaring `MANAGE_EXTERNAL_STORAGE`, on Android 11+.
-     *
-     * Not `@Config(sdk = R)`: startup opens the backend, which is unavailable in Robolectric's
-     * per-SDK sandbox. The default SDK satisfies `EXTERNAL_MANAGER`'s API requirement.
-     */
-    @SuppressLint("NewApi") // EXTERNAL_MANAGER requires R: Robolectric runs at API 35
-    private fun externalManagerEnvironment() =
-        object : DeckPickerViewModel.AnkiDroidEnvironment {
-            override val requiredPermissions = StoragePermissionSet.EXTERNAL_MANAGER
-
-            override fun hasRequiredPermissions() = requiredPermissions.hasRequiredPermissions(targetContext)
-
-            override val preferences: SharedPreferences
-                get() = targetContext.sharedPrefs()
-
-            override fun decideStorageIfUndecided() {
-                check(hasRequiredPermissions()) { "the storage decision requires granted permissions" }
-                InitialActivity.decideStorageIfUndecided(targetContext)
-            }
-
-            override fun initializeAnkiDroidFolder(): Boolean = CollectionHelper.isCurrentAnkiDroidDirAccessible(targetContext)
-        }
-
     @Test
     fun `deleteDeck reports progress`() =
         runProgressTest {
@@ -322,7 +286,7 @@ class DeckPickerViewModelTest : RobolectricTest() {
         runTest {
             col.decks.select(addDeck("Deleted"))
 
-            DeckPickerViewModel().run {
+            buildViewModel().run {
                 withQueuedCollectionAccess {
                     val deletion = deleteSelectedDeck()
                     val active = assertIs<ViewModelProgress.Active<DeckPickerProgress>>(progressManager.progress.value)
@@ -364,7 +328,7 @@ class DeckPickerViewModelTest : RobolectricTest() {
     private fun runProgressTest(testBody: suspend DeckPickerViewModel.() -> Unit) =
         runTest {
             Dispatchers.setMain(StandardTestDispatcher(testScheduler))
-            DeckPickerViewModel().testBody()
+            buildViewModel().testBody()
         }
 
     private suspend fun TestScope.withQueuedCollectionAccess(block: suspend () -> Unit) {
@@ -483,6 +447,75 @@ class DeckPickerViewModelTest : RobolectricTest() {
     }
 
     @Test
+    fun `a failed selection opens no context menu`() = assertFailedSelectionSkips({ flowOfShowContextMenu }) { requestContextMenu(it) }
+
+    @Test
+    fun `a failed selection opens no right click menu`() =
+        assertFailedSelectionSkips({ flowOfShowRightClickContextMenu }) { requestRightClickContextMenu(it, x = 10f, y = 20f) }
+
+    @Test
+    fun `a created deck whose selection fails skips the update`() =
+        assertFailedSelectionSkips({ flowOfCreatedDeckSelected }) { selectCreatedDeck(it) }
+
+    private fun <T> assertFailedSelectionSkips(
+        followUp: DeckPickerViewModel.() -> Flow<T>,
+        request: DeckPickerViewModel.(DeckId) -> Job,
+    ) = runTest {
+        val failure = BackendIoException(backendError { message = "Operation not permitted (os error 1)" })
+        backendOverride.replaceWith {
+            object : Backend() {
+                override fun setCurrentDeck(did: Long): OpChanges = throw failure
+            }
+        }
+        val deckId = addDeck("Target")
+        val previousSelection = col.decks.selected()
+
+        viewModel.followUp().test {
+            viewModel.request(deckId).join()
+
+            expectNoEvents()
+        }
+        assertSame(failure, viewModel.onError.tryReceive().getOrNull())
+        assertEquals(previousSelection, col.decks.selected())
+    }
+
+    @Test
+    fun `deck search recovers after a failed deck read`() {
+        val failNextDeckRead = AtomicBoolean(false)
+        val readError = BackendInvalidInputException(backendError { message = "Could not read the current deck" })
+        backendOverride.replaceWith {
+            object : Backend() {
+                override fun getDeckLegacy(did: Long): ByteString {
+                    if (failNextDeckRead.compareAndSet(true, false)) throw readError
+                    return super.getDeckLegacy(did)
+                }
+            }
+        }
+        val first = addDeck("First")
+        val second = addDeck("Second")
+
+        runTest {
+            viewModel.reloadDeckCounts().join()
+            runCurrent()
+            val initialList = viewModel.flowOfDeckList.value
+            assertEquals(listOf(first, second), initialList.data.map { it.did })
+
+            failNextDeckRead.set(true)
+            viewModel.updateDeckFilter("First")
+            runCurrent()
+
+            assertSame(readError, viewModel.onError.tryReceive().getOrNull())
+            assertEquals(initialList, viewModel.flowOfDeckList.value)
+
+            viewModel.updateDeckFilter("Second")
+            runCurrent()
+
+            val filteredList = viewModel.flowOfDeckList.value
+            assertEquals(listOf(second), filteredList.data.map { it.did })
+        }
+    }
+
+    @Test
     fun `deleteDeck selects the next visible deck matching the filter`() =
         runTest {
             // 'A hidden' is first alphabetically but does not match the filter.
@@ -570,6 +603,82 @@ class DeckPickerViewModelTest : RobolectricTest() {
             // Default is the nearest previous row, but deleting its last child hides it.
             assertEquals(expected, col.decks.selected())
             assertEquals(expected, viewModel.focusedDeck)
+        }
+}
+
+@RunWith(AndroidJUnit4::class)
+class DeckPickerStartupViewModelTest : RobolectricTest() {
+    @get:Rule
+    val backendOverride = BackendOverrideRule()
+
+    private val viewModels = ViewModelStore()
+    private val viewModel by lazy { DeckPickerViewModel().also { viewModels.put("deck-picker", it) } }
+
+    @After
+    override fun tearDown() {
+        try {
+            viewModels.clear()
+        } finally {
+            super.tearDown()
+        }
+    }
+
+    @Test // Issue 13574: the storage decision may be deferred until permissions are granted
+    @SuppressLint("NewApi") // EXTERNAL_MANAGER requires R: Robolectric runs at API 35
+    fun `startup decides a collection path once permissions are granted`() =
+        runTest {
+            targetContext.sharedPrefs().edit { remove(CollectionHelper.PREF_COLLECTION_PATH) }
+
+            withManageExternalStorageInManifest {
+                withAllFilesAccess {
+                    viewModel.handleStartup(externalManagerEnvironment())
+                    advanceRobolectricLooperUntil { viewModel.startupJob?.isCompleted == true }
+                }
+            }
+
+            assertEquals(publicCollectionPath, targetContext.sharedPrefs().getString(CollectionHelper.PREF_COLLECTION_PATH, null))
+            assertEquals(DeckPickerViewModel.StartupResponse.Success, viewModel.flowOfStartupResponse.value)
+        }
+
+    @Test // Issue 13574: the storage decision must not be made before the user grants or skips
+    @SuppressLint("NewApi") // EXTERNAL_MANAGER requires R: Robolectric runs at API 35
+    fun `startup requests permissions without deciding a collection path`() {
+        targetContext.sharedPrefs().edit { remove(CollectionHelper.PREF_COLLECTION_PATH) }
+
+        withManageExternalStorageInManifest { viewModel.handleStartup(externalManagerEnvironment()) }
+
+        assertEquals(
+            DeckPickerViewModel.StartupResponse.RequestPermissions(StoragePermissionSet.EXTERNAL_MANAGER),
+            viewModel.flowOfStartupResponse.value,
+        )
+        assertThat(
+            "no collection path is decided before permissions are granted",
+            !targetContext.sharedPrefs().contains(CollectionHelper.PREF_COLLECTION_PATH),
+        )
+    }
+
+    /**
+     * `DeckPicker`'s environment on a build declaring `MANAGE_EXTERNAL_STORAGE`, on Android 11+.
+     *
+     * Not `@Config(sdk = R)`: startup opens the backend, which is unavailable in Robolectric's
+     * per-SDK sandbox. The default SDK satisfies `EXTERNAL_MANAGER`'s API requirement.
+     */
+    @SuppressLint("NewApi") // EXTERNAL_MANAGER requires R: Robolectric runs at API 35
+    private fun externalManagerEnvironment() =
+        object : DeckPickerViewModel.AnkiDroidEnvironment {
+            override val requiredPermissions = StoragePermissionSet.EXTERNAL_MANAGER
+
+            override fun hasRequiredPermissions() = requiredPermissions.hasRequiredPermissions(targetContext)
+
+            override val preferences: SharedPreferences
+                get() = targetContext.sharedPrefs()
+
+            override fun decideStorageIfUndecided() {
+                check(hasRequiredPermissions()) { "the storage decision requires granted permissions" }
+                InitialActivity.decideStorageIfUndecided(targetContext)
+            }
+
+            override fun initializeAnkiDroidFolder(): Boolean = CollectionHelper.isCurrentAnkiDroidDirAccessible(targetContext)
         }
 
     @Test

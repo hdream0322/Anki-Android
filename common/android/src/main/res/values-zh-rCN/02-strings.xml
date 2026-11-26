@@ -345,6 +345,8 @@
     <string name="previewer_back" comment="Name of the back button in the previewer" maxLength="28">返回</string>
     <string name="start_recording">录制</string>
     <string name="stop_recording">停止</string>
+    <string name="pause_recording" comment="Description of a button which pauses an audio recording">暂停</string>
+    <string name="resume_recording" comment="Description of a button which continues a paused audio recording">恢复</string>
     <string name="play_recording">播放</string>
     <string name="next_recording" comment="Description of a button to go to the next recording">下一个录音</string>
     <!--  AlertDialog in the deleteCardTemplate  -->
@@ -378,4 +380,8 @@
     <string name="switch_profile" maxLength="41" comment="Title of the screen where the user switches between profiles">切换配置文件</string>
     <string name="edit_profile" comment="Content description of the button that edits a profile in the profile list">修改配置文件</string>
     <string name="delete_profile" comment="Content description of the button that deletes a profile in the profile list">删除配置文件</string>
+    <!-- Profile that could not be opened -->
+    <string name="profile_load_failed_title" comment="Title of the dialog shown when the selected profile could not be opened at startup. %1$s is the name of that profile">无法打开配置文件“%1$s”</string>
+    <string name="profile_load_failed_message" comment="Message of the dialog shown when the selected profile could not be opened at startup. %1$s is the name of the profile that was opened instead, %2$s is the name of the profile that could not be opened">打开了\"%1$s\" 配置文件。将下次再尝试\"%2$s\" 。</string>
+    <string name="profile_load_failed_use_default" comment="Button in the dialog shown when the selected profile could not be opened. It makes AnkiDroid open the other profile from the next start. %1$s is the name of that other profile">使用“%1$s”</string>
 </resources>

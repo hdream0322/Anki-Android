@@ -1,45 +1,66 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="DuplicateCrowdInStrings">
-    <style name="Base.Theme.Light.Eink" parent="Base.Theme.Light">
-        <item name="isLightTheme">true</item>
-
+    <style name="Base.Theme.AnkiDroid.Eink" parent="Theme.AnkiDroid">
         <item name="colorPrimary">@color/black</item>
-        <item name="colorPrimaryDark">@color/black</item>
-        <item name="colorAccent">@color/black</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorPrimaryContainer">@color/black</item>
+        <item name="colorOnPrimaryContainer">@color/white</item>
+        <item name="colorPrimaryInverse">@color/black</item>
+        <item name="colorPrimaryFixed">#E0E0E0</item>
+        <item name="colorPrimaryFixedDim">#BDBDBD</item>
+        <item name="colorOnPrimaryFixed">@color/black</item>
+        <item name="colorOnPrimaryFixedVariant">#424242</item>
+        <item name="colorSecondary">@color/black</item>
+        <item name="colorOnSecondary">@color/white</item>
+        <item name="colorSecondaryContainer">#CCCCCC</item>
+        <item name="colorOnSecondaryContainer">@color/black</item>
+        <item name="colorSecondaryFixed">#E0E0E0</item>
+        <item name="colorSecondaryFixedDim">#BDBDBD</item>
+        <item name="colorOnSecondaryFixed">@color/black</item>
+        <item name="colorOnSecondaryFixedVariant">#424242</item>
+        <item name="colorTertiary">#444444</item>
+        <item name="colorOnTertiary">@color/white</item>
+        <item name="colorTertiaryContainer">#E0E0E0</item>
+        <item name="colorOnTertiaryContainer">@color/black</item>
+        <item name="colorTertiaryFixed">#E0E0E0</item>
+        <item name="colorTertiaryFixedDim">#BDBDBD</item>
+        <item name="colorOnTertiaryFixed">@color/black</item>
+        <item name="colorOnTertiaryFixedVariant">#424242</item>
+        <item name="colorError">@color/black</item>
+        <item name="colorOnError">@color/white</item>
+        <item name="colorErrorContainer">#E0E0E0</item>
+        <item name="colorOnErrorContainer">@color/black</item>
+        <item name="android:colorBackground">@color/white</item>
+        <item name="colorOnBackground">@color/black</item>
         <item name="colorSurface">@color/white</item>
         <item name="colorOnSurface">@color/black</item>
-        <item name="colorControlNormal">@color/black</item>
-        <item name="android:textColor">@color/text_color_eink</item>
-        <item name="android:textColorSecondary">@color/text_color_secondary_eink</item>
-        <item name="android:colorBackground">@android:color/white</item>
-        <item name="android:windowBackground">@android:color/white</item>
-        <item name="preferenceCategoryTitleTextColor">@color/black</item>
-        <item name="colorSecondaryContainer">#CCCCCC</item>
         <item name="colorSurfaceVariant">#EEEEEE</item>
         <item name="colorOnSurfaceVariant">#444444</item>
-        <item name="colorOutlineVariant">#777777</item>
-        <item name="colorTertiary">#444444</item>
-        <item name="colorOnTertiary">#FFFFFF</item>
-        <item name="colorOnPrimaryContainer">@color/white</item>
-        <item name="fab_normal">@color/black</item>
-        <item name="fab_pressed">@color/black</item>
-        <item name="colorSurfaceContainerHighest">?attr/colorSurfaceContainer</item>
-        <item name="colorSurfaceContainerHigh">#E0E0E0</item>
+        <item name="colorSurfaceInverse">@color/white</item>
+        <item name="colorOnSurfaceInverse">@color/black</item>
+        <item name="colorSurfaceDim">@color/white</item>
+        <item name="colorSurfaceBright">@color/white</item>
+        <item name="colorSurfaceContainerLowest">@color/white</item>
+        <item name="colorSurfaceContainerLow">@color/white</item>
         <item name="colorSurfaceContainer">#F0F0F0</item>
-        <item name="colorSurfaceContainerLow">?android:attr/colorBackground</item>
+        <item name="colorSurfaceContainerHigh">@color/white</item>
+        <item name="colorSurfaceContainerHighest">@color/white</item>
+        <item name="colorOutline">@color/black</item>
+        <item name="colorOutlineVariant">#777777</item>
+        <item name="colorControlNormal">@color/black</item>
+        <item name="android:windowBackground">@android:color/white</item>
+        <item name="preferenceCategoryTitleTextColor">@color/black</item>
+        <item name="fabNormalColor">@color/black</item>
+        <item name="fabPressedColor">@color/black</item>
 
-        <item name="widgetColorActivated">?attr/colorPrimary</item>
         <item name="appBarColor">@color/white</item>
         <item name="actionBarTextColor">@color/black</item>
-        <item name="actionBarPopupTextColor">?android:attr/textColor</item>
-        <item name="actionModeBackground">@color/white</item>
 
-        <item name="tabLayoutBackgroundColor">?attr/colorPrimary</item>
-        <item name="tabActiveIconColor">@color/white</item>
+        <item name="bottomNavIndicatorColor">@color/black</item>
+        <item name="bottomNavActiveIconColor">@color/white</item>
 
         <item name="navDrawerImage">@drawable/nav_drawer_logo_eink</item>
-        <item name="currentDeckBackgroundColor">#E0E0E0</item>
-        <item name="focusedRowBackgroundColor">#E0E0E0</item>
+        <item name="selectedRowBackgroundColor">#E0E0E0</item>
         <item name="dynDeckColor">@color/black</item>
 
         <item name="newCountColor">@color/black</item>
@@ -52,7 +73,7 @@
         <item name="hardButtonBackground">@color/white</item>
         <item name="goodButtonBackground">@color/white</item>
         <item name="easyButtonBackground">@color/white</item>
-        <item name="answerButtonTextColor">@color/black</item>
+        <item name="showAnswerTextColor">@color/black</item>
         <item name="againButtonTextColor">@color/black</item>
         <item name="hardButtonTextColor">@color/black</item>
         <item name="goodButtonTextColor">@color/black</item>
@@ -68,54 +89,43 @@
         <item name="goodBackgroundColor">@color/white</item>
         <item name="easyBackgroundColor">@color/white</item>
 
-        <item name="againButtonRef">@drawable/footer_button_all_eink</item>
-        <item name="hardButtonRef">@drawable/footer_button_all_eink</item>
-        <item name="goodButtonRef">@drawable/footer_button_all_eink</item>
-        <item name="easyButtonRef">@drawable/footer_button_all_eink</item>
+        <item name="answerButtonRef">@drawable/footer_button_all_eink</item>
 
-        <item name="againButtonRippleRef">@drawable/footer_button_all_eink_ripple</item>
-        <item name="hardButtonRippleRef">@drawable/footer_button_all_eink_ripple</item>
-        <item name="goodButtonRippleRef">@drawable/footer_button_all_eink_ripple</item>
-        <item name="easyButtonRippleRef">@drawable/footer_button_all_eink_ripple</item>
+        <item name="answerButtonRippleRef">@drawable/footer_button_all_eink_ripple</item>
 
         <item name="showAnswerButtonBackground">@color/black</item>
         <item name="showAnswerColor">@color/black</item>
 
-        <item name="alternativeBackgroundColor">@color/white</item>
         <item name="cardBrowserDivider">@color/black</item>
-        <item name="editTextBackgroundColor">@color/white</item>
-        <item name="editTextHighlightColor">@color/material_grey_300</item>
+        <item name="android:textColorHighlight">@color/material_grey_300</item>
         <item name="toolbarBackgroundColor">@color/white</item>
-        <item name="toolbarIconColor">@color/black</item>
         <item name="topBarColor">@color/white</item>
         <item name="overflowAndPopupMenuIconColor">@color/black</item>
         <item name="incrementerButtonBackground">@color/black</item>
 
-        <item name="android:statusBarColor">?attr/colorSurface</item>
         <item name="android:navigationBarColor">?attr/colorSurface</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">true</item>
 
         <item name="clozeColor">@color/black</item>
-        <item name="dialogBackground">@color/white</item>
         <item name="navDrawerItemColor">@color/black</item>
         <item name="alertDialogTheme">@style/ThemeOverlay.AnkiDroid.AlertDialog.Eink</item>
-
 
         <item name="badgeErrorColor">@color/black</item>
         <item name="badgeWarningColor">@color/black</item>
         <item name="widgetStrokeWidth">2dp</item>
         <item name="widgetStrokeColor">@color/black</item>
         <item name="studyScreenElevation">0dp</item>
+        <!-- Elevated surfaces stay white: no elevation tint from the black primary -->
+        <item name="elevationOverlayEnabled">false</item>
 
+        <!-- Inverse colors, used by snackbars, which have a border instead of a background -->
         <item name="snackbarStyle">@style/SnackbarStyle.Eink</item>
-        <item name="snackbarTextViewStyle">@style/SnackbarTextStyle.Eink</item>
-        <item name="snackbarButtonStyle">@style/SnackbarButtonStyle.Eink</item>
         <item name="whiteboardToolbarCardStyle">@style/Widget.AnkiDroid.WhiteboardToolbarCard.Eink</item>
     </style>
 
     <style name="ThemeOverlay.AnkiDroid.AlertDialog.Eink" parent="ThemeOverlay.AnkiDroid.AlertDialog">
-        <item name="android:windowBackground">@drawable/bg_dialog_eink</item>
+        <item name="android:windowFrame">@drawable/frame_dialog_eink</item>
         <item name="android:windowElevation">0dp</item>
         <item name="android:elevation">0dp</item>
         <item name="elevation">0dp</item>
@@ -129,13 +139,5 @@
         <item name="elevation">0dp</item>
     </style>
 
-    <style name="SnackbarTextStyle.Eink" parent="Widget.MaterialComponents.Snackbar.TextView">
-        <item name="android:textColor">@color/black</item>
-    </style>
-
-    <style name="SnackbarButtonStyle.Eink" parent="Widget.Material3.Button.TextButton.Snackbar">
-        <item name="android:textColor">@color/black</item>
-    </style>
-
-    <style name="Theme_Light_Eink" parent="Base.Theme.Light.Eink"/>
+    <style name="Theme.AnkiDroid.Eink" parent="Base.Theme.AnkiDroid.Eink"/>
 </resources>

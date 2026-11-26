@@ -37,6 +37,16 @@ tasks.test {
     inputs.files("../AnkiDroid/build.gradle.kts")
     // The screenshot fixture uses the same Android SDK as the main build.
     inputs.file("../gradle/libs.versions.toml")
+    // The coverage fixture uses the app's real include list.
+    inputs.file("../gradle/jacoco-includes.txt")
+}
+
+// Run from the repository root: ./gradlew -p buildSrc downloadTestKitDependencies
+tasks.register<JavaExec>("downloadTestKitDependencies") {
+    group = "build setup"
+    description = "Warms the TestKit dependency cache without running test assertions."
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("com.ichi2.anki.gradle.DownloadTestKitDependenciesKt")
 }
 
 configure<KtlintExtension> {

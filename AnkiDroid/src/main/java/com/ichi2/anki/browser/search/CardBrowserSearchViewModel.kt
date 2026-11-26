@@ -13,15 +13,15 @@ import com.ichi2.anki.browser.SearchHistory.SearchHistoryEntry
 import com.ichi2.anki.common.annotations.NeedsTest
 import com.ichi2.anki.libanki.DeckNameId
 import com.ichi2.anki.libanki.NoteTypeNameID
+import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.utils.ViewModelSavedStateHandle
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -49,21 +49,12 @@ class CardBrowserSearchViewModel(
     private val searchHistoryManager = SearchHistory()
 
     val advancedSearchFlow =
-        savedStateHandle.getMutableStateFlow(STATE_ADVANCED_SEARCH_ENABLED, false)
+        savedStateHandle.getMutableStateFlow(STATE_ADVANCED_SEARCH_ENABLED, false).apply {
+            if (!Prefs.devUsingCardBrowserSearchTools) value = false
+        }
 
-    private val advancedSearchTextFlow =
-        savedStateHandle.getMutableStateFlow(STATE_ADVANCED_SEARCH_TEXT, "")
-    private val basicSearchTextFlow =
-        savedStateHandle.getMutableStateFlow(STATE_BASIC_SEARCH_TEXT, "")
-
-    val searchTextFlow =
-        combine(advancedSearchFlow, basicSearchTextFlow, advancedSearchTextFlow) { displayingAdvancedSearch, basicText, advancedText ->
-            if (displayingAdvancedSearch) advancedText else basicText
-        }.stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.Eagerly,
-            initialValue = "",
-        )
+    val searchTextFlow: StateFlow<String>
+        field = savedStateHandle.getMutableStateFlow(STATE_SEARCH_TEXT, "")
 
     val isHistoryExpandedFlow = savedStateHandle.getMutableStateFlow(STATE_HISTORY_EXPANDED, false)
 
@@ -87,7 +78,7 @@ class CardBrowserSearchViewModel(
             it.entryToSearchString.size > MAX_SEARCH_HISTORY_ENTRIES
         }
 
-    val closeSearchViewFlow = MutableSharedFlow<Unit>(extraBufferCapacity = 1, replay = 1)
+    val closeSearchViewFlow = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
     val submittedSearchFlow = MutableSharedFlow<SearchRequest?>(extraBufferCapacity = 1, replay = 1)
 
@@ -99,39 +90,23 @@ class CardBrowserSearchViewModel(
 
     val isScreenOpenFlow = MutableStateFlow(false)
 
-    private val filterStateUpdateFlow = MutableStateFlow<FilterUpdate>(FilterUpdate.System(SearchFilters.EMPTY))
-    val filtersFlow =
-        filterStateUpdateFlow
-            .map { it.state }
-            .stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.Eagerly,
-                initialValue = filterStateUpdateFlow.value.state,
-            )
+    /** Emits the current browser search while the search screen is closed. */
+    fun searchBarQueryFlow(searchRequests: Flow<SearchRequest>): Flow<SearchRequest> =
+        searchRequests
+            .combine(isScreenOpenFlow) { search, isOpen -> search.takeUnless { isOpen } }
+            .filterNotNull()
 
-    private val updateSearchFlow =
-        isScreenOpenFlow
-            .flatMapLatest { screenOpen ->
-                if (screenOpen) {
-                    emptyFlow()
-                } else {
-                    searchTextFlow.combine(filterStateUpdateFlow) { text, state ->
-                        if (state is FilterUpdate.System) {
-                            Timber.d("skipped updateSearchFlow: non-user change")
-                            return@combine null
-                        }
+    val filtersFlow: StateFlow<SearchFilters>
+        field = MutableStateFlow(SearchFilters.EMPTY)
 
-                        // various filters add a trailing space
-                        withCol { SearchRequest(text.trim(), state.state) }
-                    }
-                }
-            }.filterNotNull()
+    private var activeQuery = ""
 
     private fun updateFilterState(update: (SearchFilters) -> SearchFilters) {
-        filterStateUpdateFlow.value =
-            FilterUpdate.User(
-                update(filterStateUpdateFlow.value.state),
-            )
+        val filters = update(filtersFlow.value)
+        filtersFlow.value = filters
+        if (!isScreenOpenFlow.value) {
+            submitCurrentSearch(SearchRequest(activeQuery, filters))
+        }
     }
 
     fun setDecksFilter(decks: List<DeckNameId>) {
@@ -158,11 +133,6 @@ class CardBrowserSearchViewModel(
         viewModelScope.launch {
             savedSearchesFlow.value = SavedSearches.loadFromConfig()
         }
-
-        updateSearchFlow
-            .onEach {
-                submitCurrentSearch(it)
-            }.launchIn(viewModelScope)
 
         searchHistoryFlow
             .onEach { history ->
@@ -193,6 +163,8 @@ class CardBrowserSearchViewModel(
      * Toggles between Basic and Advanced search mode
      */
     fun toggleAdvancedSearch() {
+        if (!Prefs.devUsingCardBrowserSearchTools) return
+
         Timber.i("Toggling advanced search to %s", !advancedSearchFlow.value)
         advancedSearchFlow.value = !advancedSearchFlow.value
     }
@@ -202,12 +174,12 @@ class CardBrowserSearchViewModel(
     }
 
     /**
-     * Appends [searchText] to the current temporary advances search text
+     * Appends [searchText] to the current unsubmitted search text
      */
     fun appendAdvancedSearch(searchText: String) {
         Timber.d("appending search text '%s'", searchText)
-        val currentValue = advancedSearchTextFlow.value
-        advancedSearchTextFlow.value +=
+        val currentValue = searchTextFlow.value
+        searchTextFlow.value +=
             buildString {
                 if (currentValue.isNotBlank() && !currentValue.endsWith(" ")) append(' ')
                 append(searchText)
@@ -221,41 +193,37 @@ class CardBrowserSearchViewModel(
     fun onSearchTextChanged(searchText: String) {
         Timber.v("onSearchTextChanged '%s'", searchText)
 
-        val sanitizedText = searchText.replace("\n", " ")
-
-        // move from system back to 'user'
-        updateFilterState { it.copy() }
-
-        if (advancedSearchFlow.value) {
-            advancedSearchTextFlow.value = sanitizedText
-        } else {
-            basicSearchTextFlow.value = sanitizedText
-        }
+        searchTextFlow.value = searchText.replace("\n", " ")
     }
 
     fun submitCurrentSearch(searchToSubmit: SearchRequest) =
         viewModelScope.launch {
             Timber.i("submitting search")
-            val updatedEntries = searchHistoryManager.addRecent(searchToSubmit.toHistoryEntry())
-            searchHistoryFlow.value = SearchHistoryItems.Loading(updatedEntries)
             closeSearchViewFlow.emit(Unit)
             submittedSearchFlow.emit(searchToSubmit)
         }
 
+    /** Records history only after the backend accepts the search. */
+    fun onSearchSucceeded(search: SearchRequest) =
+        viewModelScope.launch {
+            val updatedEntries = searchHistoryManager.addRecent(search.toHistoryEntry())
+            searchHistoryFlow.value = SearchHistoryItems.Loading(updatedEntries)
+        }
+
     fun submitCurrentSearch() {
+        val search = SearchRequest(searchTextFlow.value.trim(), filtersFlow.value)
         isScreenOpenFlow.value = false
+        submitCurrentSearch(search)
     }
 
     fun selectSearchHistoryEntry(entry: SearchHistoryEntry) =
         viewModelScope.launch {
             Timber.i("selected search history entry")
             onSearchTextChanged(entry.query)
-            filterStateUpdateFlow.value =
-                FilterUpdate.User(
-                    SearchFilters.from(entry) ?: SearchFilters.EMPTY.also {
-                        Timber.w("failed to load filters from search history entry")
-                    },
-                )
+            filtersFlow.value =
+                SearchFilters.from(entry) ?: SearchFilters.EMPTY.also {
+                    Timber.w("failed to load filters from search history entry")
+                }
             submitCurrentSearch()
         }
 
@@ -290,6 +258,8 @@ class CardBrowserSearchViewModel(
      */
     fun submitSavedSearch(search: SavedSearch) {
         Timber.i("selected saved search")
+        // TODO: Populate chips from the saved query (requires backend work).
+        filtersFlow.value = SearchFilters.EMPTY
         onSearchTextChanged(search.query)
         submitCurrentSearch()
     }
@@ -310,23 +280,17 @@ class CardBrowserSearchViewModel(
         viewModelScope.launch {
             Timber.i("clearing temp search state")
             advancedSearchFlow.value = false
-            basicSearchTextFlow.value = submittedSearch.query
-            advancedSearchTextFlow.value = submittedSearch.query
-            filterStateUpdateFlow.value = FilterUpdate.System(submittedSearch.filters)
+            searchTextFlow.value = submittedSearch.query
+            syncState(submittedSearch)
 
             isScreenOpenFlow.value = false
-
-            savedStateHandle.remove<Any>(STATE_ADVANCED_SEARCH_ENABLED)
-            savedStateHandle.remove<Any>(STATE_BASIC_SEARCH_TEXT)
-            savedStateHandle.remove<Any>(STATE_ADVANCED_SEARCH_TEXT)
         }
 
-    fun syncState(search: SearchRequest) =
-        viewModelScope.launch {
-            Timber.d("syncing search state")
-            filterStateUpdateFlow.emit(FilterUpdate.System(search.filters))
-            submittedSearchFlow.emit(search)
-        }
+    fun syncState(search: SearchRequest) {
+        Timber.d("syncing search state")
+        activeQuery = search.query
+        filtersFlow.value = search.filters
+    }
 
     enum class UserMessage {
         SEARCH_SAVED,
@@ -357,24 +321,9 @@ class CardBrowserSearchViewModel(
             }
     }
 
-    /** Wraps [SearchFilters] so sync updates do not trigger a search */
-    // TODO: Make this generic?
-    sealed interface FilterUpdate {
-        data class User(
-            override val state: SearchFilters,
-        ) : FilterUpdate
-
-        data class System(
-            override val state: SearchFilters,
-        ) : FilterUpdate
-
-        val state: SearchFilters
-    }
-
     companion object {
         private const val STATE_ADVANCED_SEARCH_ENABLED = "advancedSearch"
-        private const val STATE_BASIC_SEARCH_TEXT = "basicSearchText"
-        private const val STATE_ADVANCED_SEARCH_TEXT = "advancedSearchText"
+        private const val STATE_SEARCH_TEXT = "searchText"
         private const val STATE_HISTORY_EXPANDED = "historyExpanded"
 
         /** Limits the number of history items, so controls appear below without scrolling */

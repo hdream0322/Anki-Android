@@ -205,14 +205,15 @@ open class RobolectricTest(
             }
         }
         controllersForCleanup.clear()
+        try {
+            Shadows.shadowOf(Looper.getMainLooper()).idle()
+        } catch (failure: Throwable) {
+            noLiveActivities.recordCleanupFailure(failure)
+        }
 
         if (SharedPreferencesTestHook.override != null) {
             Timber.w("SharedPreferencesTestHook was not reset! Setting it to null.")
             SharedPreferencesTestHook.override = null
-        }
-        if (AnkiDroidApp.sharedPreferencesTestingOverride != null) {
-            Timber.w("AnkiDroidApp SharedPrefs test override was not reset to null! Setting it to null.")
-            AnkiDroidApp.sharedPreferencesTestingOverride = null
         }
 
         try {

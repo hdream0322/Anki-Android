@@ -15,9 +15,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.core.content.res.use
 import androidx.core.content.withStyledAttributes
 import com.ichi2.anki.common.android.R
 
@@ -39,8 +40,10 @@ fun AnkiDroidTheme(content: @Composable () -> Unit) {
     val context = LocalContext.current
     val colorScheme = remember(context) { context.toMaterial3ColorScheme() }
     val ankiColors = remember(context, colorScheme) { context.toAnkiDroidColors(colorScheme) }
+    val ankiDimensions = remember(context) { context.toAnkiDroidDimensions() }
     CompositionLocalProvider(
         LocalDimensions provides Dimensions(),
+        LocalAnkiDroidDimensions provides ankiDimensions,
         LocalAnkiDroidColors provides ankiColors,
     ) {
         MaterialTheme(colorScheme = colorScheme, content = content)
@@ -49,20 +52,39 @@ fun AnkiDroidTheme(content: @Composable () -> Unit) {
 
 /**
  * Reads the [AnkiDroidColors] extras from the active XML theme. The View
- * screens tint their FABs with the fab_normal attr and colorOnPrimary, so
+ * screens tint their FABs with the fabNormalColor attr and colorOnPrimary, so
  * Compose FABs follow the same pair to match them.
  */
 @VisibleForTesting
 internal fun Context.toAnkiDroidColors(scheme: ColorScheme): AnkiDroidColors {
-    var colors = AnkiDroidColors(fabContainer = scheme.primaryContainer, onFab = scheme.onPrimaryContainer)
+    val defaults = scheme.toDefaultAnkiDroidColors()
+    var colors = defaults
     withStyledAttributes(attrs = R.styleable.ComposeTheme) {
         colors =
             AnkiDroidColors(
-                fabContainer = color(R.styleable.ComposeTheme_fab_normal, scheme.primaryContainer),
+                fabContainer = color(R.styleable.ComposeTheme_fabNormalColor, defaults.fabContainer),
                 onFab = scheme.onPrimary,
+                showAnswerButton = color(R.styleable.ComposeTheme_showAnswerButtonBackground, defaults.showAnswerButton),
+                againButton = color(R.styleable.ComposeTheme_againBackgroundColor, defaults.againButton),
+                onAgainButton = color(R.styleable.ComposeTheme_againTextColor, defaults.onAgainButton),
+                hardButton = color(R.styleable.ComposeTheme_hardBackgroundColor, defaults.hardButton),
+                onHardButton = color(R.styleable.ComposeTheme_hardTextColor, defaults.onHardButton),
+                goodButton = color(R.styleable.ComposeTheme_goodBackgroundColor, defaults.goodButton),
+                onGoodButton = color(R.styleable.ComposeTheme_goodTextColor, defaults.onGoodButton),
+                easyButton = color(R.styleable.ComposeTheme_easyBackgroundColor, defaults.easyButton),
+                onEasyButton = color(R.styleable.ComposeTheme_easyTextColor, defaults.onEasyButton),
             )
     }
     return colors
+}
+
+@VisibleForTesting
+internal fun Context.toAnkiDroidDimensions(): AnkiDroidDimensions {
+    val elevationPx =
+        obtainStyledAttributes(R.styleable.ComposeTheme).use {
+            it.getDimension(R.styleable.ComposeTheme_studyScreenElevation, 0f)
+        }
+    return AnkiDroidDimensions(studyScreenElevation = (elevationPx / resources.displayMetrics.density).dp)
 }
 
 @VisibleForTesting
@@ -76,12 +98,8 @@ internal fun Context.toMaterial3ColorScheme(): ColorScheme {
             base.copy(
                 primary = color(R.styleable.ComposeTheme_colorPrimary, base.primary),
                 onPrimary = color(R.styleable.ComposeTheme_colorOnPrimary, base.onPrimary),
-                // primaryContainer / onPrimaryContainer are intentionally NOT read from
-                // the AnkiDroid XML themes. Those XML values were chosen for legacy
-                // Material Components purposes (switch thumb, old-style FAB icon tint)
-                // and conflict with Material3's semantic (a real container background
-                // for FABs and similar). Falling back to the Material3 base colorScheme
-                // gives the right behavior for Compose components.
+                primaryContainer = color(R.styleable.ComposeTheme_colorPrimaryContainer, base.primaryContainer),
+                onPrimaryContainer = color(R.styleable.ComposeTheme_colorOnPrimaryContainer, base.onPrimaryContainer),
                 secondary = color(R.styleable.ComposeTheme_colorSecondary, base.secondary),
                 onSecondary = color(R.styleable.ComposeTheme_colorOnSecondary, base.onSecondary),
                 secondaryContainer = color(R.styleable.ComposeTheme_colorSecondaryContainer, base.secondaryContainer),
@@ -100,30 +118,34 @@ internal fun Context.toMaterial3ColorScheme(): ColorScheme {
                 onSurfaceVariant = color(R.styleable.ComposeTheme_colorOnSurfaceVariant, base.onSurfaceVariant),
                 outline = color(R.styleable.ComposeTheme_colorOutline, base.outline),
                 outlineVariant = color(R.styleable.ComposeTheme_colorOutlineVariant, base.outlineVariant),
-                // XML container colors can be overlay tints. Compose uses these as standalone
-                // surfaces (including popup windows), which must not reveal the content behind them.
-                surfaceContainer = color(R.styleable.ComposeTheme_colorSurfaceContainer, base.surfaceContainer).compositeOver(surface),
+                inverseSurface = color(R.styleable.ComposeTheme_colorSurfaceInverse, base.inverseSurface),
+                inverseOnSurface = color(R.styleable.ComposeTheme_colorOnSurfaceInverse, base.inverseOnSurface),
+                inversePrimary = color(R.styleable.ComposeTheme_colorPrimaryInverse, base.inversePrimary),
+                surfaceContainer = color(R.styleable.ComposeTheme_colorSurfaceContainer, base.surfaceContainer),
                 surfaceContainerHigh =
                     color(
                         R.styleable.ComposeTheme_colorSurfaceContainerHigh,
                         base.surfaceContainerHigh,
-                    ).compositeOver(surface),
+                    ),
                 surfaceContainerHighest =
                     color(
                         R.styleable.ComposeTheme_colorSurfaceContainerHighest,
                         base.surfaceContainerHighest,
-                    ).compositeOver(surface),
+                    ),
                 surfaceContainerLow =
                     color(
                         R.styleable.ComposeTheme_colorSurfaceContainerLow,
                         base.surfaceContainerLow,
-                    ).compositeOver(surface),
+                    ),
                 surfaceContainerLowest =
                     color(
                         R.styleable.ComposeTheme_colorSurfaceContainerLowest,
                         base.surfaceContainerLowest,
-                    ).compositeOver(surface),
+                    ),
+                surfaceDim = color(R.styleable.ComposeTheme_colorSurfaceDim, base.surfaceDim),
+                surfaceBright = color(R.styleable.ComposeTheme_colorSurfaceBright, base.surfaceBright),
                 background = color(R.styleable.ComposeTheme_android_colorBackground, base.background),
+                onBackground = color(R.styleable.ComposeTheme_colorOnBackground, base.onBackground),
             )
     }
     return scheme

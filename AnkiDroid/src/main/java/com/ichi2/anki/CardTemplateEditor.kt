@@ -26,6 +26,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.annotation.CheckResult
 import androidx.annotation.StringRes
 import androidx.annotation.VisibleForTesting
@@ -46,6 +47,8 @@ import androidx.fragment.app.FragmentContainerView
 import androidx.fragment.app.commitNow
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.withStarted
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import androidx.viewpager2.widget.ViewPager2
 import anki.notetypes.StockNotetype
@@ -103,7 +106,7 @@ import com.ichi2.anki.observability.undoableOp
 import com.ichi2.anki.previewer.TemplatePreviewerArguments
 import com.ichi2.anki.previewer.TemplatePreviewerFragment
 import com.ichi2.anki.previewer.TemplatePreviewerPage
-import com.ichi2.anki.settings.Prefs
+import com.ichi2.anki.settings.uiConfigPrefs
 import com.ichi2.anki.snackbar.showSnackbar
 import com.ichi2.anki.startup.ensureStorageIsReady
 import com.ichi2.anki.ui.ResizablePaneManager
@@ -132,7 +135,6 @@ import kotlin.math.min
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
-import com.ichi2.anki.common.android.R as CommonR
 
 private typealias BackendCardTemplate = com.ichi2.anki.libanki.CardTemplate
 
@@ -142,6 +144,7 @@ private typealias BackendCardTemplate = com.ichi2.anki.libanki.CardTemplate
 @KotlinCleanup("lateinit wherever possible")
 open class CardTemplateEditor : AnkiActivity(R.layout.activity_card_template_editor) {
     private val binding by viewBinding(ActivityCardTemplateEditorBinding::bind)
+    private val viewModel by viewModels<CardTemplateEditorViewModel>()
 
     @VisibleForTesting
     val topBinding: IncludeCardTemplateEditorTopBinding
@@ -235,7 +238,7 @@ open class CardTemplateEditor : AnkiActivity(R.layout.activity_card_template_edi
 
         fragmented = binding.fragmentContainer?.isVisible == true
 
-        setNavigationBarColor(CommonR.attr.alternativeBackgroundColor)
+        setNavigationBarColor(com.google.android.material.R.attr.colorSurfaceDim)
 
         // Disable the home icon
         enableToolbar()
@@ -247,7 +250,7 @@ open class CardTemplateEditor : AnkiActivity(R.layout.activity_card_template_edi
                 divider = requireNotNull(binding.cardTemplateEditorResizingDivider) { "cardTemplateEditorResizingDivider" },
                 startPane = requireNotNull(binding.templateEditor.root) { "templateEditor.root" },
                 endPane = requireNotNull(binding.fragmentContainer) { "fragmentContainer" },
-                sharedPrefs = Prefs.getUiConfig(this),
+                sharedPrefs = uiConfigPrefs(),
                 startPaneWeightKey = PREF_TEMPLATE_EDITOR_PANE_WEIGHT,
                 endPaneWeightKey = PREF_TEMPLATE_PREVIEWER_PANE_WEIGHT,
             )
@@ -257,8 +260,11 @@ open class CardTemplateEditor : AnkiActivity(R.layout.activity_card_template_edi
         loadTemplatePreviewerFragmentIfFragmented()
         onBackPressedDispatcher.addCallback(this, displayDiscardChangesCallback)
 
+        setupStateCollection()
+
         topBinding.slidingTabs.doOnTabSelected { tab ->
             Timber.i("selected card index: %s", tab.position)
+            viewModel.setCurrentTemplateOrd(tab.position)
             loadTemplatePreviewerFragmentIfFragmented(tab.position)
         }
 
@@ -296,6 +302,52 @@ open class CardTemplateEditor : AnkiActivity(R.layout.activity_card_template_edi
         }
     }
 
+    private fun setupStateCollection() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.state.collect { state ->
+                    when (state) {
+                        is CardTemplateEditorState.Initializing -> {
+                            val exception = state.exception
+                            if (exception != null) {
+                                AlertDialog.Builder(this@CardTemplateEditor).show {
+                                    setTitle(CommonString.vague_error)
+                                    setMessage(exception.source.localizedMessage ?: getString(CommonString.something_wrong))
+                                    setPositiveButton(CommonString.dialog_ok) { _, _ -> finish() }
+                                    setCancelable(false)
+                                }
+                            }
+                        }
+                        is CardTemplateEditorState.Loaded -> {
+                            if (state.message != null) {
+                                val messageText =
+                                    when (state.message) {
+                                        CardTemplateEditorState.UserMessage.CantDeleteLastTemplate ->
+                                            getString(CommonString.card_template_editor_cant_delete)
+                                        CardTemplateEditorState.UserMessage.CantAddTemplateToDynamic ->
+                                            getString(CommonString.multimedia_editor_something_wrong)
+                                        CardTemplateEditorState.UserMessage.SaveSuccess ->
+                                            getString(CommonString.card_template_editor_changes_saved)
+                                        CardTemplateEditorState.UserMessage.DeletionWouldOrphanNote ->
+                                            getString(CommonString.orphan_note_message)
+                                    }
+                                showSnackbar(messageText)
+                                viewModel.clearMessage()
+                            }
+                            if (state.error != null) {
+                                showSnackbar(state.error.source.localizedMessage ?: getString(CommonString.something_wrong))
+                                viewModel.clearError()
+                            }
+                        }
+                        is CardTemplateEditorState.Finished -> {
+                            finish()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /**
      *  Loads or reloads [tempNoteType] in [R.id.fragment_container] if the view is fragmented. Do nothing otherwise.
      */
@@ -317,8 +369,10 @@ open class CardTemplateEditor : AnkiActivity(R.layout.activity_card_template_edi
                     fillEmpty = true,
                 )
             val fragment = TemplatePreviewerFragment.newInstance(args)
-            supportFragmentManager.commitNow {
-                replace(R.id.fragment_container, fragment)
+            withStarted {
+                supportFragmentManager.commitNow {
+                    replace(R.id.fragment_container, fragment)
+                }
             }
 
             // Modify the "Show Answer" button height to 80dp to maintain visual consistency with the BottomNavigationView,
@@ -706,7 +760,7 @@ open class CardTemplateEditor : AnkiActivity(R.layout.activity_card_template_edi
                 binding.mainLayout.setBackgroundColor(
                     getColorFromAttr(
                         requireContext(),
-                        CommonR.attr.alternativeBackgroundColor,
+                        com.google.android.material.R.attr.colorSurfaceDim,
                     ),
                 )
 
@@ -1370,7 +1424,6 @@ open class CardTemplateEditor : AnkiActivity(R.layout.activity_card_template_edi
 
         fun displayDeckOverrideDialog(tempModel: CardTemplateNotetype) =
             launchCatchingTask {
-                val activity = requireAnkiActivity()
                 if (tempModel.notetype.isCloze) {
                     showSnackbar(getString(CommonString.multimedia_editor_something_wrong), Snackbar.LENGTH_SHORT)
                     return@launchCatchingTask

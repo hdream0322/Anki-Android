@@ -52,14 +52,19 @@ jobs:
           # Comment this and the with: above out for performance testing on a branch
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
-      - name: Test build logic
-        run: ./gradlew -p buildSrc test --daemon
-
       # Reject versionCode decreases and increases over 100,000.
       - name: Validate versionCode
         env:
           VERSION_CODE_BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
         run: tools/validate-version-code.sh "$VERSION_CODE_BASE"
+
+      - name: Restore TestKit Cache
+        id: testkit-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: buildSrc/build/test-kit/caches/modules-2
+          key: testkit-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties', 'buildSrc/*.kts', 'buildSrc/src/**') }}
+          restore-keys: testkit-${{ runner.os }}-
 
       - name: Warm Gradle Cache
         # This makes sure we fetch gradle network resources with a retry
@@ -68,7 +73,19 @@ jobs:
           timeout_minutes: 10
           retry_wait_seconds: 60
           max_attempts: 3
-          command: ./gradlew :AnkiDroid:compileFullDebugJavaWithJavac :AnkiDroid:generateFullDebugAndroidTestLintModel generateDebugAndroidTestLintModel compileLint lint-rules:compileTestJava --daemon
+          command: |
+            ./gradlew -p buildSrc downloadTestKitDependencies --daemon &&
+            ./gradlew :AnkiDroid:compileFullDebugJavaWithJavac :AnkiDroid:generateFullDebugAndroidTestLintModel generateDebugAndroidTestLintModel compileLint lint-rules:compileTestJava --daemon
+
+      - name: Test build logic
+        run: ./gradlew -p buildSrc test --daemon
+
+      - name: Save TestKit Cache
+        if: github.ref == 'refs/heads/main' && steps.testkit-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: buildSrc/build/test-kit/caches/modules-2
+          key: ${{ steps.testkit-cache.outputs.cache-primary-key }}
 
       - name: Run Lint Debug
         # "lintAll" opts in all modules in 1 flavor to lint, pinning :AnkiDroid to lintFullDebug

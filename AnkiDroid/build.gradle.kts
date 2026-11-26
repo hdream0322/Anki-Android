@@ -1,9 +1,13 @@
-// Keep the existing AGP variant/task APIs until the separate AGP DSL migration.
+// Keep the existing AGP DSL/task APIs until the separate AGP DSL migration.
 @file:Suppress("DEPRECATION")
 
+import com.android.build.api.variant.FilterConfiguration.FilterType
 import com.ichi2.anki.gradle.VersionCodeTasks
 import com.ichi2.anki.gradle.WriteReleaseMetadata
+import com.ichi2.anki.gradle.isCoverageEnabled
 import java.io.ByteArrayOutputStream
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.Locale
 import java.util.Properties
 import java.util.regex.Pattern
@@ -23,6 +27,11 @@ plugins {
 }
 
 repositories {
+    // Robolectric from Google's mirror of Maven Central: see settings.gradle.kts
+    maven {
+        url = uri("https://maven-central.storage-download.googleapis.com/maven2")
+        content { includeGroup("org.robolectric") }
+    }
     google()
     mavenCentral()
     maven { url = uri("https://jitpack.io") }
@@ -38,7 +47,7 @@ keeper {
 baselineProfile {
     // Write generated profiles to `src/main/baselineProfiles/` instead of the
     // default per-variant `src/playRelease/generated/baselineProfiles/`. This
-    // ensures the profile is consumed by ALL variants (play, amazon, full) and
+    // ensures the profile is consumed by ALL variants (play, full) and
     // ALL buildTypes (release, benchmark), not just `playRelease`.
     mergeIntoMain = true
 }
@@ -71,15 +80,23 @@ val gitCommitHash =
 /**
  * Epoch millis of the build. Displayed on the 'About' screen.
  *
- * CI passes the real time via -PbuildTime=<epoch> # example: 1776422957
+ * CI passes the real time via -PbuildTime=<epoch> # example: 1776422957000
  *
- * A local build uses a stale value (captured in the configuration cache) so the configuration cache
- * is not invalidated on every build.
+ * This value is captured in the configuration cache, so it can be stale when the cache is reused.
  */
 val buildTimeMillis =
     providers
         .gradleProperty("buildTime")
-        .orElse(providers.provider { System.currentTimeMillis().toString() })
+        .orElse(
+            providers.provider {
+                LocalDate
+                    .now()
+                    .atStartOfDay(ZoneId.systemDefault())
+                    .toInstant()
+                    .toEpochMilli()
+                    .toString()
+            },
+        )
 
 /**
  * Deurim fork release version, shown on the 'About' screen next to the upstream
@@ -120,7 +137,7 @@ val forkReleaseDate =
         .orElse(providers.environmentVariable("FORK_RELEASE_DATE"))
         .orElse("0")
 
-val upstreamVersionName = "2.26.0alpha11"
+val upstreamVersionName = "2.26.0alpha16"
 
 android {
     namespace = "com.ichi2.anki"
@@ -140,7 +157,6 @@ android {
 
     defaultConfig {
         applicationId = "com.deurim.anki"
-        buildConfigField("Boolean", "CI", (System.getenv("CI") == "true").toString())
         // Deurim: crash reports must not reach AnkiDroid's server. Empty disables sending
         // until the fork has its own endpoint (see AcraCrashReporter.isSendingAvailable)
         buildConfigField("String", "ACRA_URL", "\"\"")
@@ -176,7 +192,7 @@ android {
         // This ensures the correct ordering between the various types of releases (dev < alpha < beta < release) which is
         // needed for upgrades to be offered correctly.
         // Upstream baseline: keep this a plain literal, upstream's validateVersionCode parses it.
-        versionCode = 22600111
+        versionCode = 22600116
         // Deurim: add the per-fork build counter (see forkBuild above). Must not start with
         // `versionCode`, or validateVersionCode sees two declarations and fails.
         this.versionCode = versionCode!! + forkBuild
@@ -259,8 +275,7 @@ android {
 
             // Issue 6009: allow disabling JaCoCo to speed up debug builds.
             // A Gradle property also allows the preference to be shared across worktrees.
-            isTestCoverageEnabled =
-                (providers.gradleProperty("enable_coverage").orNull ?: localProperties.getProperty("enable_coverage")) != "false"
+            isTestCoverageEnabled = project.isCoverageEnabled()
 
             // make the icon red if in debug mode
             resValue("color", "anki_foreground_icon_color_0", "#FFFF0000")
@@ -296,9 +311,7 @@ android {
     }
 
     /*
-     * Product Flavors are used for Amazon App Store and Google Play Store.
-     * This is because we cannot use Camera Permissions in Amazon App Store (for FireTv etc...)
-     * Therefore, different AndroidManifest for Camera Permissions is used in Amazon flavor.
+     * Product Flavors are used for Google Play Store restrictions.
      */
     flavorDimensions += "appStore"
     productFlavors {
@@ -308,9 +321,6 @@ android {
             // Google Play no longer considers Open Collective to be acceptable for
             // a 'tax-exempt' link. Temporarily remove our links
             buildConfigField("Boolean", "SHOW_DONATE_LINKS", "false")
-        }
-        create("amazon") {
-            dimension = "appStore"
         }
         // A 'full' build has no restrictions on storage/camera. Distributed on GitHub/F-Droid
         create("full") {
@@ -351,35 +361,6 @@ android {
             }
         }
     }
-    // applicationVariants are e.g. debug, release
-    applicationVariants.configureEach {
-        val variant = this
-        // We want the same version stream for all ABIs in debug but for release we can split them
-        if (variant.buildType.name == "release") {
-            variant.outputs.configureEach {
-                val output = this as com.android.build.gradle.internal.api.ApkVariantOutputImpl
-
-                // For each separate APK per architecture, set a unique version code as described here:
-                // https://developer.android.com/studio/build/configure-apk-splits.html
-                val versionCodes = mapOf("armeabi-v7a" to 1, "x86" to 2, "arm64-v8a" to 3, "x86_64" to 4)
-                val outputFile = output.outputFile
-                if (outputFile != null && outputFile.name.endsWith(".apk")) {
-                    val abi = output.getFilter("ABI")
-                    if (abi != null) { // null for the universal-debug, universal-release variants
-                        //  From: https://developer.android.com/studio/publish/versioning#appversioning
-                        //  "Warning: The greatest value Google Play allows for versionCode is 2100000000"
-                        //  AnkiDroid versionCodes have a budget 8 digits (through AnkiDroid 9)
-                        //  This style does ABI version code ranges with the 9th digit as 0-4.
-                        //  This consumes ~20% of the version range space, w/50 years of versioning at our major-version pace
-                        output.versionCodeOverride =
-                            // ex:  321200106 = 3 * 100000000 + 21200106
-                            versionCodes.getValue(abi) * 100000000 + defaultConfig.versionCode!!
-                    }
-                }
-            }
-        }
-    }
-
     testOptions {
         animationsDisabled = true
         unitTests {
@@ -406,7 +387,7 @@ android {
                                 )
                             }
                         }
-                        validateInput(theme, listOf("light", "plain", "dark", "black", "eink", "all"))
+                        validateInput(theme, listOf("light", "plain", "dark", "black", "eink", "eink_night", "all"))
                         validateInput(device, listOf("phone", "tablet", "foldable", "desktop", "all"))
 
                         test.systemProperty("screenshot.theme", theme)
@@ -441,6 +422,27 @@ android {
         resources {
             excludes += listOf("META-INF/DEPENDENCIES")
         }
+    }
+}
+
+androidComponents.onVariants(androidComponents.selector().withBuildType("release")) { variant ->
+    // We want the same version stream for all ABIs in debug but for release we can split them
+    val versionCodes = mapOf("armeabi-v7a" to 1, "x86" to 2, "arm64-v8a" to 3, "x86_64" to 4)
+    variant.outputs.forEach { output ->
+        // Universal APKs keep their base version code; return early
+        val abi = output.filters.find { it.filterType == FilterType.ABI }?.identifier ?: return@forEach
+
+        // For each separate APK per architecture, set a unique version code as described here:
+        // https://developer.android.com/studio/build/configure-apk-splits.html
+        //  From: https://developer.android.com/studio/publish/versioning#appversioning
+        //  "Warning: The greatest value Google Play allows for versionCode is 2100000000"
+        //  AnkiDroid versionCodes have a budget 8 digits (through AnkiDroid 9)
+        //  This style does ABI version code ranges with the 9th digit as 0-4.
+        //  This consumes ~20% of the version range space, w/50 years of versioning at our major-version pace
+        output.versionCode.set(
+            // ex:  321200106 = 3 * 100000000 + 21200106
+            versionCodes.getValue(abi) * 100000000 + output.versionCode.get(),
+        )
     }
 }
 
@@ -803,6 +805,7 @@ dependencies {
     implementation(project(":common"))
     implementation(project(":common:android"))
     implementation(project(":compat"))
+    implementation(project(":feature:browse"))
     implementation(project(":libanki"))
     implementation(project(":note-editor"))
     implementation(project(":vbpd"))

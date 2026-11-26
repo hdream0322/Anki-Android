@@ -21,6 +21,7 @@ import com.ichi2.anki.CommonPlurals
 import com.ichi2.anki.CommonString
 import com.ichi2.anki.LocalizedUnambiguousBackupTimeFormatter
 import com.ichi2.anki.R
+import com.ichi2.anki.ioDispatcher
 import com.ichi2.anki.launchCatchingTask
 import com.ichi2.anki.preferences.SettingsFragment
 import com.ichi2.anki.preferences.requirePreference
@@ -31,11 +32,10 @@ import com.ichi2.anki.snackbar.showSnackbar
 import com.ichi2.anki.ui.dialogs.tools.AsyncDialogBuilder.CheckedItems
 import com.ichi2.anki.ui.dialogs.tools.DialogResult
 import com.ichi2.anki.ui.dialogs.tools.awaitDialog
-import com.ichi2.anki.utils.ext.launchCollectionInViewLifecycleScope
+import com.ichi2.anki.utils.ext.collectInViewLifecycle
 import com.ichi2.anki.utils.getUserFriendlyErrorText
 import com.ichi2.preferences.TextWidgetPreference
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -143,7 +143,7 @@ class ManageSpaceViewModel(
     private fun launchCalculationOfCollectionSize() =
         viewModelScope.launch {
             flowOfDeleteCollectionSize.ifCollectionDirectoryExistsEmit {
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     Size.Bytes(calculateSize(collectionDirectory))
                 }
             }
@@ -168,7 +168,7 @@ class ManageSpaceViewModel(
         viewModelScope.launch {
             flowOfDeleteEverythingSize.emit(Size.Calculating)
             flowOfDeleteEverythingSize.emit(
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     try {
                         Size.Bytes(app.getUserDataAndCacheSize())
                     } catch (e: CancellationException) {
@@ -252,7 +252,7 @@ class ManageSpaceFragment : SettingsFragment() {
             viewModel.flowOfDeleteBackupsSize to R.string.pref_delete_backups_key,
         ).forEach { (flowOfSize, key) ->
             val preference = requirePreference<TextWidgetPreference>(key)
-            flowOfSize.launchCollectionInViewLifecycleScope { size -> preference.setWidgetTextBy(size) }
+            flowOfSize.collectInViewLifecycle { size -> preference.setWidgetTextBy(size) }
         }
     }
 

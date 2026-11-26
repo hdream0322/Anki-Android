@@ -23,6 +23,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AlertDialog
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.content.ContextCompat
@@ -39,6 +40,7 @@ import com.ichi2.anki.CommonString
 import com.ichi2.anki.IntentHandler
 import com.ichi2.anki.R
 import com.ichi2.anki.common.android.AnkiBroadcastReceiver
+import com.ichi2.anki.common.android.animationEnabled
 import com.ichi2.anki.common.crashreporting.CrashReportService
 import com.ichi2.anki.common.time.TimeManager
 import com.ichi2.anki.common.utils.android.showThemedToast
@@ -46,7 +48,7 @@ import com.ichi2.anki.compat.CompatHelper.Companion.getSerializableCompat
 import com.ichi2.anki.compat.CompatHelper.Companion.registerReceiverCompat
 import com.ichi2.anki.shareddeck.SharedDecksActivity.Companion.ARG_DOWNLOAD_FILE
 import com.ichi2.anki.snackbar.showSnackbar
-import com.ichi2.anki.utils.ext.launchCollectionInLifecycleScope
+import com.ichi2.anki.utils.ext.collectInLifecycle
 import com.ichi2.anki.utils.openUrl
 import com.ichi2.compose.theme.AnkiDroidTheme
 import com.ichi2.utils.ImportUtils
@@ -93,6 +95,10 @@ class SharedDecksDownloadFragment : Fragment() {
         object : OnBackPressedCallback(isDownloadInProgress) {
             override fun handleOnBackPressed() {
                 Timber.i("back pressed")
+                if (!isDownloadInProgress) {
+                    parentFragmentManager.popBackStack()
+                    return
+                }
                 showCancelConfirmationDialog()
             }
         }
@@ -154,8 +160,10 @@ class SharedDecksDownloadFragment : Fragment() {
             setContent {
                 AnkiDroidTheme {
                     val state by viewModel.uiState.collectAsStateWithLifecycle()
+                    val animationsEnabled = remember { requireActivity().animationEnabled() }
                     SharedDecksDownloadScreen(
                         state = state,
+                        animationsEnabled = animationsEnabled,
                         onCancelClick = {
                             Timber.i("Cancel download button clicked")
                             showCancelConfirmationDialog()
@@ -177,6 +185,7 @@ class SharedDecksDownloadFragment : Fragment() {
     ) {
         super.onViewCreated(view, savedInstanceState)
         downloadManager = (activity as SharedDecksActivity).downloadManager
+        requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, onBackPressedCallback)
         registerDownloadReceiver()
         observeLoginRequired()
         downloadFile(fileToBeDownloaded)
@@ -191,7 +200,7 @@ class SharedDecksDownloadFragment : Fragment() {
      * FragmentManager work would throw, while this only runs while the screen is showing.
      */
     private fun observeLoginRequired() {
-        viewModel.uiState.launchCollectionInLifecycleScope { state ->
+        viewModel.uiState.collectInLifecycle { state ->
             if (state.phase == DownloadPhase.LoginRequired) {
                 Timber.i("Download requires login, returning to shared decks")
                 (activity as SharedDecksActivity).showLoginRequiredDialog()

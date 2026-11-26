@@ -13,7 +13,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
-import androidx.core.content.res.getDrawableOrThrow
+import androidx.annotation.VisibleForTesting
 import androidx.core.content.withStyledAttributes
 import androidx.core.graphics.drawable.toDrawable
 import androidx.core.view.isGone
@@ -26,6 +26,7 @@ import com.ichi2.anki.CommonString
 import com.ichi2.anki.R
 import com.ichi2.anki.common.time.TimeManager
 import com.ichi2.anki.common.utils.dp
+import com.ichi2.anki.common.utils.ext.requireAutoMirroredDrawable
 import com.ichi2.anki.databinding.ItemDeckBinding
 import com.ichi2.anki.deckpicker.DisplayDeckNode
 import com.ichi2.anki.deckpicker.formatLastStudied
@@ -61,7 +62,7 @@ class DeckAdapter(
     private val newCountColor: Int
     private val learnCountColor: Int
     private val reviewCountColor: Int
-    private val rowCurrentDrawable: Int
+    private val rowCurrentDrawable: Int = CommonR.drawable.item_background_selected
     private val deckNameDefaultColor: Int
     private val deckNameDynColor: Int
     private val expandImage: Drawable
@@ -110,20 +111,20 @@ class DeckAdapter(
      * Set new data in the adapter. This should be used instead of [submitList] (which is called
      * by this method) so there's no need to call [notifyDataSetChanged] on the adapter.
      *
-     * @param onCommitted run once [data] is applied to the list (see [submitList])
+     * @param onListCommitted run once [data] is applied to the list (see [submitList])
      */
     fun submit(
         data: List<DisplayDeckNode>,
         hasSubDecks: Boolean,
         dayStartMillis: Long,
-        onCommitted: (() -> Unit)? = null,
+        onListCommitted: () -> Unit,
     ) {
         // force refresh when sub decks status changes as this info isn't encapsulated in the
         // adapter's items so there wouldn't be an ui refresh just from using submitList()
         val forceRefresh = this.hasSubdecks != hasSubDecks || this.dayStartMillis != dayStartMillis
         this.hasSubdecks = hasSubDecks
         this.dayStartMillis = dayStartMillis
-        submitList(data, onCommitted?.let { Runnable(it) })
+        submitList(data, onListCommitted)
         if (forceRefresh) notifyDataSetChanged()
     }
 
@@ -276,24 +277,18 @@ class DeckAdapter(
                 CommonR.attr.newCountColor,
                 CommonR.attr.learnCountColor,
                 CommonR.attr.reviewCountColor,
-                CommonR.attr.currentDeckBackground,
                 android.R.attr.textColor,
                 CommonR.attr.dynDeckColor,
-                CommonR.attr.expandRef,
-                CommonR.attr.collapseRef,
             )
         val ta = context.obtainStyledAttributes(attrs)
         zeroCountColor = ta.getColor(0, context.getColor(CommonR.color.black))
         newCountColor = ta.getColor(1, context.getColor(CommonR.color.black))
         learnCountColor = ta.getColor(2, context.getColor(CommonR.color.black))
         reviewCountColor = ta.getColor(3, context.getColor(CommonR.color.black))
-        rowCurrentDrawable = ta.getResourceId(4, 0)
-        deckNameDefaultColor = ta.getColor(5, context.getColor(CommonR.color.black))
-        deckNameDynColor = ta.getColor(6, context.getColor(CommonR.color.material_blue_A700))
-        expandImage = ta.getDrawableOrThrow(7)
-        expandImage.isAutoMirrored = true
-        collapseImage = ta.getDrawableOrThrow(8)
-        collapseImage.isAutoMirrored = true
+        deckNameDefaultColor = ta.getColor(4, context.getColor(CommonR.color.black))
+        deckNameDynColor = ta.getColor(5, context.getColor(CommonR.color.material_blue_A700))
+        expandImage = context.requireAutoMirroredDrawable(CommonR.drawable.ic_chevron_right)
+        collapseImage = context.requireAutoMirroredDrawable(CommonR.drawable.ic_expand_more)
         ta.recycle()
         context.withStyledAttributes(attrs = intArrayOf(android.R.attr.selectableItemBackground)) {
             selectableItemBackground = ta.getResourceId(0, 0)
@@ -323,7 +318,8 @@ private fun deckNameWithSubdeckColors(
     }
 }
 
-private val deckNodeDiffCallback =
+@VisibleForTesting
+internal val deckNodeDiffCallback =
     object : DiffUtil.ItemCallback<DisplayDeckNode>() {
         override fun areItemsTheSame(
             oldItem: DisplayDeckNode,
@@ -336,9 +332,20 @@ private val deckNodeDiffCallback =
         ): Boolean = oldItem == newItem
 
         // Reuse rows for expand/collapse updates to avoid cross-fading different chevrons.
+        // Count changes should cross-fade when cards move between normal and filtered decks.
         // Selection and color changes need a new row: replacing the background of a pressed row restarts its ripple.
         override fun getChangePayload(
             oldItem: DisplayDeckNode,
             newItem: DisplayDeckNode,
-        ): Any? = if (oldItem.isSelected != newItem.isSelected || oldItem.color != newItem.color) null else true
+        ): Any? =
+            if (oldItem.isSelected != newItem.isSelected ||
+                oldItem.color != newItem.color ||
+                oldItem.newCount != newItem.newCount ||
+                oldItem.lrnCount != newItem.lrnCount ||
+                oldItem.revCount != newItem.revCount
+            ) {
+                null
+            } else {
+                true
+            }
     }

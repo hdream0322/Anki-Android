@@ -3,14 +3,19 @@
 package com.ichi2.anki.browser.search
 
 import androidx.lifecycle.SavedStateHandle
-import androidx.test.ext.junit.runners.AndroidJUnit4
 import app.cash.turbine.test
-import com.ichi2.anki.RobolectricTest
+import com.ichi2.anki.Flag
 import com.ichi2.anki.browser.SearchHistory
 import com.ichi2.anki.browser.SearchHistory.SearchHistoryEntry
 import com.ichi2.anki.browser.search.CardBrowserSearchViewModel.Companion.MAX_SEARCH_HISTORY_ENTRIES
 import com.ichi2.anki.browser.search.CardBrowserSearchViewModel.UserMessage
+import com.ichi2.anki.settings.Prefs
+import com.ichi2.testutils.JvmPreferencesRule
+import com.ichi2.testutils.JvmTest
 import com.ichi2.testutils.assertFalse
+import com.ichi2.testutils.withViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.empty
@@ -18,13 +23,15 @@ import org.hamcrest.Matchers.equalTo
 import org.hamcrest.Matchers.hasSize
 import org.hamcrest.Matchers.not
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
-import org.junit.runner.RunWith
 import kotlin.test.assertEquals
 
 /** Tests for [CardBrowserSearchViewModel] */
-@RunWith(AndroidJUnit4::class) // PERF: only required for `Prefs`
-class CardBrowserSearchViewModelTest : RobolectricTest() {
+class CardBrowserSearchViewModelTest : JvmTest() {
+    @get:Rule
+    val preferences = JvmPreferencesRule()
+
     @Before
     override fun setUp() {
         SearchHistory().clear()
@@ -42,6 +49,27 @@ class CardBrowserSearchViewModelTest : RobolectricTest() {
         }
 
     @Test
+    fun `Search tools cannot be opened by default`() =
+        withViewModel {
+            toggleAdvancedSearch()
+
+            assertEquals(false, advancedSearchFlow.value)
+        }
+
+    @Test
+    fun `Search tools state is restored only when enabled`() =
+        runTest {
+            for (enabled in listOf(false, true)) {
+                Prefs.devUsingCardBrowserSearchTools = enabled
+                val savedState = SavedStateHandle(mapOf("advancedSearch" to true, "searchText" to "tag:example"))
+                withViewModel(CardBrowserSearchViewModel(savedState)) {
+                    assertEquals(enabled, advancedSearchFlow.value)
+                    assertEquals("tag:example", searchTextFlow.value)
+                }
+            }
+        }
+
+    @Test
     fun `initial state with no cards`() =
         withViewModel(cardCount = 0) {
             // TODO: design the initial state
@@ -52,10 +80,10 @@ class CardBrowserSearchViewModelTest : RobolectricTest() {
         }
 
     @Test
-    fun `search updated after submit`() =
+    fun `successful search is added to history`() =
         withViewModel {
             searchHistoryListFlow.test {
-                submitSearch("Hello")
+                onSearchSucceeded(SearchRequest("Hello")).join()
 
                 val mostRecentItem = expectMostRecentItem()
                 assertThat(mostRecentItem, not(empty()))
@@ -75,6 +103,78 @@ class CardBrowserSearchViewModelTest : RobolectricTest() {
         }
 
     @Test
+    fun `submission does not record history before success - Issue 23301`() =
+        withViewModel {
+            isScreenOpenFlow.value = true
+            onSearchTextChanged("is:now")
+            submitCurrentSearch()
+
+            assertEquals(emptyList(), SearchHistory().entries)
+        }
+
+    @Test
+    fun `syncing browser filters does not submit another search`() =
+        withViewModel {
+            submittedSearchFlow.test {
+                syncState(SearchRequest("cat", SearchFilters.EMPTY.copy(flags = listOf(Flag.BLUE))))
+
+                assertEquals(listOf(Flag.BLUE), filtersFlow.value.flags)
+                expectNoEvents()
+            }
+        }
+
+    @Test
+    fun `applying a browser chip uses the active query after restoring an earlier draft`() =
+        withViewModel {
+            val activeSearch = SearchRequest("is:suspended")
+            syncState(activeSearch)
+            submittedSearchFlow.test {
+                onSearchTextChanged("cat")
+                expectNoEvents()
+
+                setFlagsFilter(listOf(Flag.BLUE))
+
+                assertEquals(activeSearch.copyFilters { it.copy(flags = listOf(Flag.BLUE)) }, awaitItem())
+            }
+        }
+
+    @Test
+    fun `search bar follows active requests only while the search screen is closed`() =
+        runTest {
+            withViewModel(CardBrowserSearchViewModel(SavedStateHandle())) {
+                val initialSearch = SearchRequest("cat")
+                val searchRequests = MutableStateFlow(initialSearch)
+                isScreenOpenFlow.value = true
+
+                searchBarQueryFlow(searchRequests).test {
+                    testScheduler.runCurrent()
+                    expectNoEvents()
+
+                    isScreenOpenFlow.value = false
+                    assertEquals(initialSearch, awaitItem())
+
+                    val nextSearch = SearchRequest("dog")
+                    searchRequests.value = nextSearch
+                    assertEquals(nextSearch, awaitItem())
+
+                    isScreenOpenFlow.value = true
+                    testScheduler.runCurrent()
+                    searchRequests.value = SearchRequest("earlier")
+                    testScheduler.runCurrent()
+                    expectNoEvents()
+
+                    val latestSearch = SearchRequest("latest", SearchFilters.EMPTY.copy(flags = listOf(Flag.BLUE)))
+                    searchRequests.value = latestSearch
+                    testScheduler.runCurrent()
+                    expectNoEvents()
+
+                    isScreenOpenFlow.value = false
+                    assertEquals(latestSearch, awaitItem())
+                }
+            }
+        }
+
+    @Test
     fun `selecting search history entry`() =
         withViewModel {
             submittedSearchFlow.test {
@@ -85,7 +185,7 @@ class CardBrowserSearchViewModelTest : RobolectricTest() {
 
     @Test
     fun `appendAdvancedSearch appends spacing`() =
-        withViewModel {
+        withViewModel(useSearchTools = true) {
             this.searchTextFlow.test {
                 assertEquals("", this.expectMostRecentItem())
 
@@ -101,7 +201,7 @@ class CardBrowserSearchViewModelTest : RobolectricTest() {
 
     @Test
     fun `onSearchTextChanged takes priority over appendAdvancedSearch`() =
-        withViewModel {
+        withViewModel(useSearchTools = true) {
             this.searchTextFlow.test {
                 assertEquals("", this.expectMostRecentItem())
 
@@ -116,16 +216,41 @@ class CardBrowserSearchViewModelTest : RobolectricTest() {
         }
 
     @Test
-    fun `text can be updated when a different screen is selected`() =
-        withViewModel {
+    fun `appended search text is shared between modes`() =
+        withViewModel(useSearchTools = true) {
             searchTextFlow.test {
                 expectMostRecentItem()
 
                 appendAdvancedSearch("advanced, while in standard")
+                assertEquals("advanced, while in standard ", expectMostRecentItem())
 
                 toggleAdvancedSearch()
+                expectNoEvents()
+            }
+        }
 
-                assertEquals("advanced, while in standard ", expectMostRecentItem())
+    @Test
+    fun `switching modes preserves the latest search text`() =
+        withViewModel(useSearchTools = true) {
+            searchTextFlow.test {
+                expectMostRecentItem()
+
+                onSearchTextChanged(" basic draft ")
+                assertEquals(" basic draft ", expectMostRecentItem())
+                toggleAdvancedSearch()
+                assertEquals(true, advancedSearchFlow.value)
+                expectNoEvents()
+
+                onSearchTextChanged("tag:updated draft")
+                assertEquals("tag:updated draft", expectMostRecentItem())
+                toggleAdvancedSearch()
+                assertEquals(false, advancedSearchFlow.value)
+                expectNoEvents()
+
+                onSearchTextChanged("")
+                assertEquals("", expectMostRecentItem())
+                toggleAdvancedSearch()
+                expectNoEvents()
             }
         }
 
@@ -152,10 +277,11 @@ class CardBrowserSearchViewModelTest : RobolectricTest() {
 
     // there's no point in having this in the history as a user can trivially clear the search box.
     @Test
-    fun `a submitted empty string does not appear in the history`() =
+    fun `a successful empty search does not appear in the history`() =
         withViewModel {
             submittedSearchFlow.test {
                 submitSearch("")
+                onSearchSucceeded(SearchRequest("")).join()
                 assertThat(searchHistory, empty())
                 // matches Anki Desktop
                 assertThat(expectMostRecentItem()?.toSearchString(), equalTo("deck:*"))
@@ -163,17 +289,18 @@ class CardBrowserSearchViewModelTest : RobolectricTest() {
         }
 
     @Test
-    fun `search history - submitted searches are trimmed and deduplicated`() =
+    fun `search history - successful searches are trimmed and deduplicated`() =
         withViewModel {
-            searchHistoryListFlow.test {
-                submitSearch("aa")
+            // Loading and loaded states may contain the same history entries.
+            searchHistoryListFlow.distinctUntilChanged().test {
+                onSearchSucceeded(SearchRequest("aa")).join()
                 assertThat(expectMostRecentItem(), hasSize(1))
 
-                submitSearch(" aa ")
+                onSearchSucceeded(SearchRequest(" aa ")).join()
                 expectNoEvents()
 
                 // confirm a new event would have appeared
-                submitSearch(" bb ")
+                onSearchSucceeded(SearchRequest(" bb ")).join()
                 expectMostRecentItem()
             }
         }
@@ -275,6 +402,7 @@ class CardBrowserSearchViewModelTest : RobolectricTest() {
                 assertEquals(0, expectMostRecentItem().size)
 
                 submitSavedSearch(savedSearches.single())
+                onSearchSucceeded(SearchRequest("sample query")).join()
                 val history = expectMostRecentItem().single()
                 assertEquals("sample query", history.query)
             }
@@ -302,6 +430,48 @@ class CardBrowserSearchViewModelTest : RobolectricTest() {
                 submitSavedSearch(savedSearches.single())
                 assertEquals("sample query", expectMostRecentItem()?.toSearchString())
             }
+        }
+
+    @Test
+    fun `submitting a saved search excludes previous chip filters`() =
+        withViewModel(cardCount = 0) {
+            isScreenOpenFlow.value = true
+            setFlagsFilter(listOf(Flag.BLUE))
+
+            submittedSearchFlow.test {
+                expectNoEvents()
+                submitSavedSearch(SavedSearch("Red cards", "bonjour flag:1"))
+                assertEquals("bonjour flag:1", expectMostRecentItem()?.toSearchString())
+            }
+        }
+
+    @Test
+    fun `submit saved search - clears all filter types in advanced mode`() =
+        withViewModel(cardCount = 0, useSearchTools = true) {
+            resetSearchState(
+                SearchRequest(
+                    "previous search",
+                    SearchFilters(
+                        decks = col.decks.allNamesAndIds(),
+                        flags = listOf(Flag.BLUE),
+                        tags = listOf("previous"),
+                        noteTypes = col.notetypes.allNamesAndIds().toList(),
+                        cardStates = listOf(CardState.Suspended),
+                    ),
+                ),
+            ).join()
+            isScreenOpenFlow.value = true
+            toggleAdvancedSearch()
+            assertEquals(true, advancedSearchFlow.value)
+
+            submittedSearchFlow.test {
+                expectNoEvents()
+                submitSavedSearch(SavedSearch("Red cards", "bonjour flag:1"))
+                assertEquals(SearchRequest("bonjour flag:1"), expectMostRecentItem())
+            }
+            assertEquals(SearchFilters.EMPTY, filtersFlow.value)
+            onSearchSucceeded(SearchRequest("bonjour flag:1")).join()
+            assertEquals(listOf(SearchHistoryEntry("bonjour flag:1")), searchHistory)
         }
 
     @Test
@@ -368,7 +538,7 @@ class CardBrowserSearchViewModelTest : RobolectricTest() {
     fun `search history - displayed list is truncated when collapsed`() =
         withViewModel {
             repeat(MAX_SEARCH_HISTORY_ENTRIES + 3) { i ->
-                submitSearch("search $i")
+                onSearchSucceeded(SearchRequest("search $i")).join()
             }
             displayedSearchHistoryFlow.test {
                 val items = expectMostRecentItem()
@@ -381,7 +551,7 @@ class CardBrowserSearchViewModelTest : RobolectricTest() {
         withViewModel {
             val totalItems = MAX_SEARCH_HISTORY_ENTRIES + 3
             repeat(totalItems) { i ->
-                submitSearch("search $i")
+                onSearchSucceeded(SearchRequest("search $i")).join()
             }
             toggleHistoryExpanded()
             displayedSearchHistoryFlow.test {
@@ -398,13 +568,13 @@ class CardBrowserSearchViewModelTest : RobolectricTest() {
             }
 
             repeat(MAX_SEARCH_HISTORY_ENTRIES) { i ->
-                submitSearch("search $i")
+                onSearchSucceeded(SearchRequest("search $i")).join()
             }
             showHistoryToggleFlow.test {
                 assertThat(expectMostRecentItem(), equalTo(false))
             }
 
-            submitSearch("one more search")
+            onSearchSucceeded(SearchRequest("one more search")).join()
             showHistoryToggleFlow.test {
                 assertThat(expectMostRecentItem(), equalTo(true))
             }
@@ -412,14 +582,12 @@ class CardBrowserSearchViewModelTest : RobolectricTest() {
 
     fun withViewModel(
         cardCount: Int = 1,
+        useSearchTools: Boolean = false,
         block: suspend CardBrowserSearchViewModel.() -> Unit,
     ) = runTest {
+        Prefs.devUsingCardBrowserSearchTools = useSearchTools
         addNotes(count = cardCount)
-        block(
-            CardBrowserSearchViewModel(
-                SavedStateHandle(),
-            ),
-        )
+        withViewModel(CardBrowserSearchViewModel(SavedStateHandle()), block)
     }
 }
 

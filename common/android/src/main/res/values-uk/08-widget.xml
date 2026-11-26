@@ -30,7 +30,7 @@
         <item quantity="many">%d карток залишилося</item>
         <item quantity="other">%d картки залишилося</item>
     </plurals>
-    <string name="widget_small" comment="Label of the small ankidroid widget. This text can\'t be found directly in AnkiDroid">Малий AnkiDroid</string>
+    <string name="widget_small" comment="Label of the small ankidroid widget. This text can\'t be found directly in AnkiDroid">Малий віджет AnkiDroid</string>
     <plurals name="widget_cards_due">
         <item quantity="one">%d картка в черзі</item>
         <item quantity="few">%d картки в черзі</item>
@@ -45,7 +45,7 @@
     </plurals>
     <string name="widget_add_note_button">Додати новий запис в AnkiDroid</string>
     <string name="deck_picker_widget_description" comment="Title of the Deck Picker Widget. Displayed to the user in Android\'s Widget Selection menu">Вибір колоди</string>
-    <string name="card_analysis_extra_widget_description">Аналіз карток</string>
+    <string name="card_analysis_extra_widget_description">Вивчення карток</string>
     <!-- Strings to explain usage in Deck Picker and Card Analysis Widget Configuration screen -->
     <string name="select_decks_title" comment="Title for Deck Selection Dialog">Виберіть колоди</string>
     <string name="select_deck_title" comment="Title for Deck Selection Dialog">Вибрати колоду</string>
@@ -60,4 +60,6 @@
     </plurals>
     <string name="empty_widget_state" comment="To denote the widget is empty">Відсутня колода. Натисніть, щоб переналаштувати.</string>
     <string name="empty_collection_state_in_widget" comment="To denote the collection is empty">Колекція порожня, скористайтеся застосунком, щоб додати колоди, а потім переналаштуйте</string>
+    <string name="empty_widget_state_short" comment="Shown instead of empty_widget_state (“Missing deck. Tap to reconfigure.”) when the widget is too small for it, so it must be shorter">Tap to pick a deck</string>
+    <string name="empty_collection_state_in_widget_short" comment="Shown instead of empty_collection_state_in_widget (“Collection is empty&#8230;”) when the widget is too small for it, so it must be shorter">No decks yet</string>
 </resources>

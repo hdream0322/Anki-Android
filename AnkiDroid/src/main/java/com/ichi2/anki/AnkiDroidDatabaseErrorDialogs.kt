@@ -2,8 +2,9 @@
 
 package com.ichi2.anki
 
+import android.app.Activity
 import android.content.Context
-import android.content.ContextWrapper
+import com.ichi2.anki.common.utils.ext.findActivity
 import com.ichi2.anki.dialogs.DatabaseErrorDialog
 import com.ichi2.anki.dialogs.DatabaseErrorDialog.DatabaseErrorDialogType
 import com.ichi2.anki.dialogs.DatabaseErrorDialogs
@@ -15,17 +16,18 @@ internal object AnkiDroidDatabaseErrorDialogs : DatabaseErrorDialogs {
         context: Context,
         exception: Exception,
     ) {
-        (context as? AnkiActivity)
-            ?.showDatabaseErrorDialog(
-                errorDialogType = DatabaseErrorDialogType.DIALOG_LOAD_FAILED,
-                exceptionData = DatabaseErrorDialog.CustomExceptionData.fromException(exception),
-            )
+        val exceptionData = DatabaseErrorDialog.CustomExceptionData.fromException(exception)
+        // TODO: move this decision into showDatabaseErrorDialogInDeckPicker without breaking #22931
+        when (context) {
+            is AnkiActivity -> context.showDatabaseErrorDialog(DatabaseErrorDialogType.DIALOG_LOAD_FAILED, exceptionData)
+            is Activity -> context.showDatabaseErrorDialogInDeckPicker(DatabaseErrorDialogType.DIALOG_LOAD_FAILED, exceptionData)
+        }
     }
 
-    override fun canConfirmDatabaseCheck(context: Context): Boolean = context.findAnkiActivity() != null
+    override fun canConfirmDatabaseCheck(context: Context): Boolean = context.findActivity<Activity>() != null
 
     override fun confirmDatabaseCheck(context: Context) {
-        context.findAnkiActivity()!!.showDatabaseErrorDialogInDeckPicker(
+        context.findActivity<Activity>()!!.showDatabaseErrorDialogInDeckPicker(
             errorDialogType = DatabaseErrorDialogType.DIALOG_CONFIRM_DATABASE_CHECK,
         )
     }
@@ -37,9 +39,4 @@ fun initializeDatabaseErrorDialogs() {
 }
 
 /** The dialog's [Context] is wrapped (e.g. ContextThemeWrapper); walk the chain to find the activity. */
-internal tailrec fun Context.findAnkiActivity(): AnkiActivity? =
-    when (this) {
-        is AnkiActivity -> this
-        is ContextWrapper -> baseContext.findAnkiActivity()
-        else -> null
-    }
+internal fun Context.findAnkiActivity(): AnkiActivity? = findActivity<AnkiActivity>()

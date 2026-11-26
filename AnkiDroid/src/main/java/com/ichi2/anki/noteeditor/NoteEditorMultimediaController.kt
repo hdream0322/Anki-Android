@@ -21,16 +21,20 @@ import com.ichi2.anki.exception.MediaSizeLimitExceededException
 import com.ichi2.anki.launchCatchingTask
 import com.ichi2.anki.multimedia.MultimediaActionHandler
 import com.ichi2.anki.multimedia.MultimediaActivityExtra
+import com.ichi2.anki.multimedia.MultimediaBottomSheet
 import com.ichi2.anki.multimedia.MultimediaResult
+import com.ichi2.anki.multimedia.MultimediaViewModel
 import com.ichi2.anki.multimediacard.fields.EFieldType
 import com.ichi2.anki.multimediacard.fields.IField
 import com.ichi2.anki.multimediacard.impl.MultimediaEditableNote
 import com.ichi2.anki.servicelayer.NoteService
 import com.ichi2.anki.snackbar.showSnackbar
+import com.ichi2.anki.withProgress
 import com.ichi2.utils.ContentResolverUtil
 import com.ichi2.utils.openInputStreamSafe
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.joinAll
 import timber.log.Timber
 import java.io.File
 
@@ -46,6 +50,8 @@ internal class NoteEditorMultimediaController(
 ) {
     private var actionJob: Job? = null
 
+    private val mediaImports = mutableListOf<Job>()
+
     private val galleryPicker =
         NoteEditorGalleryPicker(fragment) { fieldIndex, imageUri ->
             fragment.launchCatchingTask {
@@ -59,27 +65,32 @@ internal class NoteEditorMultimediaController(
     private var pastedImageCache: HashMap<String, String> = HashMap()
 
     /**
-     * Subscribes to the next [MultimediaActionHandler] emitted by the bottom sheet
+     * Subscribes to the next [MultimediaBottomSheet.MultimediaAction] emitted by the bottom sheet
      * and launches its capture screen against [fieldIndex]. Cancels any previously
      * pending subscription so rapid field switches don't stack.
+     *
+     * [MultimediaViewModel.multimediaAction] has no replay, so a choice emitted while nothing
+     * is subscribed is lost. The subscription must start before anything that can suspend,
+     * such as loading the note, which waits while the collection is busy (#23183).
+     * [launchCatchingTask] runs on `Dispatchers.Main.immediate`, so the subscription is
+     * already active when this returns.
      */
     fun handleActions(fieldIndex: Int) {
         actionJob?.cancel()
         actionJob =
             fragment.launchCatchingTask {
+                // Must come before loading the note, or a choice made while the collection is busy is lost.
+                val action = fragment.multimediaViewModel.multimediaAction.first()
+                Timber.i("Selected multimedia action: %s", action)
                 val note = fragment.getCurrentMultimediaEditableNote()
                 if (note.isEmpty) return@launchCatchingTask
 
-                fragment.multimediaViewModel.multimediaAction.first { action ->
-                    Timber.i("Selected multimedia action: %s", action)
-                    val handler = MultimediaActionHandler.forAction(action)
-                    if (handler == MultimediaActionHandler.ImageFile) {
-                        // An empty image editor would be exposed during the picker's back animation.
-                        galleryPicker.launch(fieldIndex)
-                    } else {
-                        launchEditor(handler, fieldIndex, note)
-                    }
-                    true
+                val handler = MultimediaActionHandler.forAction(action)
+                if (handler == MultimediaActionHandler.ImageFile) {
+                    // An empty image editor would be exposed during the picker's back animation.
+                    galleryPicker.launch(fieldIndex)
+                } else {
+                    launchEditor(handler, fieldIndex, note)
                 }
             }
     }
@@ -255,6 +266,12 @@ internal class NoteEditorMultimediaController(
         }
     }
 
+    suspend fun awaitMediaImports() {
+        val pendingImports = mediaImports.filter { it.isActive }
+        if (pendingImports.isEmpty()) return
+        fragment.withProgress { pendingImports.joinAll() }
+    }
+
     /**
      * Adds a media file to a specific field within the currently edited multimedia note.
      *
@@ -267,35 +284,37 @@ internal class NoteEditorMultimediaController(
         field: IField,
         skipSizeCheck: Boolean,
     ) {
-        fragment.launchCatchingTask {
-            try {
-                // Import field media before setting formattedValue so media paths
-                // reflect the checksum when names collide.
-                withCol {
-                    NoteService.importMediaToDirectory(this, field, skipSizeCheck = skipSizeCheck)
-                }
+        mediaImports.removeAll { it.isCompleted }
+        mediaImports +=
+            fragment.launchCatchingTask {
+                try {
+                    // Import field media before setting formattedValue so media paths
+                    // reflect the checksum when names collide.
+                    withCol {
+                        NoteService.importMediaToDirectory(this, field, skipSizeCheck = skipSizeCheck)
+                    }
 
-                val fieldEditText = fragment.editFieldAt(index) ?: return@launchCatchingTask
-                val formattedValue = field.formattedValue
-                // An empty media result must not replace selected text or mark the note changed.
-                if (field.type != EFieldType.TEXT && formattedValue.isNullOrEmpty()) return@launchCatchingTask
-                if (field.type === EFieldType.TEXT) {
-                    fieldEditText.setText(formattedValue)
-                } else if (fieldEditText.text != null) {
-                    fragment.insertStringInField(fieldEditText, formattedValue)
+                    val fieldEditText = fragment.editFieldAt(index) ?: return@launchCatchingTask
+                    val formattedValue = field.formattedValue
+                    // An empty media result must not replace selected text or mark the note changed.
+                    if (field.type != EFieldType.TEXT && formattedValue.isNullOrEmpty()) return@launchCatchingTask
+                    if (field.type === EFieldType.TEXT) {
+                        fieldEditText.setText(formattedValue)
+                    } else if (fieldEditText.text != null) {
+                        fragment.insertStringInField(fieldEditText, formattedValue)
+                    }
+                    fragment.markMultimediaChanged()
+                } catch (e: MediaSizeLimitExceededException) {
+                    fragment.showLargeMediaFileWarning(
+                        e.fileName,
+                        e.fileSize,
+                        onForceAdd = { performAddMedia(index, field, skipSizeCheck = true) },
+                    )
+                } catch (oomError: OutOfMemoryError) {
+                    // TODO: a 'retry' flow would be possible here
+                    throw Exception(oomError)
                 }
-                fragment.markMultimediaChanged()
-            } catch (e: MediaSizeLimitExceededException) {
-                fragment.showLargeMediaFileWarning(
-                    e.fileName,
-                    e.fileSize,
-                    onForceAdd = { performAddMedia(index, field, skipSizeCheck = true) },
-                )
-            } catch (oomError: OutOfMemoryError) {
-                // TODO: a 'retry' flow would be possible here
-                throw Exception(oomError)
             }
-        }
     }
 
     companion object {

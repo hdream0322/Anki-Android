@@ -7,6 +7,8 @@ import com.ichi2.anki.libanki.exception.InvalidSearchException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import net.ankiweb.rsdroid.BackendException
 import timber.log.Timber
@@ -23,18 +25,18 @@ import kotlin.coroutines.EmptyCoroutineContext
  * `Exception.localizedMessage` or `Exception.toString()`
  * @param block code to execute inside [launch]
  */
-fun CoroutineScope.launchCatching(
+fun <T> CoroutineScope.launchCatching(
     context: CoroutineContext = EmptyCoroutineContext,
     errorMessageHandler: suspend (String) -> Unit,
-    block: suspend CoroutineScope.() -> Unit,
+    block: suspend CoroutineScope.() -> T,
 ): Job =
     launch(context) {
         try {
-            block()
-        } catch (cancellationException: CancellationException) {
-            // CancellationException should be re-thrown to propagate it to the parent coroutine
-            throw cancellationException
+            // also catches failures of child coroutines
+            coroutineScope { block() }
         } catch (exception: Exception) {
+            // propagate our own cancellation; others are errors
+            if (exception is CancellationException) ensureActive()
             Timber.w(exception)
             val message =
                 when (exception) {

@@ -13,7 +13,6 @@ import android.content.SharedPreferences
 import android.content.res.Resources
 import android.database.DatabaseErrorHandler
 import android.database.sqlite.SQLiteDatabase
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.system.Os
@@ -24,7 +23,6 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ProcessLifecycleOwner
 import anki.collection.OpChanges
-import com.ichi2.anki.AnkiDroidApp.Companion.sharedPreferencesTestingOverride
 import com.ichi2.anki.analytics.initializeAnalytics
 import com.ichi2.anki.analytics.launchPreviousAnrReporting
 import com.ichi2.anki.browser.IdsFile
@@ -40,6 +38,7 @@ import com.ichi2.anki.common.appName
 import com.ichi2.anki.common.coroutines.applicationScope
 import com.ichi2.anki.common.crashreporting.CrashReportService.sendExceptionReport
 import com.ichi2.anki.common.permissions.hasLegacyStorageAccessPermission
+import com.ichi2.anki.common.preferences.SharedPreferencesTestHook
 import com.ichi2.anki.common.preferences.sharedPrefs
 import com.ichi2.anki.common.storage.CollectionHelper
 import com.ichi2.anki.common.storage.StorageDecision
@@ -73,12 +72,13 @@ import com.ichi2.anki.servicelayer.ThrowableFilterService
 import com.ichi2.anki.services.NotificationService
 import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.settings.PrefsRepository
+import com.ichi2.anki.startup.FatalInitializationError
+import com.ichi2.anki.startup.StartupErrors
 import com.ichi2.anki.startup.configureBackendTemporaryDirectory
 import com.ichi2.anki.startup.getDefaultAnkiDroidDirectory
 import com.ichi2.anki.startup.maybeSetDefaultCollectionPath
 import com.ichi2.anki.ui.dialogs.ActivityAgnosticDialogs
 import com.ichi2.anki.widget.RECURRING_WIDGETS
-import com.ichi2.utils.ExceptionUtil
 import com.ichi2.utils.LanguageUtil
 import com.ichi2.utils.measureTime
 import com.ichi2.utils.setWebContentsDebuggingEnabled
@@ -103,8 +103,7 @@ import java.util.Locale
 open class AnkiDroidApp :
     Application(),
     ChangeManager.Subscriber {
-    /** An exception if AnkiDroidApp fails to load  */
-    private var fatalInitializationError: FatalInitializationError? = null
+    private val startupErrors = StartupErrors()
 
     private var appLifecycleObserver: AppLifecycleObserver? = null
 
@@ -341,6 +340,7 @@ open class AnkiDroidApp :
             initializeNavigator()
             initializeWidgetRepository()
             initializeDatabaseErrorDialogs()
+            initializeActivitySetup()
             WidgetNotificationScheduler.register { scheduleNotification() }
             WidgetStatus.register(Prefs) { context -> AnkiDroidWidgetSmall.UpdateService().doUpdate(context) }
             Animations.setPreferencesProvider { context -> PrefsRepository(context) }
@@ -419,7 +419,7 @@ open class AnkiDroidApp :
      * Manually initializes the collection directory and `.nomedia` if
      * [hasLegacyStorageAccessPermission] is set
      *
-     * On failure, sets [fatalInitializationError] to [storageError][FatalInitializationError.StorageError]
+     * On failure, records a [storage error][FatalInitializationError.StorageError] in [startupErrors].
      *
      * In most cases the Anki Backend now creates the collection and [initializeAnkiDroidDirectory]
      *  is called on startup of the activity.
@@ -441,7 +441,7 @@ open class AnkiDroidApp :
                     }
                     CollectionHelper.getCurrentAnkiDroidDirectory(this)
                 } catch (e: SystemStorageException) {
-                    fatalInitializationError = FatalInitializationError.StorageError(e)
+                    startupErrors.recordFatalError(FatalInitializationError.StorageError(e))
                     return@setup
                 }
 
@@ -464,7 +464,7 @@ open class AnkiDroidApp :
                     // The user can't write to the AnkiDroid directory (=> cant write to the collection)
                     // AND getExternalFilesDir is null - file permissions are likely corrupted (Android 16 bug)
                     // => show the 'fatal storage error' screen
-                    fatalInitializationError = FatalInitializationError.StorageError(e)
+                    startupErrors.recordFatalError(FatalInitializationError.StorageError(e))
                 }
             }
         }
@@ -676,7 +676,7 @@ open class AnkiDroidApp :
             // 5794: Errors occur if the WebView fails to load
             // android.webkit.WebViewFactory.MissingWebViewPackageException.MissingWebViewPackageException
             // Error may be excessive, but I expect a UnsatisfiedLinkError to be possible here.
-            fatalInitializationError = FatalInitializationError.WebViewError(e)
+            startupErrors.recordFatalError(FatalInitializationError.WebViewError(e))
             sendExceptionReport(e, "checkWebViewAvailable")
             Timber.e(e, "checkWebViewAvailable")
             false
@@ -720,7 +720,7 @@ open class AnkiDroidApp :
         /**
          * A [SharedPreferencesProvider] which does not require [onCreate] when run from tests
          *
-         * @see sharedPreferencesTestingOverride
+         * @see SharedPreferencesTestHook
          */
         val sharedPreferencesProvider get() = SharedPreferencesProvider { sharedPrefs() }
 
@@ -735,16 +735,7 @@ open class AnkiDroidApp :
         lateinit var instance: AnkiDroidApp
             private set
 
-        /**
-         * An override for Shared Preferences to use for unit tests
-         *
-         * This does not depend on an instance of AnkiDroidApp and therefore has no Android
-         * implementations
-         */
-        @VisibleForTesting
-        var sharedPreferencesTestingOverride: SharedPreferences? = null
-
-        /** Resource counterpart to [sharedPreferencesTestingOverride], scoped by JVM test rules. */
+        /** Resource counterpart to [SharedPreferencesTestHook], scoped by JVM test rules. */
         @VisibleForTesting
         var resourcesTestingOverride: Resources? = null
 
@@ -754,14 +745,14 @@ open class AnkiDroidApp :
          * In tests, this can avoid an instance of `AnkiDroidApp`, which is slow
          * This was added to avoid code churn
          */
-        fun sharedPrefs() = sharedPreferencesTestingOverride ?: instance.sharedPrefs()
+        fun sharedPrefs() = SharedPreferencesTestHook.override ?: instance.sharedPrefs()
 
         /**
          * [sharedPrefs], or `null` if unavailable: [instance] is not initialized when running
          * under a test-only [Application] (e.g. `EmptyApplication`) or in pure JVM tests
          */
         fun sharedPrefsOrNull(): SharedPreferences? =
-            sharedPreferencesTestingOverride ?: if (isInitialized) instance.sharedPrefs() else null
+            SharedPreferencesTestHook.override ?: if (isInitialized) instance.sharedPrefs() else null
 
         fun wrapForActiveProfile(base: Context): Context = (base.applicationContext as? AnkiDroidApp)?.profileManager?.wrap(base) ?: base
 
@@ -822,11 +813,6 @@ open class AnkiDroidApp :
             return Intent(Intent.ACTION_VIEW, parsed)
         } // TODO actually this can be done by translating "link_help" string for each language when the App is
 
-        @VisibleForTesting
-        fun clearFatalError() {
-            this.instance.fatalInitializationError = null
-        }
-
         /**
          * Get the url for the properly translated feedback page
          * @return
@@ -849,36 +835,8 @@ open class AnkiDroidApp :
                     else -> appResources.getString(R.string.link_manual)
                 }
 
-        /** (optional) set if an unrecoverable error occurs during Application startup */
-        val fatalError: FatalInitializationError?
-            get() = instance.fatalInitializationError
+        /** Errors recorded during application startup. */
+        internal val startupErrors: StartupErrors
+            get() = instance.startupErrors
     }
-}
-
-/**
- * Types of unrecoverable errors which we want to inform the user of
- */
-sealed class FatalInitializationError {
-    data class WebViewError(
-        val error: Throwable,
-    ) : FatalInitializationError()
-
-    data class StorageError(
-        val error: SystemStorageException,
-    ) : FatalInitializationError()
-
-    /** Advanced/developer-facing string representing the error */
-    val errorDetail: String
-        get() =
-            when (this) {
-                is WebViewError -> ExceptionUtil.getExceptionMessage(error)
-                is StorageError -> error.message
-            }
-
-    val infoLink: Uri?
-        get() =
-            when (this) {
-                is WebViewError -> null
-                is StorageError -> error.infoUri?.toUri()
-            }
 }

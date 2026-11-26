@@ -6,13 +6,29 @@ package com.ichi2.anki.shareddeck
 
 import android.text.format.DateUtils
 import android.text.format.Formatter
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.SpringSpec
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalGridApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Grid
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -42,11 +58,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -56,6 +74,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.Hyphens
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
@@ -72,6 +91,23 @@ private val MaxContentWidth = 600.dp
 private val ProgressRingSize = 240.dp
 private val ProgressRingStroke = 10.dp
 private val InfoBadgeSize = 28.dp
+private val ProgressAnimationSpec =
+    SpringSpec(
+        dampingRatio = Spring.DampingRatioLowBouncy,
+        stiffness = Spring.StiffnessMediumLow,
+        visibilityThreshold = 1 / 1000f,
+    )
+private val PercentTextAnimationSpec =
+    SpringSpec(
+        dampingRatio = Spring.DampingRatioNoBouncy,
+        stiffness = Spring.StiffnessMediumLow,
+        visibilityThreshold = 1 / 1000f,
+    )
+private const val RING_ENTER_MILLIS = 300
+private const val RING_ENTER_DELAY_MILLIS = 100
+private const val RING_EXIT_MILLIS = 150
+private const val RING_ENTER_INITIAL_SCALE = 0.92f
+private const val RING_EXIT_TARGET_SCALE = 0.8f
 
 /** Stateless download screen. State lives in [SharedDecksDownloadViewModel]. */
 @Composable
@@ -81,6 +117,7 @@ fun SharedDecksDownloadScreen(
     onImportClick: () -> Unit,
     onTryAgainClick: () -> Unit,
     onOpenInBrowserClick: () -> Unit,
+    animationsEnabled: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val insets = WindowInsets.systemBars.union(WindowInsets.displayCutout)
@@ -88,6 +125,7 @@ fun SharedDecksDownloadScreen(
         modifier =
             modifier
                 .fillMaxSize()
+                .pointerInput(Unit) {}
                 .windowInsetsPadding(insets.only(WindowInsetsSides.Top))
                 .background(MaterialTheme.colorScheme.background)
                 .windowInsetsPadding(insets.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)),
@@ -105,6 +143,7 @@ fun SharedDecksDownloadScreen(
             Spacer(Modifier.weight(1f))
             ProgressRing(
                 state = state,
+                animationsEnabled = animationsEnabled,
                 modifier = Modifier.padding(vertical = MaterialTheme.dimensions.screenEdge),
             )
             Spacer(Modifier.weight(1f))
@@ -134,11 +173,67 @@ private fun Header(fileName: String?) {
     )
 }
 
-/** Progress ring with the percentage and size in the middle. */
+/** A spinning ring until the first bytes arrive, then the ring with the progress in it. */
 @Composable
 private fun ProgressRing(
     state: SharedDecksDownloadUiState,
+    animationsEnabled: Boolean,
     modifier: Modifier = Modifier,
+) {
+    val targetProgress = ((state.percent ?: 0f) / 100f).coerceIn(0f, 1f)
+    val progressSpec: AnimationSpec<Float> = if (animationsEnabled) ProgressAnimationSpec else snap()
+    val percentSpec: AnimationSpec<Float> = if (animationsEnabled) PercentTextAnimationSpec else snap()
+    val animatedProgress by animateFloatAsState(
+        targetValue = targetProgress,
+        animationSpec = progressSpec,
+        label = "DownloadProgress",
+    )
+    val animatedPercent by animateFloatAsState(
+        targetValue = targetProgress * 100f,
+        animationSpec = percentSpec,
+        label = "DownloadPercentText",
+    )
+
+    AnimatedContent(
+        targetState = state,
+        modifier = modifier.fillMaxWidth(),
+        transitionSpec = {
+            if (animationsEnabled) {
+                val enter =
+                    fadeIn(tween(RING_ENTER_MILLIS, RING_ENTER_DELAY_MILLIS)) +
+                        scaleIn(tween(RING_ENTER_MILLIS, RING_ENTER_DELAY_MILLIS), initialScale = RING_ENTER_INITIAL_SCALE)
+                val exit =
+                    fadeOut(tween(RING_EXIT_MILLIS)) +
+                        scaleOut(tween(RING_EXIT_MILLIS), targetScale = RING_EXIT_TARGET_SCALE)
+                enter togetherWith exit
+            } else {
+                EnterTransition.None togetherWith ExitTransition.None
+            }
+        },
+        contentAlignment = Alignment.Center,
+        label = "DownloadRingContent",
+        contentKey = { it.isWaitingToStart },
+    ) { shownState ->
+        RingWithProgress(
+            state = shownState,
+            spinWhileWaiting = animationsEnabled && !shownState.isWaitingForNetwork,
+            progress = { animatedProgress },
+            percent = { animatedPercent },
+        )
+    }
+}
+
+/**
+ * Progress ring with the percentage and size in the middle.
+ *
+ * @param spinWhileWaiting whether the ring spins before the first bytes arrive, rather than sitting empty
+ */
+@Composable
+private fun RingWithProgress(
+    state: SharedDecksDownloadUiState,
+    spinWhileWaiting: Boolean,
+    progress: () -> Float,
+    percent: () -> Float,
 ) {
     val border = MaterialTheme.widgetBorder
     val colors = MaterialTheme.colorScheme
@@ -156,9 +251,9 @@ private fun ProgressRing(
                 )
             }
         }
-    Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        val percent = state.percent
-        if (percent == null) {
+
+    Box(contentAlignment = Alignment.Center) {
+        if (state.percent == null || (state.isWaitingToStart && spinWhileWaiting)) {
             CircularProgressIndicator(
                 modifier = indicatorModifier,
                 strokeWidth = ProgressRingStroke,
@@ -166,7 +261,7 @@ private fun ProgressRing(
             )
         } else {
             CircularProgressIndicator(
-                progress = { (percent / 100f).coerceIn(0f, 1f) },
+                progress = progress,
                 modifier = indicatorModifier,
                 strokeWidth = ProgressRingStroke,
                 trackColor = trackColor,
@@ -175,9 +270,10 @@ private fun ProgressRing(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             when {
                 state.phase == DownloadPhase.Failed -> RingLabel(stringResource(CommonString.download_failed))
-                percent == null -> RingLabel(TR.syncDownloadingFromAnkiweb())
+                state.percent == null -> RingLabel(TR.syncDownloadingFromAnkiweb())
+                state.isWaitingToStart -> Unit
                 else -> {
-                    PercentageText(percent)
+                    PercentageText(percent())
                     downloadSizeText(state.downloadedBytes, state.totalBytes)?.let {
                         Text(
                             text = it,
@@ -208,8 +304,8 @@ private fun RingLabel(text: String) {
 /** The percentage in the ring, with a smaller % sign. */
 @Composable
 private fun PercentageText(percent: Float) {
-    val text = stringResource(CommonString.percentage, formatDownloadPercent(percent))
     val style = MaterialTheme.typography.displayLarge
+    val text = stringResource(CommonString.percentage, formatDownloadPercent(percent))
     val sign = text.indexOf('%')
     Text(
         text =
@@ -237,26 +333,31 @@ private fun downloadSizeText(
     return stringResource(CommonString.progress_amount_bytes, downloaded, Formatter.formatFileSize(context, totalBytes))
 }
 
-/** Speed and time left, side by side. */
+/** Speed and time left, side by side with equal widths and matching heights. */
+@OptIn(ExperimentalGridApi::class)
 @Composable
 private fun StatCards(state: SharedDecksDownloadUiState) {
     val dimensions = MaterialTheme.dimensions
-    Row(
+    Grid(
+        config = {
+            column(minmax(0.dp, 1.fr))
+            column(minmax(0.dp, 1.fr))
+            columnGap(dimensions.space150)
+        },
         modifier =
             Modifier
                 .fillMaxWidth()
                 .padding(start = dimensions.screenEdge, end = dimensions.screenEdge, bottom = dimensions.space150),
-        horizontalArrangement = Arrangement.spacedBy(dimensions.space150),
     ) {
         StatCard(
             label = stringResource(CommonString.download_speed_label),
             value = speedText(state.speedBytesPerSecond, state.downloadedBytes),
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.fillMaxSize(),
         )
         StatCard(
             label = stringResource(CommonString.download_time_left_label),
             value = timeLeftText(state.secondsRemaining),
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.fillMaxSize(),
         )
     }
 }
@@ -272,7 +373,7 @@ private fun StatCard(
         Column(modifier = Modifier.padding(MaterialTheme.dimensions.sectionGap)) {
             Text(
                 text = label.uppercase(),
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelMedium.copy(hyphens = Hyphens.Auto),
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -400,6 +501,8 @@ private fun Actions(
     onOpenInBrowserClick: () -> Unit,
 ) {
     val dimensions = MaterialTheme.dimensions
+    val border = MaterialTheme.widgetBorder
+    val colors = MaterialTheme.colorScheme
     FlowRow(
         modifier =
             Modifier
@@ -413,10 +516,11 @@ private fun Actions(
             DownloadPhase.Downloading, DownloadPhase.LoginRequired ->
                 FilledTonalButton(
                     onClick = onCancelClick,
+                    border = border,
                     colors =
                         ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                            containerColor = if (border != null) colors.surface else colors.errorContainer,
+                            contentColor = if (border != null) colors.onSurface else colors.onErrorContainer,
                         ),
                 ) {
                     Text(stringResource(CommonString.cancel_download))
@@ -426,7 +530,10 @@ private fun Actions(
                     Text(stringResource(CommonString.import_deck))
                 }
             DownloadPhase.Failed -> {
-                FilledTonalButton(onClick = onTryAgainClick) {
+                FilledTonalButton(
+                    onClick = onTryAgainClick,
+                    border = border,
+                ) {
                     Text(stringResource(CommonString.try_again))
                 }
                 TextButton(onClick = onOpenInBrowserClick) {
@@ -450,6 +557,7 @@ private class DownloadStateProvider : PreviewParameterProvider<SharedDecksDownlo
 
     override val values =
         sequenceOf(
+            SharedDecksDownloadUiState(fileName = downloading.fileName),
             downloading,
             downloading.copy(isWaitingForNetwork = true),
             downloading.copy(phase = DownloadPhase.Complete, percent = 100f, downloadedBytes = 44_900_000),
@@ -469,6 +577,7 @@ private fun SharedDecksDownloadScreenPreview(
             onImportClick = {},
             onTryAgainClick = {},
             onOpenInBrowserClick = {},
+            animationsEnabled = true,
         )
     }
 }

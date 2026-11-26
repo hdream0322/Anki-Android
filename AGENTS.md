@@ -1,5 +1,4 @@
-## Refactoring Scope
-- Constrain scope tightly: do not modify unrelated files, themes, or settings 'while you're in there'.
-
-## Verification
-- For bug fixes, write the failing regression test FIRST and confirm it fails before applying the fix.
+- Follow the repository's [AI policy](AI_POLICY.md).
+- Keep changes focused on the requested task. Avoid unrelated refactors, formatting, and settings changes.
+- Keep branch history linear. Do not create merge commits.
+- For bug fixes, write a regression test that fails for the expected reason before the fix, then confirm it passes with the fix.

@@ -168,6 +168,7 @@ import com.ichi2.anki.utils.bottomCornerSideClearance
 import com.ichi2.anki.utils.doOnApplyWindowInsets
 import com.ichi2.anki.utils.ext.getLongOrNull
 import com.ichi2.anki.utils.ext.requireLong
+import com.ichi2.anki.utils.ext.setSupportActionBarText
 import com.ichi2.anki.utils.ext.sharedPrefs
 import com.ichi2.anki.utils.ext.showDialogFragment
 import com.ichi2.anki.utils.insetsOf
@@ -193,6 +194,7 @@ import com.ichi2.utils.positiveButton
 import com.ichi2.utils.show
 import com.ichi2.utils.title
 import dev.androidbroadcast.vbpd.viewBinding
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import net.ankiweb.rsdroid.Backend
 import org.json.JSONArray
@@ -203,6 +205,7 @@ import java.util.Locale
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import com.google.android.material.R as MaterialR
 import com.ichi2.anki.common.android.R as CommonR
 import com.ichi2.anki.noteeditor.R as NoteEditorR
 
@@ -236,6 +239,7 @@ class NoteEditorFragment :
     private var isTagsEdited = false
     private var isFieldEdited = false
     private var addNoteJob = RunOnlyOnce(scope = lifecycleScope)
+    private var saveNoteJob: Job? = null
 
     /**
      * The field values of a new note immediately after they were last (re)populated -
@@ -315,10 +319,10 @@ class NoteEditorFragment :
 
     private var delegate: NoteEditorFragmentDelegate? = null
     private val inNoteEditorActivity: Boolean
-        get() = requireAnkiActivity() is NoteEditorActivity
+        get() = requireActivity() is NoteEditorActivity
 
     private val noteEditorActivity
-        get() = requireAnkiActivity() as? NoteEditorActivity
+        get() = requireActivity() as? NoteEditorActivity
 
     // List of affected cards (siblings) when editing notes.
     private val cardIdsFromArguments: LongArray?
@@ -587,7 +591,7 @@ class NoteEditorFragment :
                     0,
                 ),
             )
-            setIconColor(MaterialColors.getColor(requireContext(), CommonR.attr.toolbarIconColor, 0))
+            setIconColor(MaterialColors.getColor(requireContext(), MaterialR.attr.colorOnSurface, 0))
         }
         toolbarLayoutDialog.bind(binding.toolbarLayoutDialog, toolbarPreferences, savedInstanceState, ::updateToolbar)
         setupEdgeToEdge()
@@ -823,7 +827,7 @@ class NoteEditorFragment :
         )
         if (addNote) {
             noteTypeSpinner!!.onItemSelectedListener = SetNoteTypeListener()
-            requireAnkiActivity().setToolbarText(titleRes = CommonString.menu_add)
+            setSupportActionBarText(getString(CommonString.menu_add))
             // set information transferred by intent
             var contents: String? = null
             val tags = requireArguments().getStringArray(EXTRA_TAGS)
@@ -880,7 +884,7 @@ class NoteEditorFragment :
                 reloadRequired = true
                 closeNoteEditorAfterSave()
             }
-            requireAnkiActivity().setTitle(CommonString.cardeditor_title_edit_card)
+            requireActivity().setTitle(CommonString.cardeditor_title_edit_card)
         }
         requireView().findViewById<View>(R.id.CardEditorTagButton).setOnClickListener {
             Timber.i("NoteEditor:: Tags button pressed... opening tags editor")
@@ -1042,7 +1046,7 @@ class NoteEditorFragment :
                 if (event.isCtrlPressed) {
                     // disable it in case of image occlusion
                     if (allowSaveAction()) {
-                        launchCatchingTask { saveNote() }
+                        launchSaveNote()
                         return true
                     }
                 }
@@ -1318,10 +1322,19 @@ class NoteEditorFragment :
         onNoteAdded(changes.count)
     }
 
+    private fun launchSaveNote() {
+        if (saveNoteJob?.isActive == true) {
+            Timber.i("NoteEditor:: ignoring save, a save is already running")
+            return
+        }
+        saveNoteJob = launchCatchingTask { saveNote() }
+    }
+
     @VisibleForTesting
     @NeedsTest("14664: 'first field must not be empty' no longer applies after saving the note")
     @KotlinCleanup("fix !! on oldNoteType/newNoteType")
     suspend fun saveNote() {
+        multimediaController.awaitMediaImports()
         if (selectedTags == null) {
             selectedTags = ArrayList(0)
         }
@@ -1584,7 +1597,7 @@ class NoteEditorFragment :
             R.id.action_save -> {
                 Timber.i("NoteEditor:: Save note button pressed")
                 if (allowSaveAction()) {
-                    launchCatchingTask { saveNote() }
+                    launchSaveNote()
                 }
                 return true
             }
@@ -1955,7 +1968,7 @@ class NoteEditorFragment :
                 }
             }
             previous = editLineView
-            editLineView.enableAnimation = requireAnkiActivity().animationEnabled()
+            editLineView.enableAnimation = requireActivity().animationEnabled()
 
             // Use custom implementation of ActionMode.Callback customize selection and insert menus
             editLineView.setActionModeCallbacks(getActionModeCallback(newEditText, View.generateViewId()))
@@ -2289,7 +2302,7 @@ class NoteEditorFragment :
     ) {
         val drawable =
             ResourcesCompat.getDrawable(resources, drawableRes, null)!!.apply {
-                setTint(MaterialColors.getColor(requireContext(), CommonR.attr.toolbarIconColor, 0))
+                setTint(MaterialColors.getColor(requireContext(), MaterialR.attr.colorOnSurface, 0))
             }
         val button =
             toolbar.insertItem(0, drawable) { insertCloze(type) }.apply {
@@ -2388,7 +2401,7 @@ class NoteEditorFragment :
         // Let the user add more buttons (always at the end).
         // Sets the add custom tag icon color.
         val drawable = ResourcesCompat.getDrawable(resources, NoteEditorR.drawable.ic_add_toolbar_icon, null)
-        drawable!!.setTint(MaterialColors.getColor(requireContext(), CommonR.attr.toolbarIconColor, 0))
+        drawable!!.setTint(MaterialColors.getColor(requireContext(), MaterialR.attr.colorOnSurface, 0))
         val addButton = toolbar.insertItem(0, drawable) { displayAddToolbarDialog() }
         addButton.contentDescription = resources.getString(CommonString.add_toolbar_item)
         addButton.setTooltipTextCompat(resources.getString(CommonString.add_toolbar_item))

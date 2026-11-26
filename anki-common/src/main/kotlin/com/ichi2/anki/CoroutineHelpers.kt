@@ -61,10 +61,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import net.ankiweb.rsdroid.Backend
@@ -74,9 +76,13 @@ import net.ankiweb.rsdroid.BackendException.BackendDbException.BackendDbCorruptE
 import net.ankiweb.rsdroid.exceptions.BackendInterruptedException
 import net.ankiweb.rsdroid.exceptions.BackendInvalidInputException
 import net.ankiweb.rsdroid.exceptions.BackendNetworkException
+import net.ankiweb.rsdroid.exceptions.BackendNotFoundException
 import net.ankiweb.rsdroid.exceptions.BackendSyncException
 import org.jetbrains.annotations.VisibleForTesting
 import timber.log.Timber
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
+import kotlin.coroutines.resume
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -92,27 +98,31 @@ var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 var throwOnShowError = false
 
 interface OnErrorListener {
-    val onError: MutableSharedFlow<String>
+    val onError: Channel<Exception>
 }
 
-fun <T, U> T.launchCatchingIO(block: suspend T.() -> U): Job where T : ViewModel, T : OnErrorListener =
-    viewModelScope.launchCatching(
-        ioDispatcher,
-        {
-            onError.emit(it)
-            if (throwOnShowError) throw IllegalStateException("throwOnShowError: $it")
-        },
-        { block() },
-    )
+fun <T, U> T.launchCatchingIO(block: suspend T.() -> U): Job where T : ViewModel, T : OnErrorListener = launchCatching(ioDispatcher, block)
 
-fun <T> T.launchCatchingIO(
+fun <T, U> T.launchCatching(
+    context: CoroutineContext = EmptyCoroutineContext,
+    block: suspend T.() -> U,
+): Job where T : ViewModel, T : OnErrorListener =
+    viewModelScope.launch(context) {
+        try {
+            block()
+        } catch (e: Exception) {
+            // propagate our own cancellation; others are errors
+            if (e is CancellationException) ensureActive()
+            Timber.w(e)
+            onError.send(e)
+            if (throwOnShowError) throw IllegalStateException("throwOnShowError: $e", e)
+        }
+    }
+
+fun <T> ViewModel.launchCatchingIO(
     errorMessageHandler: suspend (String) -> Unit,
-    block: suspend CoroutineScope.() -> Unit,
-): Job where T : ViewModel =
-    viewModelScope.launchCatching(
-        ioDispatcher,
-        errorMessageHandler,
-    ) { block() }
+    block: suspend CoroutineScope.() -> T,
+): Job = viewModelScope.launchCatching(ioDispatcher, errorMessageHandler, block)
 
 fun <T> CoroutineScope.asyncIO(block: suspend CoroutineScope.() -> T): Deferred<T> = async(ioDispatcher, block = block)
 
@@ -330,6 +340,28 @@ fun Context.showError(
     message: CharSequence,
     crashReportData: CrashReportData?,
 ) {
+    showErrorDialog(message, crashReportData, onDismiss = null)
+}
+
+/** [showError], returning once the dialog is dismissed. Cancelling the caller dismisses it. */
+suspend fun Context.showErrorAndAwaitDismissal(
+    message: CharSequence,
+    crashReportData: CrashReportData?,
+): Unit =
+    suspendCancellableCoroutine { continuation ->
+        val dialog = showErrorDialog(message, crashReportData, onDismiss = { continuation.resume(Unit) })
+        continuation.invokeOnCancellation { dialog?.dismiss() }
+    }
+
+/**
+ * @param onDismiss called when the dialog is dismissed, or immediately if it can't be displayed
+ * @return the displayed dialog, or `null` if it can't be displayed
+ */
+private fun Context.showErrorDialog(
+    message: CharSequence,
+    crashReportData: CrashReportData?,
+    onDismiss: (() -> Unit)?,
+): AlertDialog? {
     crashReportData.throwIfDialogUnusable(message.toString())
 
     Timber.i("Error dialog displayed")
@@ -337,23 +369,25 @@ fun Context.showError(
     val helpAction = crashReportData?.helpAction?.takeIf { it.canExecute(this) }
 
     try {
-        AlertDialog
+        return AlertDialog
             .Builder(this)
             .create {
                 title(CommonString.vague_error)
                 message(text = message)
                 positiveButton(CommonString.dialog_ok)
-                helpAction?.let { neutralButton(text = it.buttonText(this@showError)) }
-                if (crashReportData?.reportableException == true) {
-                    Timber.w("sending crash report on close")
-                    setOnDismissListener { crashReportData.sendCrashReport() }
+                helpAction?.let { neutralButton(text = it.buttonText(this@showErrorDialog)) }
+                val reportOnDismiss = crashReportData?.takeIf { it.reportableException }
+                if (reportOnDismiss != null) Timber.w("sending crash report on close")
+                setOnDismissListener {
+                    reportOnDismiss?.sendCrashReport()
+                    onDismiss?.invoke()
                 }
             }.apply {
                 // setup the help link. Link is non-null if neutralButton exists.
                 setOnShowListener {
                     neutralButton?.setOnClickListener {
                         lifecycle.coroutineScope.launch {
-                            if (helpAction!!.execute(this@showError)) dismiss()
+                            if (helpAction!!.execute(this@showErrorDialog)) dismiss()
                         }
                     }
                 }
@@ -364,6 +398,8 @@ fun Context.showError(
         // issue 12718: activity provided by `context` was not running
         Timber.w(ex, "unable to display error dialog")
         crashReportData?.sendCrashReport()
+        onDismiss?.invoke()
+        return null
     }
 }
 
@@ -714,6 +750,7 @@ data class CrashReportData(
 
     fun shouldReportException(): Boolean {
         if (!reportableException) return false
+        if (exception is BackendNotFoundException) return false
         if (exception.isInvalidFsrsParametersException()) return false
         if (exception.isDeckNotFoundInLimitsMapException()) return false
         if (exception is BackendInvalidInputException && exception.message == "missing template") return false
@@ -809,6 +846,7 @@ data class CrashReportData(
                 if (e is CollectionLockedException) return OpenAdvancedSettings
                 if (e.isInvalidFsrsParametersException()) return OpenDeckOptions
                 if (e.isDeckNotFoundInLimitsMapException()) return OpenCheckDatabase
+                if (e is BackendNotFoundException) return OpenCheckDatabase
 
                 return null
             }

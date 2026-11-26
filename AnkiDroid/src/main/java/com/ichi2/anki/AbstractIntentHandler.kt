@@ -5,6 +5,7 @@ package com.ichi2.anki
 
 import android.app.Activity
 import android.content.Context
+import android.content.res.Configuration
 import android.os.Bundle
 import com.ichi2.anki.common.android.themes.disableXiaomiForceDarkMode
 import com.ichi2.anki.workarounds.AppLoadedFromBackupWorkaround.showedActivityFailedScreen
@@ -19,11 +20,25 @@ abstract class AbstractIntentHandler : Activity() {
     protected fun showedActivityFailedScreen(savedInstanceState: Bundle?) =
         showedActivityFailedScreen(
             savedInstanceState = savedInstanceState,
-            activitySuperOnCreate = { state -> super.onCreate(state) },
+            activitySuperOnCreate = { state ->
+                // fixes: java.lang.IllegalStateException: You need to use a Theme.AppCompat theme (or descendant) with this activity.
+                // on Importer
+                Themes.setTheme(this, state)
+                super.onCreate(state)
+            },
         )
 
     override fun attachBaseContext(newBase: Context) {
-        super.attachBaseContext(AnkiDroidApp.wrapForActiveProfile(newBase))
+        val base = AnkiDroidApp.wrapForActiveProfile(newBase)
+        Themes.updateCurrentTheme(base)
+        super.attachBaseContext(base)
+        val nightMode = if (Themes.isNightTheme) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO
+        applyOverrideConfiguration(
+            Configuration().apply {
+                fontScale = 0f
+                uiMode = nightMode
+            },
+        )
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

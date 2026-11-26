@@ -101,11 +101,9 @@ import com.ichi2.anki.libanki.CardId
 import com.ichi2.anki.libanki.Collection
 import com.ichi2.anki.libanki.DeckId
 import com.ichi2.anki.libanki.QueueType
-import com.ichi2.anki.libanki.redoAvailable
 import com.ichi2.anki.libanki.redoLabel
 import com.ichi2.anki.libanki.sched.Counts
 import com.ichi2.anki.libanki.sched.CurrentQueueState
-import com.ichi2.anki.libanki.undoAvailable
 import com.ichi2.anki.libanki.undoLabel
 import com.ichi2.anki.multimedia.audio.AudioRecordingController
 import com.ichi2.anki.multimedia.audio.AudioRecordingController.Companion.generateTempAudioFile
@@ -1393,12 +1391,13 @@ open class Reviewer :
         @DrawableRes val undoIconId: Int
         val undoEnabled: Boolean
         val whiteboardIsShownAndHasStrokes = showWhiteboard && whiteboard?.undoEmpty() == false
+        val undoStatus = if (colIsOpenUnsafe()) getColUnsafe.undoStatus() else null
         if (whiteboardIsShownAndHasStrokes) {
             undoIconId = R.drawable.ic_arrow_u_left_top
             undoEnabled = true
         } else {
             undoIconId = R.drawable.ic_undo_white
-            undoEnabled = colIsOpenUnsafe() && getColUnsafe.undoAvailable()
+            undoEnabled = undoStatus?.undoAvailable == true
             this.isEraserMode = false
         }
         val alphaUndo = Themes.ALPHA_ICON_ENABLED_LIGHT
@@ -1407,7 +1406,7 @@ open class Reviewer :
         undoIcon.setEnabled(undoEnabled).iconAlpha = alphaUndo
         undoIcon.actionView!!.isEnabled = undoEnabled
         val toggleEraserIcon = menu.findItem((R.id.action_toggle_eraser))
-        if (colIsOpenUnsafe()) { // Required mostly because there are tests where `col` is null
+        if (undoStatus != null) { // Required mostly because there are tests where `col` is null
             if (whiteboardIsShownAndHasStrokes) {
                 // Make Undo action title to whiteboard Undo specific one
                 undoIcon.title = resources.getString(CommonString.undo_action_whiteboard_last_stroke)
@@ -1421,7 +1420,7 @@ open class Reviewer :
                 isEraserMode = false
                 whiteboard?.reviewerEraserModeIsToggledOn = isEraserMode
 
-                if (getColUnsafe.undoAvailable()) {
+                if (undoStatus.undoAvailable) {
                     // set the undo title to a named action ('Undo Answer Card' etc...)
                     undoIcon.title = getColUnsafe.undoLabel()
                 } else {
@@ -1439,7 +1438,7 @@ open class Reviewer :
             }
 
             menu.findItem(R.id.action_redo)?.apply {
-                if (getColUnsafe.redoAvailable()) {
+                if (undoStatus.redoAvailable) {
                     title = getColUnsafe.redoLabel()
                     iconAlpha = Themes.ALPHA_ICON_ENABLED_LIGHT
                     isEnabled = true
